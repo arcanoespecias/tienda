@@ -1,34 +1,33 @@
-const CACHE = 'arcano-v3';
-const ASSETS = [
-  '/especias/',
-  '/especias/index.html',
-  '/especias/css/style.css',
-  '/especias/js/db.js',
-  '/especias/js/github-sync.js',
-  '/especias/js/modules1.js',
-  '/especias/js/modules2.js',
-  '/especias/manifest.json',
-  'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap',
-];
+// Arcano Service Worker v5 — PASSTHROUGH SIN CACHE
+// No cachea NADA. Todos los requests van directo a la red.
+// Esto garantiza que siempre se ejecuta el codigo mas reciente.
+// El SW existe solo para que la PWA sea instalable.
 
 self.addEventListener('install', e => {
+  // Borrar todas las caches viejas al instalar
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.keys().then(keys =>
+      Promise.all(keys.map(k => caches.delete(k)))
+    ).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      Promise.all(keys.map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
 
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// PASSTHROUGH: no interceptar nada, dejar que el navegador maneje todo
 self.addEventListener('fetch', e => {
-  // Solo interceptar requests del mismo origen (no APIs externas como GitHub)
-  if (!e.request.url.startsWith(self.location.origin)) return;
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => caches.match('/especias/')))
-  );
+  // No llamamos e.respondWith() → el request se maneja normalmente
+  // Esto significa: sin cache, siempre red fresca
 });

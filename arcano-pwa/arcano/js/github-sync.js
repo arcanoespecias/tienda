@@ -156,6 +156,17 @@ async function ghPull() {
       saveGhConfig(remoteDB._ghConfig);
     }
     syncIdCounter(remoteDB);
+
+    // Actualizar la referencia del usuario actual si el rol cambio remotamente
+    if (typeof currentUser !== 'undefined' && currentUser) {
+      const updatedUser = (remoteDB.usuarios || []).find(u => u.id === currentUser.id);
+      if (updatedUser) {
+        currentUser = updatedUser;
+        console.log('[GitHub Sync] Usuario actualizado:', currentUser.nombre, 'rol:', currentUser.rol);
+        if (typeof updateUserChip === 'function') updateUserChip();
+      }
+    }
+
     return true;
   } catch (err) {
     console.warn('[GitHub Sync] Error en pull:', err.message);
@@ -195,6 +206,7 @@ async function ghPush() {
     const result = await ghApiRequest('PUT', '', body);
     ghRemoteSha = result.content.sha;
     ghPushErrors = 0; // resetear contador de errores
+    console.log('[GitHub Sync] ✅ Push exitoso, SHA:', ghRemoteSha.slice(0,7));
   } catch (err) {
     console.warn('[GitHub Sync] Error en push:', err.message);
     ghPushErrors++;
@@ -239,11 +251,17 @@ function startGhPolling() {
 
   console.log('[GitHub Sync] Polling iniciado cada', GH_POLL_INTERVAL, 'ms');
   ghPollTimer = setInterval(async () => {
-    const updated = await ghPull();
-    if (updated) {
-      console.log('[GitHub Sync] Datos actualizados desde GitHub');
-      refreshCurrentPage();
-      if (currentUser) toast('Datos actualizados desde GitHub');
+    try {
+      const updated = await ghPull();
+      if (updated) {
+        console.log('[GitHub Sync] ✅ Datos actualizados desde GitHub - refrescando UI');
+        refreshCurrentPage();
+        if (currentUser) toast('Datos actualizados desde GitHub');
+      } else {
+        console.log('[GitHub Sync] Poll: sin cambios (SHA:', ghRemoteSha ? ghRemoteSha.slice(0,7) : 'null', ')');
+      }
+    } catch(err) {
+      console.warn('[GitHub Sync] Error en poll:', err.message);
     }
   }, GH_POLL_INTERVAL);
 }
