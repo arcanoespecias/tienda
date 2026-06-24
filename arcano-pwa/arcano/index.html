@@ -235,6 +235,13 @@
             <div class="cost-row"><span>Branch</span><span id="gh-info-branch"></span></div>
             <div class="cost-row"><span>Estado</span><span class="text-green fw7">Sincronizando</span></div>
           </div>
+          <div class="cost-box mb-16" style="border-color:var(--gold-dim)">
+            <p class="text-sm text-muted mb-12" style="margin:0">Compartí este link con otros usuarios para que se conecten automáticamente sin configurar nada:</p>
+            <div class="flex gap-8 mt-8">
+              <input id="gh-share-link" readonly style="font-size:.75rem;opacity:.7" onclick="this.select()">
+              <button class="btn btn-gold btn-sm" onclick="copiarLinkConexion()">Copiar</button>
+            </div>
+          </div>
           <div class="flex gap-8">
             <button class="btn btn-ghost" style="flex:1" onclick="forzarSyncManual()">Forzar sincronización</button>
             <button class="btn btn-red" onclick="desconectarGh()">Desconectar</button>

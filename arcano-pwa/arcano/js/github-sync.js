@@ -1,6 +1,7 @@
 // ===================== GITHUB SYNC MODULE =====================
-// Almacena la data en un archivo JSON del repositorio via GitHub Contents API.
-// Estrategia: last-write-wins con polling cada 15s + sync al recuperar foco.
+// La config de GitHub se embebe en el archivo de datos sincronizado.
+// Así, una vez que el admin configura, todos los dispositivos lo heredan automáticamente.
+// También soporta auto-config por hash de URL (para compartir link al operador).
 
 const GH_SYNC_KEY = 'arcano_github_config';
 const GH_DATA_PATH = 'data/arcano-data.json';
@@ -10,17 +11,30 @@ let ghConfig = null;
 let ghRemoteSha = null;       // SHA del archivo en GitHub (para PUT optimista)
 let ghPollTimer = null;
 let ghSyncInProgress = false; // evita operaciones simultáneas
-let ghLastPullTimestamp = 0;
 
 // -------------------- Config --------------------
 
 function getGhConfig() {
   if (ghConfig) return ghConfig;
+  // 1. localStorage local
   try {
     const saved = JSON.parse(localStorage.getItem(GH_SYNC_KEY) || 'null');
     if (saved && saved.token && saved.owner && saved.repo) {
       ghConfig = saved;
       return ghConfig;
+    }
+  } catch {}
+  // 2. Config embebida en la DB sincronizada (heredada del admin)
+  try {
+    const dbRaw = localStorage.getItem(DB_KEY);
+    if (dbRaw) {
+      const db = JSON.parse(dbRaw);
+      if (db._ghConfig && db._ghConfig.token && db._ghConfig.owner && db._ghConfig.repo) {
+        ghConfig = db._ghConfig;
+        // Persistirla en localStorage para futuros boots rápidos
+        localStorage.setItem(GH_SYNC_KEY, JSON.stringify(ghConfig));
+        return ghConfig;
+      }
     }
   } catch {}
   return null;
@@ -29,13 +43,63 @@ function getGhConfig() {
 function saveGhConfig(config) {
   ghConfig = config;
   localStorage.setItem(GH_SYNC_KEY, JSON.stringify(config));
+  // También embeber la config en la DB local para que viaje con los datos
+  try {
+    const dbRaw = localStorage.getItem(DB_KEY);
+    if (dbRaw) {
+      const db = JSON.parse(dbRaw);
+      db._ghConfig = { owner: config.owner, repo: config.repo, branch: config.branch, token: config.token };
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+    }
+  } catch {}
 }
 
 function clearGhConfig() {
   ghConfig = null;
   ghRemoteSha = null;
   localStorage.removeItem(GH_SYNC_KEY);
+  // Quitar la config de la DB local también
+  try {
+    const dbRaw = localStorage.getItem(DB_KEY);
+    if (dbRaw) {
+      const db = JSON.parse(dbRaw);
+      delete db._ghConfig;
+      localStorage.setItem(DB_KEY, JSON.stringify(db));
+    }
+  } catch {}
   stopGhPolling();
+}
+
+// -------------------- Auto-config por URL hash --------------------
+// Formato: #gh=owner:repo:branch:token  (el token va codificado)
+
+function checkHashConfig() {
+  try {
+    const hash = window.location.hash;
+    if (!hash || !hash.startsWith('#gh=')) return false;
+    const encoded = hash.slice(4);
+    // No mostrar el token en la barra de dirección
+    history.replaceState(null, '', window.location.pathname);
+    const parts = decodeURIComponent(atob(encoded)).split('|');
+    if (parts.length < 4) return false;
+    const [owner, repo, branch, token] = parts;
+    if (!owner || !repo || !token) return false;
+    saveGhConfig({ owner, repo, branch: branch || 'main', token });
+    return true;
+  } catch {
+    // Limpiar hash inválido
+    history.replaceState(null, '', window.location.pathname);
+    return false;
+  }
+}
+
+function generarLinkConexion() {
+  const cfg = getGhConfig();
+  if (!cfg) return '';
+  const payload = btoa(unescape(encodeURIComponent(
+    [cfg.owner, cfg.repo, cfg.branch || 'main', cfg.token].join('|')
+  )));
+  return window.location.origin + window.location.pathname + '#gh=' + payload;
 }
 
 // -------------------- API calls --------------------
@@ -70,18 +134,32 @@ async function ghPull() {
   try {
     const data = await ghApiRequest('GET');
     if (!data) {
-      // El archivo no existe en GitHub, no hay nada que descargar
       ghRemoteSha = null;
       return false;
     }
     ghRemoteSha = data.sha;
     const remoteDB = JSON.parse(atob(data.content));
 
+    // Extraer config embebida del remoto y aplicarla localmente
+    if (remoteDB._ghConfig && remoteDB._ghConfig.token && remoteDB._ghConfig.owner && remoteDB._ghConfig.repo) {
+      if (!getGhConfig()) {
+        // No teníamos config: adoptar la del remoto y arrancar polling
+        saveGhConfig(remoteDB._ghConfig);
+        // Se necesita re-hacer el pull con la nueva config
+        ghSyncInProgress = false;
+        return ghPull();
+      }
+    }
+
     // Si no hay datos locales, usar los de GitHub directamente
     const localRaw = localStorage.getItem(DB_KEY);
     if (!localRaw || localRaw === '{}') {
       localStorage.setItem(DB_KEY, JSON.stringify(remoteDB));
-      return true; // datos cargados desde GitHub
+      // Asegurar que la config extraída se persista
+      if (remoteDB._ghConfig) {
+        saveGhConfig(remoteDB._ghConfig);
+      }
+      return true;
     }
 
     // Comparar timestamps: usar el más reciente
@@ -92,7 +170,10 @@ async function ghPull() {
     if (remoteTs > localTs) {
       // Remoto es más reciente: sobreescribir local
       localStorage.setItem(DB_KEY, JSON.stringify(remoteDB));
-      return true; // se actualizó
+      if (remoteDB._ghConfig) {
+        saveGhConfig(remoteDB._ghConfig);
+      }
+      return true;
     }
     return false;
   } catch (err) {
@@ -112,6 +193,13 @@ async function ghPush() {
     const dbRaw = localStorage.getItem(DB_KEY);
     if (!dbRaw) return;
     const db = JSON.parse(dbRaw);
+
+    // Embeber la config actual en los datos antes de subir
+    const cfg = getGhConfig();
+    if (cfg) {
+      db._ghConfig = { owner: cfg.owner, repo: cfg.repo, branch: cfg.branch, token: cfg.token };
+    }
+
     const content = btoa(unescape(encodeURIComponent(JSON.stringify(db, null, 2))));
 
     const body = {
@@ -119,7 +207,6 @@ async function ghPush() {
       content: content
     };
 
-    // Si tenemos el SHA, lo usamos para update; si no, es create
     if (ghRemoteSha) {
       body.sha = ghRemoteSha;
     }
@@ -128,12 +215,10 @@ async function ghPush() {
     ghRemoteSha = result.content.sha;
   } catch (err) {
     console.warn('[GitHub Sync] Error en push:', err.message);
-    // Si falla por conflicto de SHA (409), re-pull y re-push
     if (err.message && (err.message.includes('409') || err.message.includes('sha'))) {
       ghRemoteSha = null;
       const pulled = await ghPull();
       if (pulled) {
-        // Reintentar push después de pull
         ghSyncInProgress = false;
         return ghPush();
       }
@@ -147,17 +232,14 @@ async function ghPush() {
 
 function getMaxTimestamp(db) {
   let maxTs = 0;
-  // Buscar timestamps en ventas
   if (db.ventas && db.ventas.length) {
     const ventaTs = db.ventas.map(v => new Date(v.fecha).getTime()).sort((a, b) => b - a)[0];
     maxTs = Math.max(maxTs, ventaTs);
   }
-  // Buscar timestamps en movimientos
   if (db.movimientos && db.movimientos.length) {
     const movTs = db.movimientos.map(m => new Date(m.fecha).getTime()).sort((a, b) => b - a)[0];
     maxTs = Math.max(maxTs, movTs);
   }
-  // Timestamp de última modificación global (si existe)
   if (db._lastModified) {
     maxTs = Math.max(maxTs, new Date(db._lastModified).getTime());
   }
@@ -224,7 +306,6 @@ async function ghTestConnection() {
     const cfg = getGhConfig();
     if (!cfg) return { ok: false, msg: 'Configuración incompleta' };
 
-    // Primero verificar que el token funciona con el repo
     const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}`;
     const res = await fetch(url, {
       headers: {
@@ -240,7 +321,6 @@ async function ghTestConnection() {
       return { ok: false, msg: `Error ${res.status}: verifica el token y el repositorio` };
     }
 
-    // Intentar leer el archivo de datos
     const dataUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${GH_DATA_PATH}${cfg.branch ? '?ref=' + cfg.branch : ''}`;
     const dataRes = await fetch(dataUrl, {
       headers: {
@@ -268,13 +348,22 @@ async function ghTestConnection() {
 // -------------------- Inicialización --------------------
 
 async function initGithubSync() {
+  // 1. Verificar si hay config por hash de URL (link compartido)
+  const hashConfigured = checkHashConfig();
+
   const cfg = getGhConfig();
   if (!cfg) return false;
 
-  // Intentar pull inicial (siempre)
-  await ghPull();
+  // 2. Pull inicial
+  const updated = await ghPull();
 
-  // SIEMPRE iniciar polling, sin importar si hubo update o no
+  // 3. Si vino por hash y se acaba de configurar, hacer push para que suba la data local
+  if (hashConfigured) {
+    await ghPush();
+    toast('Configuración recibida por link. Sincronizando...');
+  }
+
+  // 4. SIEMPRE iniciar polling
   startGhPolling();
   return true;
 }

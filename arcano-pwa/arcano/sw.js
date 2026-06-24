@@ -1,4 +1,4 @@
-const CACHE = 'arcano-v1';
+const CACHE = 'arcano-v2';
 const ASSETS = [
   '/especias/',
   '/especias/index.html',

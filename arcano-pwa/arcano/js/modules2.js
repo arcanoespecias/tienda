@@ -487,14 +487,28 @@ function renderGhAjustes() {
     info.style.display = 'block';
     const repoEl = document.getElementById('gh-info-repo');
     const branchEl = document.getElementById('gh-info-branch');
+    const linkEl = document.getElementById('gh-share-link');
     if (repoEl) repoEl.textContent = cfg.owner + '/' + cfg.repo;
     if (branchEl) branchEl.textContent = cfg.branch || 'main';
+    if (linkEl) linkEl.value = generarLinkConexion();
   } else {
     badge.className = 'badge br';
     badge.textContent = 'Desconectado';
     form.style.display = 'block';
     info.style.display = 'none';
   }
+}
+
+function copiarLinkConexion() {
+  const link = generarLinkConexion();
+  if (!link) { toast('No hay configuración', 'err'); return; }
+  navigator.clipboard.writeText(link).then(() => {
+    toast('Link copiado al portapapeles');
+  }).catch(() => {
+    // Fallback para browsers sin clipboard API
+    const input = document.getElementById('gh-share-link');
+    if (input) { input.select(); document.execCommand('copy'); toast('Link copiado'); }
+  });
 }
 
 function guardarGhConfigUI() {
@@ -511,7 +525,7 @@ function guardarGhConfigUI() {
   saveGhConfig({ owner, repo, branch, token });
   startGhPolling();
 
-  // Hacer push inicial de los datos actuales
+  // Hacer push para subir la data con la config embebida
   ghPush().then(() => {
     toast('Conectado a GitHub, sincronizando...');
     renderGhAjustes();
