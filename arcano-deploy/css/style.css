@@ -95,7 +95,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 26px 16px 60px; }
 /* ---- TYPOGRAPHY ---- */
 .page-title {
   font-family: var(--font-head);
-  font-size: 1.9rem; font-weight: 700;
+  font-size: var(--fs-title, 1.9rem); font-weight: 700;
   color: var(--gold2); margin-bottom: 22px;
   letter-spacing: .02em;
 }

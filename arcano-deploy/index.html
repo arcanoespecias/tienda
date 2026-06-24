@@ -7,11 +7,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Arcano">
-<link rel="icon" type="image/png" href="icons/favicon.png?v=12">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=12">
+<link rel="icon" type="image/png" href="icons/favicon.png?v=13">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=13">
 <title>Arcano — Complice del Sabor</title>
-<link rel="manifest" href="manifest.json?v=12">
-<link rel="stylesheet" href="css/style.css?v=12">
+<link rel="manifest" href="manifest.json?v=13">
+<link rel="stylesheet" href="css/style.css?v=13">
 <!-- LIMPIEZA AUTOMATICA: eliminar cualquier SW viejo y sus caches -->
 <script>
 (function(){
@@ -38,7 +38,7 @@
 <!-- PWA INSTALL BANNER -->
 <div id="pwa-banner" style="display:none">
   <div class="pwa-banner-inner">
-    <img src="icons/icon-192.png?v=12" alt="" style="width:40px;height:40px;border-radius:8px">
+    <img src="icons/icon-192.png?v=13" alt="" style="width:40px;height:40px;border-radius:8px">
     <div class="pwa-banner-text">
       <div class="fw7 text-sm">Instalar Arcano</div>
       <div class="text-xs text-muted">Acceso rapido desde tu pantalla de inicio</div>
@@ -54,7 +54,7 @@
 <!-- HEADER -->
 <div id="app-header">
   <div class="header-logo">
-    <img src="icons/logo-header.png?v=12" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
+    <img src="icons/logo-header.png?v=13" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
     <div>
       <div class="header-brand">Arcano</div>
       <div class="header-sub">Complice del Sabor</div>
@@ -241,64 +241,101 @@
   <!-- PWA CONFIG -->
   <div class="card mb-20" id="pwa-config-card">
     <div class="flex items-center justify-between mb-16">
-      <h3 style="margin:0">Configuracion PWA</h3>
-      <span id="pwa-status-badge" class="badge by">—</span>
-    </div>
-    <div id="pwa-config-body">
-      <div class="g2 mb-16">
-        <div>
-          <label>Nombre de la app</label>
-          <input id="pwa-cfg-name" placeholder="Arcano — Complice del Sabor" oninput="previewPWA()">
-        </div>
-        <div>
-          <label>Nombre corto</label>
-          <input id="pwa-cfg-short" placeholder="Arcano" oninput="previewPWA()">
-        </div>
-      </div>
-      <div class="g2 mb-16">
-        <div>
-          <label>Color de fondo</label>
-          <div class="flex gap-8">
-            <input id="pwa-cfg-bg" type="color" value="#1b0b07" style="width:48px;height:38px;padding:2px;cursor:pointer" oninput="previewPWA()">
-            <input id="pwa-cfg-bg-text" value="#1b0b07" maxlength="7" oninput="syncColorInput('bg')" style="flex:1">
-          </div>
-        </div>
-        <div>
-          <label>Color tema (barra superior)</label>
-          <div class="flex gap-8">
-            <input id="pwa-cfg-theme" type="color" value="#1b0b07" style="width:48px;height:38px;padding:2px;cursor:pointer" oninput="previewPWA()">
-            <input id="pwa-cfg-theme-text" value="#1b0b07" maxlength="7" oninput="syncColorInput('theme')" style="flex:1">
-          </div>
-        </div>
-      </div>
-      <div class="g2 mb-16">
-        <div>
-          <label>Descripcion</label>
-          <input id="pwa-cfg-desc" placeholder="Gestion de especias y blends">
-        </div>
-        <div>
-          <label>Orientacion</label>
-          <select id="pwa-cfg-orient" onchange="previewPWA()">
-            <option value="portrait-primary">Vertical</option>
-            <option value="landscape-primary">Horizontal</option>
-            <option value="any">Libre</option>
-          </select>
-        </div>
-      </div>
-      <div class="cost-box mb-16" id="pwa-preview-box">
-        <div class="text-xs text-muted mb-12">Vista previa</div>
-        <div class="flex items-center gap-8">
-          <img src="icons/icon-192.png?v=12" style="width:36px;height:36px;border-radius:8px">
-          <div>
-            <div class="fw7 text-sm" id="pwa-preview-name">Arcano</div>
-            <div class="text-xs text-muted" id="pwa-preview-desc">Complice del Sabor</div>
-          </div>
-        </div>
-      </div>
+      <h3 style="margin:0">Apariencia y PWA</h3>
       <div class="flex gap-8">
-        <button class="btn btn-gold" style="flex:1" onclick="guardarPWAConfig()">Guardar configuracion</button>
-        <button class="btn btn-ghost" style="flex:1" onclick="resetPWAConfig()">Restaurar valores</button>
+        <span id="pwa-status-badge" class="badge by">—</span>
+        <button class="btn btn-gold btn-sm" id="pwa-install-btn-settings" onclick="installPWA()" style="display:none">Instalar app</button>
       </div>
+    </div>
+
+    <!-- IDENTIDAD -->
+    <div class="section-title mb-12">Identidad</div>
+    <div class="g2 mb-16">
+      <div><label>Nombre de la app</label><input id="pwa-cfg-name" placeholder="Arcano — Complice del Sabor" oninput="previewPWA()"></div>
+      <div><label>Nombre corto</label><input id="pwa-cfg-short" placeholder="Arcano" oninput="previewPWA()"></div>
+    </div>
+    <div class="g2 mb-16">
+      <div><label>Descripcion</label><input id="pwa-cfg-desc" placeholder="Gestion de especias y blends"></div>
+      <div><label>Orientacion</label>
+        <select id="pwa-cfg-orient" onchange="previewPWA()">
+          <option value="portrait-primary">Vertical</option>
+          <option value="landscape-primary">Horizontal</option>
+          <option value="any">Libre</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- COLORES -->
+    <div class="section-title mb-12">Colores</div>
+    <div class="g2 mb-12">
+      <div><label>Fondo principal</label>
+        <div class="flex gap-8"><input id="pwa-cfg-bg" type="color" value="#1b0b07" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-bg-text" value="#1b0b07" maxlength="7" oninput="syncColorInput('bg')" style="flex:1"></div>
+      </div>
+      <div><label>Fondo header / nav</label>
+        <div class="flex gap-8"><input id="pwa-cfg-bg2" type="color" value="#221108" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-bg2-text" value="#221108" maxlength="7" oninput="syncColorInput('bg2')" style="flex:1"></div>
+      </div>
+    </div>
+    <div class="g2 mb-12">
+      <div><label>Superficie (tarjetas)</label>
+        <div class="flex gap-8"><input id="pwa-cfg-surface" type="color" value="#2a150e" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-surface-text" value="#2a150e" maxlength="7" oninput="syncColorInput('surface')" style="flex:1"></div>
+      </div>
+      <div><label>Superficie 2 (inputs)</label>
+        <div class="flex gap-8"><input id="pwa-cfg-surface2" type="color" value="#331e12" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-surface2-text" value="#331e12" maxlength="7" oninput="syncColorInput('surface2')" style="flex:1"></div>
+      </div>
+    </div>
+    <div class="g2 mb-12">
+      <div><label>Color accent (dorado)</label>
+        <div class="flex gap-8"><input id="pwa-cfg-gold" type="color" value="#c9963a" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-gold-text" value="#c9963a" maxlength="7" oninput="syncColorInput('gold')" style="flex:1"></div>
+      </div>
+      <div><label>Color accent claro</label>
+        <div class="flex gap-8"><input id="pwa-cfg-gold2" type="color" value="#e8b84b" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-gold2-text" value="#e8b84b" maxlength="7" oninput="syncColorInput('gold2')" style="flex:1"></div>
+      </div>
+    </div>
+    <div class="g2 mb-16">
+      <div><label>Texto principal</label>
+        <div class="flex gap-8"><input id="pwa-cfg-cream" type="color" value="#f0e8d0" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-cream-text" value="#f0e8d0" maxlength="7" oninput="syncColorInput('cream')" style="flex:1"></div>
+      </div>
+      <div><label>Texto secundario</label>
+        <div class="flex gap-8"><input id="pwa-cfg-muted" type="color" value="#7a6a50" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-muted-text" value="#7a6a50" maxlength="7" oninput="syncColorInput('muted')" style="flex:1"></div>
+      </div>
+    </div>
+    <div class="mb-16"><label>Color tema (barra del celular)</label>
+      <div class="flex gap-8"><input id="pwa-cfg-theme" type="color" value="#1b0b07" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-theme-text" value="#1b0b07" maxlength="7" oninput="syncColorInput('theme')" style="flex:1"></div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- TIPOGRAFIA -->
+    <div class="section-title mb-12">Tipografia</div>
+    <div class="g2 mb-16">
+      <div>
+        <label>Tamano fuente base <span id="pwa-cfg-fs-base-val" class="text-gold">15px</span></label>
+        <input id="pwa-cfg-fs-base" type="range" min="11" max="20" step="1" value="15" oninput="previewPWA()">
+      </div>
+      <div>
+        <label>Tamano titulos <span id="pwa-cfg-fs-title-val" class="text-gold">1.9rem</span></label>
+        <input id="pwa-cfg-fs-title" type="range" min="1.0" max="3.0" step="0.1" value="1.9" oninput="previewPWA()">
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- VISTA PREVIA + BOTONES -->
+    <div class="cost-box mb-16" id="pwa-preview-box">
+      <div class="text-xs text-muted mb-12">Vista previa</div>
+      <div class="flex items-center gap-8">
+        <img src="icons/icon-192.png?v=13" style="width:36px;height:36px;border-radius:8px">
+        <div>
+          <div class="fw7 text-sm" id="pwa-preview-name">Arcano</div>
+          <div class="text-xs text-muted" id="pwa-preview-desc">Complice del Sabor</div>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-8">
+      <button class="btn btn-gold" style="flex:1" onclick="guardarPWAConfig()">Guardar configuracion</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="resetPWAConfig()">Restaurar valores</button>
     </div>
   </div>
 
@@ -511,10 +548,10 @@
   </div>
 </div>
 
-<script src="js/db.js?v=12"></script>
-<script src="js/github-sync.js?v=12"></script>
-<script src="js/modules1.js?v=12"></script>
-<script src="js/modules2.js?v=12"></script>
+<script src="js/db.js?v=13"></script>
+<script src="js/github-sync.js?v=13"></script>
+<script src="js/modules1.js?v=13"></script>
+<script src="js/modules2.js?v=13"></script>
 <script>
   function updateSyncUI(status, detail) {
     const dot = document.getElementById('sync-dot');
@@ -537,7 +574,7 @@
   }
 
   async function bootApp() {
-    console.log('[Arcano] v12 - PWA install + config');
+    console.log('[Arcano] v13 - Full theming + PWA config');
     await initGithubSync();
     seedIfEmpty();
     // Aplicar config PWA (colores, titulo, etc.)

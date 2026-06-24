@@ -46,7 +46,18 @@ const PWA_DEFAULTS = {
   bgColor: '#1b0b07',
   themeColor: '#1b0b07',
   description: 'Gestion de especias y blends para Arcano',
-  orientation: 'portrait-primary'
+  orientation: 'portrait-primary',
+  // Colores extendidos
+  colorBg2: '#221108',
+  colorSurface: '#2a150e',
+  colorSurface2: '#331e12',
+  colorGold: '#c9963a',
+  colorGold2: '#e8b84b',
+  colorCream: '#f0e8d0',
+  colorMuted: '#7a6a50',
+  // Tipografia
+  fontSizeBase: 15,
+  fontSizeTitle: 1.9
 };
 
 function getPWAConfig() {
@@ -57,28 +68,32 @@ function getPWAConfig() {
 }
 
 function applyPWAConfig(cfg) {
-  // Aplicar color de fondo al body y CSS variable
-  if (cfg.bgColor) {
-    document.documentElement.style.setProperty('--bg', cfg.bgColor);
-    document.body.style.background = cfg.bgColor;
-  }
-  // Aplicar theme-color al meta tag
+  const root = document.documentElement;
+  // Fondos
+  if (cfg.bgColor) { root.style.setProperty('--bg', cfg.bgColor); document.body.style.background = cfg.bgColor; }
+  if (cfg.colorBg2) root.style.setProperty('--bg2', cfg.colorBg2);
+  if (cfg.colorSurface) root.style.setProperty('--surface', cfg.colorSurface);
+  if (cfg.colorSurface2) root.style.setProperty('--surface2', cfg.colorSurface2);
+  // Colores decorativos
+  if (cfg.colorGold) root.style.setProperty('--gold', cfg.colorGold);
+  if (cfg.colorGold2) root.style.setProperty('--gold2', cfg.colorGold2);
+  if (cfg.colorCream) root.style.setProperty('--cream', cfg.colorCream);
+  if (cfg.colorMuted) root.style.setProperty('--muted', cfg.colorMuted);
+  // Tipografia
+  if (cfg.fontSizeBase) { root.style.setProperty('--fs-base', cfg.fontSizeBase + 'px'); document.body.style.fontSize = cfg.fontSizeBase + 'px'; }
+  if (cfg.fontSizeTitle) root.style.setProperty('--fs-title', cfg.fontSizeTitle + 'rem');
+  // Theme-color meta
   if (cfg.themeColor) {
     let meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = cfg.themeColor;
   }
-  // Actualizar titulo
+  // Titulo y header
   if (cfg.shortName) {
     document.title = cfg.name || cfg.shortName;
     const brand = document.querySelector('.header-brand');
     if (brand) brand.textContent = cfg.shortName;
     const sub = document.querySelector('.header-sub');
     if (sub) sub.textContent = cfg.description || '';
-  }
-  // Actualizar manifest link (forzar recarga del manifest)
-  const manifestLink = document.querySelector('link[rel="manifest"]');
-  if (manifestLink) {
-    manifestLink.href = 'manifest.json?v=12';
   }
 }
 
@@ -92,73 +107,97 @@ function syncColorInput(type) {
 }
 
 function previewPWA() {
-  const name = document.getElementById('pwa-cfg-name').value.trim();
+  // Sync all color text ↔ picker pairs
+  ['bg','theme','bg2','surface','surface2','gold','gold2','cream','muted'].forEach(function(key) {
+    const picker = document.getElementById('pwa-cfg-' + key);
+    const text = document.getElementById('pwa-cfg-' + key + '-text');
+    if (picker && text) text.value = picker.value;
+  });
+  // Font size labels
+  const fsBase = document.getElementById('pwa-cfg-fs-base');
+  const fsBaseVal = document.getElementById('pwa-cfg-fs-base-val');
+  if (fsBase && fsBaseVal) fsBaseVal.textContent = fsBase.value + 'px';
+  const fsTitle = document.getElementById('pwa-cfg-fs-title');
+  const fsTitleVal = document.getElementById('pwa-cfg-fs-title-val');
+  if (fsTitle && fsTitleVal) fsTitleVal.textContent = fsTitle.value + 'rem';
+  // Preview box
+  const previewBox = document.getElementById('pwa-preview-box');
+  const bgPicker = document.getElementById('pwa-cfg-bg');
+  if (previewBox && bgPicker) previewBox.style.background = bgPicker.value;
   const short = document.getElementById('pwa-cfg-short').value.trim();
   const desc = document.getElementById('pwa-cfg-desc').value.trim();
-  const bg = document.getElementById('pwa-cfg-bg').value;
-  const theme = document.getElementById('pwa-cfg-theme').value;
-
-  // Sync color text inputs
-  document.getElementById('pwa-cfg-bg-text').value = bg;
-  document.getElementById('pwa-cfg-theme-text').value = theme;
-
-  // Preview
-  const previewBox = document.getElementById('pwa-preview-box');
-  if (previewBox) previewBox.style.background = bg;
   const previewName = document.getElementById('pwa-preview-name');
-  if (previewName) previewName.textContent = short || 'Arcano';
   const previewDesc = document.getElementById('pwa-preview-desc');
+  if (previewName) previewName.textContent = short || 'Arcano';
   if (previewDesc) previewDesc.textContent = desc || 'Complice del Sabor';
+  // Live apply
+  applyPWAConfig(readPWAConfigFromUI());
+}
+
+function readPWAConfigFromUI() {
+  const v = function(id) { const el = document.getElementById(id); return el ? el.value : ''; };
+  return {
+    name: v('pwa-cfg-name').trim() || PWA_DEFAULTS.name,
+    shortName: v('pwa-cfg-short').trim() || PWA_DEFAULTS.shortName,
+    description: v('pwa-cfg-desc').trim() || PWA_DEFAULTS.description,
+    bgColor: v('pwa-cfg-bg'),
+    themeColor: v('pwa-cfg-theme'),
+    orientation: v('pwa-cfg-orient') || 'portrait-primary',
+    colorBg2: v('pwa-cfg-bg2'),
+    colorSurface: v('pwa-cfg-surface'),
+    colorSurface2: v('pwa-cfg-surface2'),
+    colorGold: v('pwa-cfg-gold'),
+    colorGold2: v('pwa-cfg-gold2'),
+    colorCream: v('pwa-cfg-cream'),
+    colorMuted: v('pwa-cfg-muted'),
+    fontSizeBase: parseInt(v('pwa-cfg-fs-base')) || 15,
+    fontSizeTitle: parseFloat(v('pwa-cfg-fs-title')) || 1.9
+  };
 }
 
 function loadPWAConfigUI() {
   const cfg = getPWAConfig();
-  document.getElementById('pwa-cfg-name').value = cfg.name || '';
-  document.getElementById('pwa-cfg-short').value = cfg.shortName || '';
-  document.getElementById('pwa-cfg-desc').value = cfg.description || '';
-  document.getElementById('pwa-cfg-bg').value = cfg.bgColor;
-  document.getElementById('pwa-cfg-bg-text').value = cfg.bgColor;
-  document.getElementById('pwa-cfg-theme').value = cfg.themeColor;
-  document.getElementById('pwa-cfg-theme-text').value = cfg.themeColor;
-  document.getElementById('pwa-cfg-orient').value = cfg.orientation || 'portrait-primary';
-
-  // Status badge
+  const s = function(id, val) { const el = document.getElementById(id); if (el) el.value = val; };
+  s('pwa-cfg-name', cfg.name || '');
+  s('pwa-cfg-short', cfg.shortName || '');
+  s('pwa-cfg-desc', cfg.description || '');
+  s('pwa-cfg-bg', cfg.bgColor); s('pwa-cfg-bg-text', cfg.bgColor);
+  s('pwa-cfg-theme', cfg.themeColor); s('pwa-cfg-theme-text', cfg.themeColor);
+  s('pwa-cfg-orient', cfg.orientation || 'portrait-primary');
+  s('pwa-cfg-bg2', cfg.colorBg2); s('pwa-cfg-bg2-text', cfg.colorBg2);
+  s('pwa-cfg-surface', cfg.colorSurface); s('pwa-cfg-surface-text', cfg.colorSurface);
+  s('pwa-cfg-surface2', cfg.colorSurface2); s('pwa-cfg-surface2-text', cfg.colorSurface2);
+  s('pwa-cfg-gold', cfg.colorGold); s('pwa-cfg-gold-text', cfg.colorGold);
+  s('pwa-cfg-gold2', cfg.colorGold2); s('pwa-cfg-gold2-text', cfg.colorGold2);
+  s('pwa-cfg-cream', cfg.colorCream); s('pwa-cfg-cream-text', cfg.colorCream);
+  s('pwa-cfg-muted', cfg.colorMuted); s('pwa-cfg-muted-text', cfg.colorMuted);
+  s('pwa-cfg-fs-base', cfg.fontSizeBase);
+  s('pwa-cfg-fs-title', cfg.fontSizeTitle);
+  // Status badge + install button
   const badge = document.getElementById('pwa-status-badge');
+  const installBtn = document.getElementById('pwa-install-btn-settings');
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (badge) {
-    if (isStandalone) {
-      badge.className = 'badge bg';
-      badge.textContent = 'Instalada';
-    } else if (deferredPrompt) {
-      badge.className = 'badge ba';
-      badge.textContent = 'Disponible para instalar';
-    } else {
-      badge.className = 'badge by';
-      badge.textContent = 'No instalada';
-    }
+    if (isStandalone) { badge.className = 'badge bg'; badge.textContent = 'Instalada'; }
+    else if (deferredPrompt) { badge.className = 'badge ba'; badge.textContent = 'Disponible'; }
+    else { badge.className = 'badge by'; badge.textContent = 'No instalada'; }
   }
+  if (installBtn) installBtn.style.display = (!isStandalone && deferredPrompt) ? '' : 'none';
   previewPWA();
 }
 
 function guardarPWAConfig() {
-  const cfg = {
-    name: document.getElementById('pwa-cfg-name').value.trim() || PWA_DEFAULTS.name,
-    shortName: document.getElementById('pwa-cfg-short').value.trim() || PWA_DEFAULTS.shortName,
-    description: document.getElementById('pwa-cfg-desc').value.trim() || PWA_DEFAULTS.description,
-    bgColor: document.getElementById('pwa-cfg-bg').value,
-    themeColor: document.getElementById('pwa-cfg-theme').value,
-    orientation: document.getElementById('pwa-cfg-orient').value
-  };
+  const cfg = readPWAConfigFromUI();
   localStorage.setItem(PWA_CONFIG_KEY, JSON.stringify(cfg));
   applyPWAConfig(cfg);
-  toast('Configuracion PWA guardada');
+  toast('Configuracion guardada');
 }
 
 function resetPWAConfig() {
   localStorage.removeItem(PWA_CONFIG_KEY);
   applyPWAConfig(PWA_DEFAULTS);
   loadPWAConfigUI();
-  toast('Configuracion PWA restaurada');
+  toast('Configuracion restaurada');
 }
 
 // ===================== PIN / LOGIN =====================
