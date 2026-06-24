@@ -1,10 +1,26 @@
 // ===================== CURRENT USER =====================
 let currentUser = null;
+const SESSION_KEY = 'arcano_session';
 
 // ===================== PIN / LOGIN =====================
 function initPin() {
   const screen = document.getElementById('pin-screen');
   const db = getDB();
+
+  // Auto-login: si hay sesión guardada, recuperar usuario y saltar PIN
+  try {
+    const savedSession = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (savedSession && savedSession.userId) {
+      const user = db.usuarios.find(u => u.id === savedSession.userId);
+      if (user) {
+        currentUser = user;
+        screen.style.display = 'none';
+        updateUserChip();
+        renderDashboard();
+        return;
+      }
+    }
+  } catch {}
 
   // Step 1: show user list
   function showUserList() {
@@ -50,6 +66,8 @@ function initPin() {
       else if (k === 'OK') {
         if (entered === user.pin) {
           currentUser = user;
+          // Persistir sesión
+          localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.id }));
           screen.style.display = 'none';
           updateUserChip();
           renderDashboard();
@@ -76,6 +94,7 @@ function updateUserChip() {
 
 function logoutUser() {
   currentUser = null;
+  localStorage.removeItem(SESSION_KEY);
   document.getElementById('pin-screen').style.display = 'flex';
   initPin();
 }

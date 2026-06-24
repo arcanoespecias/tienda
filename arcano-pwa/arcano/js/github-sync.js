@@ -172,10 +172,9 @@ function startGhPolling() {
 
   ghPollTimer = setInterval(async () => {
     const updated = await ghPull();
-    if (updated && currentUser) {
-      // Re-renderizar la página actual
+    if (updated) {
       refreshCurrentPage();
-      toast('Datos actualizados desde GitHub');
+      if (currentUser) toast('Datos actualizados desde GitHub');
     }
   }, GH_POLL_INTERVAL);
 }
@@ -190,11 +189,11 @@ function stopGhPolling() {
 // -------------------- Sync al recuperar foco --------------------
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && getGhConfig() && currentUser) {
+  if (document.visibilityState === 'visible' && getGhConfig()) {
     ghPull().then(updated => {
       if (updated) {
         refreshCurrentPage();
-        toast('Datos actualizados desde GitHub');
+        if (currentUser) toast('Datos actualizados desde GitHub');
       }
     });
   }
@@ -272,15 +271,12 @@ async function initGithubSync() {
   const cfg = getGhConfig();
   if (!cfg) return false;
 
-  // Intentar pull inicial
-  const updated = await ghPull();
-  if (updated) {
-    return true;
-  }
+  // Intentar pull inicial (siempre)
+  await ghPull();
 
-  // Iniciar polling
+  // SIEMPRE iniciar polling, sin importar si hubo update o no
   startGhPolling();
-  return false;
+  return true;
 }
 
 // -------------------- Estado de sincronización UI --------------------
