@@ -17,6 +17,7 @@ function initPin() {
 
   function showUserList() {
     screen.innerHTML = `
+      <img src="icons/logo-pin.png?v=8" style="width:80px;height:80px;margin-bottom:4px;object-fit:contain">
       <div class="pin-logo">Arcano</div>
       <div class="pin-sub">Complice del Sabor</div>
       <div class="user-list" style="margin-top:8px">

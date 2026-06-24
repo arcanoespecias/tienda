@@ -31,7 +31,7 @@ with open(os.path.join(DEPLOY_DIR, 'js', 'modules2.js'), 'r', encoding='utf-8') 
 with open(os.path.join(DEPLOY_DIR, 'manifest.json'), 'r', encoding='utf-8') as f:
     files['manifest.json'] = f.read()
 
-for icon_name in ['icons/icon-192.png', 'icons/icon-512.png']:
+for icon_name in ['icons/icon-192.png', 'icons/icon-512.png', 'icons/logo-header.png', 'icons/logo-pin.png', 'icons/favicon.png']:
     with open(os.path.join(DEPLOY_DIR, icon_name), 'rb') as f:
         files[icon_name] = base64.b64encode(f.read()).decode('ascii')
 
