@@ -235,16 +235,26 @@ function renderBlends() {
 
 // ===================== EXPORTAR BLENDS EXCEL =====================
 function exportBlendsExcel() {
-  if (typeof XLSX === 'undefined') {
-    toast('Error: libreria Excel no cargada. Recargá la pagina.', 'err');
-    return;
-  }
   const db = getDB();
-  const c = db.costos;
   if (!db.blends.length) {
     toast('No hay blends para exportar.', 'err');
     return;
   }
+  if (typeof XLSX !== 'undefined') {
+    _doExportBlendsExcel();
+    return;
+  }
+  toast('Cargando libreria Excel...', 'gold');
+  const s = document.createElement('script');
+  s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+  s.onload = function() { _doExportBlendsExcel(); };
+  s.onerror = function() { toast('Error al cargar libreria Excel. Verifica tu conexion.', 'err'); };
+  document.head.appendChild(s);
+}
+
+function _doExportBlendsExcel() {
+  const db = getDB();
+  const c = db.costos;
 
   // ---- HOJA 1: Resumen de Blends ----
   const resumenRows = db.blends.map(bl => {
