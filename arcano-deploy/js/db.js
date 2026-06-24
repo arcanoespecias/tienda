@@ -23,12 +23,15 @@ function getDB() {
   } catch { return def; }
 }
 
+let _saveDBTimer = null;
 function saveDB(db) {
   db._lastModified = new Date().toISOString();
   localStorage.setItem(DB_KEY, JSON.stringify(db));
-  // Sincronizar con GitHub en background
+  // v8: Debounce de 800ms para evitar push por cada tecla (ej: costos oninput)
+  // Se acumulan cambios rapidos y se hace UN solo push al final.
   if (typeof ghPush === 'function' && getGhConfig()) {
-    ghPush();
+    clearTimeout(_saveDBTimer);
+    _saveDBTimer = setTimeout(function() { ghPush(); }, 800);
   }
 }
 

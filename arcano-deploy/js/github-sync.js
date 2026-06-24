@@ -1,4 +1,4 @@
-// ===================== GITHUB SYNC MODULE v6 =====================
+// ===================== GITHUB SYNC MODULE v8 =====================
 
 const GH_SYNC_KEY = 'arcano_github_config';
 const GH_DATA_PATH = 'data/arcano-data.json';
@@ -130,7 +130,14 @@ async function ghPull() {
     if (data.sha === ghRemoteSha) return false;
 
     ghRemoteSha = data.sha;
-    const remoteDB = JSON.parse(atob(data.content));
+    // v8: Decodificacion UTF-8 correcta. atob() devuelve bytes sueltos (Latin-1),
+    // pero el JSON original tiene caracteres UTF-8 multibyte (á,é,ñ,etc).
+    // Sin TextDecoder, cada byte UTF-8 se trata como un char independiente,
+    // causando mojibake (Ã©, Ã³) que se duplica en cada ciclo push/pull.
+    const binStr = atob(data.content);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+    const remoteDB = JSON.parse(new TextDecoder('utf-8').decode(bytes));
 
     // Merge config remota con token local (remoto NUNCA tiene token)
     if (remoteDB._ghConfig && remoteDB._ghConfig.owner && remoteDB._ghConfig.repo) {
@@ -303,7 +310,7 @@ async function initGithubSync() {
       if (db._ghConfig && db._ghConfig.token) {
         delete db._ghConfig.token;
         localStorage.setItem(DB_KEY, JSON.stringify(db));
-        console.log('[Sync] Token removido del DB local (limpieza v6)');
+        console.log('[Sync] Token removido del DB local (limpieza v8)');
       }
     }
   } catch {}
