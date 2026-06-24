@@ -1,4 +1,4 @@
-const CACHE = 'arcano-v2';
+const CACHE = 'arcano-v3';
 const ASSETS = [
   '/especias/',
   '/especias/index.html',
@@ -26,6 +26,8 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // Solo interceptar requests del mismo origen (no APIs externas como GitHub)
+  if (!e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => caches.match('/especias/')))
   );

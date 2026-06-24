@@ -5,7 +5,7 @@
 
 const GH_SYNC_KEY = 'arcano_github_config';
 const GH_DATA_PATH = 'data/arcano-data.json';
-const GH_POLL_INTERVAL = 15000; // 15 segundos
+const GH_POLL_INTERVAL = 5000; // 5 segundos para sync en tiempo real
 
 let ghConfig = null;
 let ghRemoteSha = null;       // SHA del archivo en GitHub (para PUT optimista)
@@ -107,7 +107,9 @@ function generarLinkConexion() {
 async function ghApiRequest(method, endpoint, body) {
   const cfg = getGhConfig();
   if (!cfg) throw new Error('Configuración de GitHub no encontrada');
-  const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${GH_DATA_PATH}${cfg.branch ? '?ref=' + cfg.branch : ''}`;
+  // Cache-busting: agregar timestamp unico para evitar respuestas cacheadas
+  const sep = cfg.branch ? '&' : '?';
+  const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${GH_DATA_PATH}${cfg.branch ? '?ref=' + cfg.branch : ''}${sep}_t=${Date.now()}`;
   const res = await fetch(url, {
     method,
     headers: {
@@ -116,6 +118,7 @@ async function ghApiRequest(method, endpoint, body) {
       'Content-Type': 'application/json',
       'User-Agent': 'Arcano-PWA'
     },
+    cache: 'no-store',
     body: body ? JSON.stringify(body) : undefined
   });
   if (res.status === 404 && method === 'GET') return null;
@@ -159,6 +162,7 @@ async function ghPull() {
       if (remoteDB._ghConfig) {
         saveGhConfig(remoteDB._ghConfig);
       }
+      syncIdCounter(remoteDB);
       return true;
     }
 
@@ -173,6 +177,8 @@ async function ghPull() {
       if (remoteDB._ghConfig) {
         saveGhConfig(remoteDB._ghConfig);
       }
+      // Sincronizar el contador de IDs para evitar conflictos
+      syncIdCounter(remoteDB);
       return true;
     }
     return false;
@@ -308,6 +314,7 @@ async function ghTestConnection() {
 
     const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}`;
     const res = await fetch(url, {
+      cache: 'no-store',
       headers: {
         'Authorization': 'Bearer ' + cfg.token,
         'Accept': 'application/vnd.github.v3+json',
@@ -323,6 +330,7 @@ async function ghTestConnection() {
 
     const dataUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${GH_DATA_PATH}${cfg.branch ? '?ref=' + cfg.branch : ''}`;
     const dataRes = await fetch(dataUrl, {
+      cache: 'no-store',
       headers: {
         'Authorization': 'Bearer ' + cfg.token,
         'Accept': 'application/vnd.github.v3+json',
@@ -343,6 +351,22 @@ async function ghTestConnection() {
   } catch (err) {
     return { ok: false, msg: err.message };
   }
+}
+
+// -------------------- Sincronizar contador de IDs --------------------
+
+function syncIdCounter(db) {
+  try {
+    const allIds = [
+      ...(db.especias || []).map(e => e.id || 0),
+      ...(db.blends || []).map(b => b.id || 0),
+      ...(db.ventas || []).map(v => v.id || 0),
+      ...(db.movimientos || []).map(m => m.id || 0),
+      ...(db.usuarios || []).map(u => u.id || 0),
+    ];
+    const maxId = Math.max(0, ...allIds);
+    if (maxId >= _idC) _idC = maxId;
+  } catch {}
 }
 
 // -------------------- Inicialización --------------------

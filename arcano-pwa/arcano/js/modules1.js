@@ -90,6 +90,11 @@ function updateUserChip() {
   if (chip && currentUser) {
     chip.innerHTML = `${currentUser.emoji} ${currentUser.nombre} <span style="color:var(--muted);font-size:.7rem">▼</span>`;
   }
+  // Ocultar Ajustes para operadores
+  const navAjustes = document.getElementById('nav-ajustes');
+  if (navAjustes) {
+    navAjustes.style.display = (currentUser && currentUser.rol === 'admin') ? '' : 'none';
+  }
 }
 
 function logoutUser() {
@@ -101,6 +106,8 @@ function logoutUser() {
 
 // ===================== NAV =====================
 function goPage(name, btn) {
+  // Operadores no pueden acceder a Ajustes
+  if (name === 'ajustes' && currentUser && currentUser.rol !== 'admin') return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
