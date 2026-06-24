@@ -233,6 +233,157 @@ function renderBlends() {
   }).join('');
 }
 
+// ===================== EXPORTAR BLENDS EXCEL =====================
+function exportBlendsExcel() {
+  if (typeof XLSX === 'undefined') {
+    toast('Error: libreria Excel no cargada. Recargá la pagina.', 'err');
+    return;
+  }
+  const db = getDB();
+  const c = db.costos;
+  if (!db.blends.length) {
+    toast('No hay blends para exportar.', 'err');
+    return;
+  }
+
+  // ---- HOJA 1: Resumen de Blends ----
+  const resumenRows = db.blends.map(bl => {
+    const cd = calcBlendCostData(bl, c);
+    const prod = calcProduccion(bl, db.especias);
+    const totalG = bl.ingredientes.reduce((s, i) => s + i.gramos, 0);
+    const ingNombres = bl.ingredientes.map(i => i.nombre + ' (' + i.gramos + 'g)').join(', ');
+    return {
+      'Nombre': bl.nombre,
+      'Ingredientes': ingNombres,
+      'Cantidad ingredientes': bl.ingredientes.length,
+      'Peso total formula': totalG + 'g',
+      'Costo/kg': Math.round(cd.costoKg),
+      'Costo/100g': Math.round(cd.costo100g),
+      'Peso envase chico (g)': bl.pesoChico || '',
+      'Costo total chico': Math.round(cd.totalC),
+      'Precio venta chico': bl.pVentaChico || '',
+      'Margen chico %': cd.margenC !== null ? Math.round(cd.margenC) + '%' : '',
+      'Produccion posible chico (u.)': prod.unidadesC,
+      'Peso envase grande (g)': bl.pesoGrande || '',
+      'Costo total grande': Math.round(cd.totalG),
+      'Precio venta grande': bl.pVentaGrande || '',
+      'Margen grande %': cd.margenG !== null ? Math.round(cd.margenG) + '%' : '',
+      'Produccion posible grande (u.)': prod.unidadesG,
+      'Notas': bl.notas || ''
+    };
+  });
+
+  // ---- HOJA 2: Ingredientes detallados ----
+  const ingRows = [];
+  db.blends.forEach(bl => {
+    const cd = calcBlendCostData(bl, c);
+    const totalG = bl.ingredientes.reduce((s, i) => s + i.gramos, 0);
+    bl.ingredientes.forEach((ing, idx) => {
+      const costoIng = (ing.precioKg / 1000) * ing.gramos;
+      ingRows.push({
+        'Blend': bl.nombre,
+        '#': idx + 1,
+        'Especia': ing.nombre,
+        'Gramos en formula': ing.gramos,
+        '% sobre 1kg': Math.round(ing.gramos / 10) + '%',
+        'Precio/kg especia': ing.precioKg || 0,
+        'Costo en formula': Math.round(costoIng),
+        'Costo/kg del blend': Math.round(cd.costoKg),
+        'Peso envase chico (g)': bl.pesoChico || '',
+        'Peso envase grande (g)': bl.pesoGrande || ''
+      });
+    });
+    // Fila subtotal del blend
+    ingRows.push({
+      'Blend': 'SUBTOTAL: ' + bl.nombre,
+      '#': '',
+      'Especia': bl.ingredientes.length + ' ingredientes',
+      'Gramos en formula': totalG,
+      '% sobre 1kg': Math.round(totalG / 10) + '%',
+      'Precio/kg especia': '',
+      'Costo en formula': Math.round(cd.costoKg),
+      'Costo/kg del blend': '',
+      'Peso envase chico (g)': '',
+      'Peso envase grande (g)': ''
+    });
+    // Fila vacia separadora
+    ingRows.push({
+      'Blend': '', '#': '', 'Especia': '', 'Gramos en formula': '',
+      '% sobre 1kg': '', 'Precio/kg especia': '', 'Costo en formula': '',
+      'Costo/kg del blend': '', 'Peso envase chico (g)': '', 'Peso envase grande (g)': ''
+    });
+  });
+
+  // ---- HOJA 3: Costos fijos ----
+  const costosFijosRows = [
+    { 'Concepto': 'Envase chico ($/u)', 'Valor': c.envChico },
+    { 'Concepto': 'Envase grande ($/u)', 'Valor': c.envGrande },
+    { 'Concepto': 'Packaging chico ($/u)', 'Valor': c.pkgChico },
+    { 'Concepto': 'Packaging grande ($/u)', 'Valor': c.pkgGrande },
+    { 'Concepto': 'Etiqueta ($/u)', 'Valor': c.etiqueta },
+    { 'Concepto': 'Mano de obra ($/u)', 'Valor': c.mo },
+    { 'Concepto': 'Otros ($/u)', 'Valor': c.otros },
+    { 'Concepto': 'Costos fijos chico (total)', 'Valor': c.envChico + c.pkgChico + c.etiqueta + c.mo + c.otros },
+    { 'Concepto': 'Costos fijos grande (total)', 'Valor': c.envGrande + c.pkgGrande + c.etiqueta + c.mo + c.otros },
+  ];
+
+  // Crear workbook
+  const wb = XLSX.utils.book_new();
+
+  // Hoja resumen
+  const ws1 = XLSX.utils.json_to_sheet(resumenRows);
+  // Ajustar anchos de columna
+  ws1['!cols'] = [
+    { wch: 22 },  // Nombre
+    { wch: 55 },  // Ingredientes
+    { wch: 14 },  // Cantidad ingredientes
+    { wch: 14 },  // Peso total
+    { wch: 12 },  // Costo/kg
+    { wch: 12 },  // Costo/100g
+    { wch: 16 },  // Peso chico
+    { wch: 14 },  // Costo total chico
+    { wch: 14 },  // Precio venta chico
+    { wch: 12 },  // Margen chico
+    { wch: 16 },  // Prod posible chico
+    { wch: 16 },  // Peso grande
+    { wch: 14 },  // Costo total grande
+    { wch: 14 },  // Precio venta grande
+    { wch: 12 },  // Margen grande
+    { wch: 16 },  // Prod posible grande
+    { wch: 35 },  // Notas
+  ];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Blends');
+
+  // Hoja ingredientes
+  const ws2 = XLSX.utils.json_to_sheet(ingRows);
+  ws2['!cols'] = [
+    { wch: 24 },  // Blend
+    { wch: 4 },   // #
+    { wch: 24 },  // Especia
+    { wch: 14 },  // Gramos
+    { wch: 12 },  // %
+    { wch: 14 },  // Precio/kg
+    { wch: 14 },  // Costo formula
+    { wch: 16 },  // Costo/kg blend
+    { wch: 16 },  // Peso chico
+    { wch: 16 },  // Peso grande
+  ];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Ingredientes');
+
+  // Hoja costos fijos
+  const ws3 = XLSX.utils.json_to_sheet(costosFijosRows);
+  ws3['!cols'] = [
+    { wch: 30 },
+    { wch: 14 },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Costos Fijos');
+
+  // Generar y descargar
+  const nombreArchivo = 'Arcano_Blends_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, nombreArchivo);
+  toast('Excel descargado: ' + nombreArchivo);
+}
+
 // ===================== VENTAS =====================
 let ventaItems = [];
 let editingVentaId = null;

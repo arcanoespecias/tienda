@@ -146,7 +146,7 @@ function setProgress(pct) {
 
 async function githubPut(owner, repo, path, contentB64, branch, token, sha) {
   var url = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
-  var body = { message: 'Arcano v6 - actualizar ' + path, content: contentB64, branch: branch };
+  var body = { message: 'Arcano v10 - export blends Excel', content: contentB64, branch: branch };
   if (sha) body.sha = sha;
   var res = await fetch(url, {
     method: 'PUT',

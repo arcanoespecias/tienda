@@ -7,11 +7,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Arcano">
-<link rel="icon" type="image/png" href="icons/favicon.png?v=9">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=9">
+<link rel="icon" type="image/png" href="icons/favicon.png?v=10">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=10">
 <title>Arcano — Complice del Sabor</title>
-<link rel="manifest" href="manifest.json?v=9">
-<link rel="stylesheet" href="css/style.css?v=9">
+<link rel="manifest" href="manifest.json?v=10">
+<link rel="stylesheet" href="css/style.css?v=10">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <!-- LIMPIEZA AUTOMATICA: eliminar cualquier SW viejo y sus caches -->
 <script>
 (function(){
@@ -41,7 +42,7 @@
 <!-- HEADER -->
 <div id="app-header">
   <div class="header-logo">
-    <img src="icons/logo-header.png?v=9" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
+    <img src="icons/logo-header.png?v=10" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
     <div>
       <div class="header-brand">Arcano</div>
       <div class="header-sub">Complice del Sabor</div>
@@ -153,7 +154,10 @@
 <div id="page-blends" class="page">
   <div class="flex items-center justify-between mb-20">
     <div class="page-title" style="margin:0">Blends</div>
-    <button class="btn btn-gold" onclick="openModalBlend()">+ Nuevo blend</button>
+    <div class="flex gap-8">
+      <button class="btn btn-ghost btn-sm" id="btn-export-blends" onclick="exportBlendsExcel()" style="display:none">📥 Exportar Excel</button>
+      <button class="btn btn-gold" onclick="openModalBlend()">+ Nuevo blend</button>
+    </div>
   </div>
   <div id="lista-blends"></div>
 </div>
@@ -430,10 +434,10 @@
   </div>
 </div>
 
-<script src="js/db.js?v=9"></script>
-<script src="js/github-sync.js?v=9"></script>
-<script src="js/modules1.js?v=9"></script>
-<script src="js/modules2.js?v=9"></script>
+<script src="js/db.js?v=10"></script>
+<script src="js/github-sync.js?v=10"></script>
+<script src="js/modules1.js?v=10"></script>
+<script src="js/modules2.js?v=10"></script>
 <script>
   function updateSyncUI(status, detail) {
     const dot = document.getElementById('sync-dot');
@@ -456,7 +460,7 @@
   }
 
   async function bootApp() {
-    console.log('[Arcano] v9 - Persistent sync');
+    console.log('[Arcano] v10 - Export blends Excel');
     await initGithubSync();
     seedIfEmpty();
     initPin();

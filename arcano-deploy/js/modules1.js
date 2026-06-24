@@ -98,6 +98,9 @@ function goPage(name, btn) {
     blends: renderBlends, ventas: renderVentas, reportes: renderReportes, ajustes: renderAjustes,
   };
   if (renders[name]) renders[name]();
+  // Mostrar botón exportar blends solo para admin
+  const btnExp = document.getElementById('btn-export-blends');
+  if (btnExp) btnExp.style.display = (currentUser && currentUser.rol === 'admin' && name === 'blends') ? '' : 'none';
 }
 
 // ===================== DASHBOARD =====================
