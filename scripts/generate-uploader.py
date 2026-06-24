@@ -146,7 +146,7 @@ function setProgress(pct) {
 
 async function githubPut(owner, repo, path, contentB64, branch, token, sha) {
   var url = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
-  var body = { message: 'Arcano v11 - export blends lazy load', content: contentB64, branch: branch };
+  var body = { message: 'Arcano v12 - PWA install + config panel', content: contentB64, branch: branch };
   if (sha) body.sha = sha;
   var res = await fetch(url, {
     method: 'PUT',

@@ -314,6 +314,25 @@ tr:hover td { background: var(--surface2); }
   align-items: center; justify-content: center;
   z-index: 500; gap: 20px;
 }
+
+/* ---- PWA INSTALL BANNER ---- */
+#pwa-banner {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--gold-dim);
+  padding: 12px 16px;
+  z-index: 400;
+  box-shadow: 0 -4px 20px rgba(0,0,0,.5);
+}
+.pwa-banner-inner {
+  max-width: 1180px; margin: 0 auto;
+  display: flex; align-items: center; gap: 12px;
+}
+.pwa-banner-text { flex: 1; }
+@media(max-width:480px) {
+  .pwa-banner-inner { gap: 8px; }
+  #pwa-banner { padding: 10px 12px; }
+}
 .pin-logo { font-family: var(--font-head); font-size: 2.4rem; color: var(--gold2); text-align: center; }
 .pin-sub { font-size: .8rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
 .user-list { display: flex; flex-direction: column; gap: 10px; width: 260px; }

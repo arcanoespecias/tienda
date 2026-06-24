@@ -2,6 +2,165 @@
 let currentUser = null;
 const SESSION_KEY = 'arcano_session';
 
+// ===================== PWA INSTALL =====================
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Mostrar banner si el usuario no lo descarto
+  if (!localStorage.getItem('arcano_pwa_dismissed')) {
+    const banner = document.getElementById('pwa-banner');
+    if (banner) banner.style.display = 'block';
+  }
+});
+
+window.addEventListener('appinstalled', function() {
+  deferredPrompt = null;
+  const banner = document.getElementById('pwa-banner');
+  if (banner) banner.style.display = 'none';
+  localStorage.removeItem('arcano_pwa_dismissed');
+  toast('Arcano instalada correctamente');
+});
+
+function installPWA() {
+  if (!deferredPrompt) { toast('La instalacion no esta disponible en este momento', 'err'); return; }
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(function(choice) {
+    if (choice.outcome === 'accepted') toast('Instalando Arcano...');
+    deferredPrompt = null;
+  });
+}
+
+function dismissPWA() {
+  const banner = document.getElementById('pwa-banner');
+  if (banner) banner.style.display = 'none';
+  localStorage.setItem('arcano_pwa_dismissed', '1');
+}
+
+// ===================== PWA CONFIG (admin) =====================
+const PWA_CONFIG_KEY = 'arcano_pwa_config';
+const PWA_DEFAULTS = {
+  name: 'Arcano — Complice del Sabor',
+  shortName: 'Arcano',
+  bgColor: '#1b0b07',
+  themeColor: '#1b0b07',
+  description: 'Gestion de especias y blends para Arcano',
+  orientation: 'portrait-primary'
+};
+
+function getPWAConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PWA_CONFIG_KEY) || '{}');
+    return { ...PWA_DEFAULTS, ...saved };
+  } catch { return { ...PWA_DEFAULTS }; }
+}
+
+function applyPWAConfig(cfg) {
+  // Aplicar color de fondo al body y CSS variable
+  if (cfg.bgColor) {
+    document.documentElement.style.setProperty('--bg', cfg.bgColor);
+    document.body.style.background = cfg.bgColor;
+  }
+  // Aplicar theme-color al meta tag
+  if (cfg.themeColor) {
+    let meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = cfg.themeColor;
+  }
+  // Actualizar titulo
+  if (cfg.shortName) {
+    document.title = cfg.name || cfg.shortName;
+    const brand = document.querySelector('.header-brand');
+    if (brand) brand.textContent = cfg.shortName;
+    const sub = document.querySelector('.header-sub');
+    if (sub) sub.textContent = cfg.description || '';
+  }
+  // Actualizar manifest link (forzar recarga del manifest)
+  const manifestLink = document.querySelector('link[rel="manifest"]');
+  if (manifestLink) {
+    manifestLink.href = 'manifest.json?v=12';
+  }
+}
+
+function syncColorInput(type) {
+  const textInput = document.getElementById('pwa-cfg-' + type + '-text');
+  const colorInput = document.getElementById('pwa-cfg-' + type);
+  if (textInput && colorInput && /^#[0-9a-fA-F]{6}$/.test(textInput.value)) {
+    colorInput.value = textInput.value;
+    previewPWA();
+  }
+}
+
+function previewPWA() {
+  const name = document.getElementById('pwa-cfg-name').value.trim();
+  const short = document.getElementById('pwa-cfg-short').value.trim();
+  const desc = document.getElementById('pwa-cfg-desc').value.trim();
+  const bg = document.getElementById('pwa-cfg-bg').value;
+  const theme = document.getElementById('pwa-cfg-theme').value;
+
+  // Sync color text inputs
+  document.getElementById('pwa-cfg-bg-text').value = bg;
+  document.getElementById('pwa-cfg-theme-text').value = theme;
+
+  // Preview
+  const previewBox = document.getElementById('pwa-preview-box');
+  if (previewBox) previewBox.style.background = bg;
+  const previewName = document.getElementById('pwa-preview-name');
+  if (previewName) previewName.textContent = short || 'Arcano';
+  const previewDesc = document.getElementById('pwa-preview-desc');
+  if (previewDesc) previewDesc.textContent = desc || 'Complice del Sabor';
+}
+
+function loadPWAConfigUI() {
+  const cfg = getPWAConfig();
+  document.getElementById('pwa-cfg-name').value = cfg.name || '';
+  document.getElementById('pwa-cfg-short').value = cfg.shortName || '';
+  document.getElementById('pwa-cfg-desc').value = cfg.description || '';
+  document.getElementById('pwa-cfg-bg').value = cfg.bgColor;
+  document.getElementById('pwa-cfg-bg-text').value = cfg.bgColor;
+  document.getElementById('pwa-cfg-theme').value = cfg.themeColor;
+  document.getElementById('pwa-cfg-theme-text').value = cfg.themeColor;
+  document.getElementById('pwa-cfg-orient').value = cfg.orientation || 'portrait-primary';
+
+  // Status badge
+  const badge = document.getElementById('pwa-status-badge');
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (badge) {
+    if (isStandalone) {
+      badge.className = 'badge bg';
+      badge.textContent = 'Instalada';
+    } else if (deferredPrompt) {
+      badge.className = 'badge ba';
+      badge.textContent = 'Disponible para instalar';
+    } else {
+      badge.className = 'badge by';
+      badge.textContent = 'No instalada';
+    }
+  }
+  previewPWA();
+}
+
+function guardarPWAConfig() {
+  const cfg = {
+    name: document.getElementById('pwa-cfg-name').value.trim() || PWA_DEFAULTS.name,
+    shortName: document.getElementById('pwa-cfg-short').value.trim() || PWA_DEFAULTS.shortName,
+    description: document.getElementById('pwa-cfg-desc').value.trim() || PWA_DEFAULTS.description,
+    bgColor: document.getElementById('pwa-cfg-bg').value,
+    themeColor: document.getElementById('pwa-cfg-theme').value,
+    orientation: document.getElementById('pwa-cfg-orient').value
+  };
+  localStorage.setItem(PWA_CONFIG_KEY, JSON.stringify(cfg));
+  applyPWAConfig(cfg);
+  toast('Configuracion PWA guardada');
+}
+
+function resetPWAConfig() {
+  localStorage.removeItem(PWA_CONFIG_KEY);
+  applyPWAConfig(PWA_DEFAULTS);
+  loadPWAConfigUI();
+  toast('Configuracion PWA restaurada');
+}
+
 // ===================== PIN / LOGIN =====================
 function initPin() {
   const screen = document.getElementById('pin-screen');
@@ -101,6 +260,8 @@ function goPage(name, btn) {
   // Mostrar botón exportar blends solo para admin
   const btnExp = document.getElementById('btn-export-blends');
   if (btnExp) btnExp.style.display = (currentUser && currentUser.rol === 'admin' && name === 'blends') ? '' : 'none';
+  // Cargar UI de config PWA al entrar a ajustes
+  if (name === 'ajustes' && currentUser && currentUser.rol === 'admin') loadPWAConfigUI();
 }
 
 // ===================== DASHBOARD =====================

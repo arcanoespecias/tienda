@@ -7,11 +7,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Arcano">
-<link rel="icon" type="image/png" href="icons/favicon.png?v=11">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=11">
+<link rel="icon" type="image/png" href="icons/favicon.png?v=12">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=12">
 <title>Arcano — Complice del Sabor</title>
-<link rel="manifest" href="manifest.json?v=11">
-<link rel="stylesheet" href="css/style.css?v=11">
+<link rel="manifest" href="manifest.json?v=12">
+<link rel="stylesheet" href="css/style.css?v=12">
 <!-- LIMPIEZA AUTOMATICA: eliminar cualquier SW viejo y sus caches -->
 <script>
 (function(){
@@ -35,13 +35,26 @@
 <!-- PIN SCREEN -->
 <div id="pin-screen" style="display:flex"></div>
 
+<!-- PWA INSTALL BANNER -->
+<div id="pwa-banner" style="display:none">
+  <div class="pwa-banner-inner">
+    <img src="icons/icon-192.png?v=12" alt="" style="width:40px;height:40px;border-radius:8px">
+    <div class="pwa-banner-text">
+      <div class="fw7 text-sm">Instalar Arcano</div>
+      <div class="text-xs text-muted">Acceso rapido desde tu pantalla de inicio</div>
+    </div>
+    <button class="btn btn-gold btn-sm" id="pwa-install-btn" onclick="installPWA()">Instalar</button>
+    <button class="btn btn-ghost btn-sm" onclick="dismissPWA()" style="padding:5px 8px;font-size:.9rem">x</button>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast"></div>
 
 <!-- HEADER -->
 <div id="app-header">
   <div class="header-logo">
-    <img src="icons/logo-header.png?v=11" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
+    <img src="icons/logo-header.png?v=12" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
     <div>
       <div class="header-brand">Arcano</div>
       <div class="header-sub">Complice del Sabor</div>
@@ -224,6 +237,71 @@
 <!-- AJUSTES -->
 <div id="page-ajustes" class="page">
   <div class="page-title">Ajustes</div>
+
+  <!-- PWA CONFIG -->
+  <div class="card mb-20" id="pwa-config-card">
+    <div class="flex items-center justify-between mb-16">
+      <h3 style="margin:0">Configuracion PWA</h3>
+      <span id="pwa-status-badge" class="badge by">—</span>
+    </div>
+    <div id="pwa-config-body">
+      <div class="g2 mb-16">
+        <div>
+          <label>Nombre de la app</label>
+          <input id="pwa-cfg-name" placeholder="Arcano — Complice del Sabor" oninput="previewPWA()">
+        </div>
+        <div>
+          <label>Nombre corto</label>
+          <input id="pwa-cfg-short" placeholder="Arcano" oninput="previewPWA()">
+        </div>
+      </div>
+      <div class="g2 mb-16">
+        <div>
+          <label>Color de fondo</label>
+          <div class="flex gap-8">
+            <input id="pwa-cfg-bg" type="color" value="#1b0b07" style="width:48px;height:38px;padding:2px;cursor:pointer" oninput="previewPWA()">
+            <input id="pwa-cfg-bg-text" value="#1b0b07" maxlength="7" oninput="syncColorInput('bg')" style="flex:1">
+          </div>
+        </div>
+        <div>
+          <label>Color tema (barra superior)</label>
+          <div class="flex gap-8">
+            <input id="pwa-cfg-theme" type="color" value="#1b0b07" style="width:48px;height:38px;padding:2px;cursor:pointer" oninput="previewPWA()">
+            <input id="pwa-cfg-theme-text" value="#1b0b07" maxlength="7" oninput="syncColorInput('theme')" style="flex:1">
+          </div>
+        </div>
+      </div>
+      <div class="g2 mb-16">
+        <div>
+          <label>Descripcion</label>
+          <input id="pwa-cfg-desc" placeholder="Gestion de especias y blends">
+        </div>
+        <div>
+          <label>Orientacion</label>
+          <select id="pwa-cfg-orient" onchange="previewPWA()">
+            <option value="portrait-primary">Vertical</option>
+            <option value="landscape-primary">Horizontal</option>
+            <option value="any">Libre</option>
+          </select>
+        </div>
+      </div>
+      <div class="cost-box mb-16" id="pwa-preview-box">
+        <div class="text-xs text-muted mb-12">Vista previa</div>
+        <div class="flex items-center gap-8">
+          <img src="icons/icon-192.png?v=12" style="width:36px;height:36px;border-radius:8px">
+          <div>
+            <div class="fw7 text-sm" id="pwa-preview-name">Arcano</div>
+            <div class="text-xs text-muted" id="pwa-preview-desc">Complice del Sabor</div>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-8">
+        <button class="btn btn-gold" style="flex:1" onclick="guardarPWAConfig()">Guardar configuracion</button>
+        <button class="btn btn-ghost" style="flex:1" onclick="resetPWAConfig()">Restaurar valores</button>
+      </div>
+    </div>
+  </div>
+
   <div class="g2">
     <div class="card">
       <div class="flex items-center justify-between mb-16">
@@ -433,10 +511,10 @@
   </div>
 </div>
 
-<script src="js/db.js?v=11"></script>
-<script src="js/github-sync.js?v=11"></script>
-<script src="js/modules1.js?v=11"></script>
-<script src="js/modules2.js?v=11"></script>
+<script src="js/db.js?v=12"></script>
+<script src="js/github-sync.js?v=12"></script>
+<script src="js/modules1.js?v=12"></script>
+<script src="js/modules2.js?v=12"></script>
 <script>
   function updateSyncUI(status, detail) {
     const dot = document.getElementById('sync-dot');
@@ -459,14 +537,13 @@
   }
 
   async function bootApp() {
-    console.log('[Arcano] v11 - Export blends Excel (lazy load)');
+    console.log('[Arcano] v12 - PWA install + config');
     await initGithubSync();
     seedIfEmpty();
+    // Aplicar config PWA (colores, titulo, etc.)
+    if (typeof applyPWAConfig === 'function') applyPWAConfig(getPWAConfig());
     initPin();
     renderGhAjustes();
-    // No registramos SW - la app no necesita cache offline.
-    // La sincronizacion se hace directamente via GitHub API.
-    console.log('[Arcano] v9 - Persistent sync, no SW');
   }
   bootApp();
 </script>
