@@ -8,23 +8,24 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Arcano">
 <title>Arcano — Complice del Sabor</title>
-<link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="css/style.css">
-<!-- LIMPIEZA NUCLEAR DEL SERVICE WORKER VIEJO -->
-<!-- Se activa cuando la URL tiene ?clean=1 -->
+<link rel="manifest" href="manifest.json?v=6">
+<link rel="stylesheet" href="css/style.css?v=6">
+<!-- LIMPIEZA AUTOMATICA: eliminar cualquier SW viejo y sus caches -->
 <script>
-if('serviceWorker' in navigator && window.location.search.includes('clean=1') && !sessionStorage.getItem('_arc5')){
-  sessionStorage.setItem('_arc5','1');
-  document.documentElement.style.display='none';
-  document.title='Limpiando caches...';
-  Promise.resolve()
-    .then(()=>navigator.serviceWorker.getRegistrations())
-    .then(regs=>Promise.all(regs.map(r=>r.unregister())))
-    .then(()=>caches.keys())
-    .then(ks=>Promise.all(ks.map(k=>caches.delete(k))))
-    .then(()=>{window.location.replace(window.location.pathname);})
-    .catch(()=>{window.location.replace(window.location.pathname);});
-}
+(function(){
+  try {
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        regs.forEach(function(r){ r.unregister(); });
+      });
+      if('caches' in window){
+        caches.keys().then(function(ks){
+          ks.forEach(function(k){ caches.delete(k); });
+        });
+      }
+    }
+  } catch(e){}
+})();
 </script>
 </head>
 <body>
@@ -435,10 +436,10 @@ if('serviceWorker' in navigator && window.location.search.includes('clean=1') &&
   </div>
 </div>
 
-<script src="js/db.js?v=5"></script>
-<script src="js/github-sync.js?v=5"></script>
-<script src="js/modules1.js?v=5"></script>
-<script src="js/modules2.js?v=5"></script>
+<script src="js/db.js?v=6"></script>
+<script src="js/github-sync.js?v=6"></script>
+<script src="js/modules1.js?v=6"></script>
+<script src="js/modules2.js?v=6"></script>
 <script>
   function updateSyncUI(status, detail) {
     const dot = document.getElementById('sync-dot');
@@ -461,17 +462,14 @@ if('serviceWorker' in navigator && window.location.search.includes('clean=1') &&
   }
 
   async function bootApp() {
-    console.log('%c[Arcano] v5 - Zero Cache Sync', 'color:#c9963a;font-weight:bold;font-size:14px');
+    console.log('[Arcano] v6 - Direct sync');
     await initGithubSync();
     seedIfEmpty();
     initPin();
     renderGhAjustes();
-    if ('serviceWorker' in navigator) {
-      try {
-        const reg = await navigator.serviceWorker.register('/arcano-app/sw.js?v=5', { scope: '/arcano-app/' });
-        console.log('[Arcano] SW passthrough registrado:', reg.scope);
-      } catch(e) { console.warn('[Arcano] SW:', e.message); }
-    }
+    // No registramos SW - la app no necesita cache offline.
+    // La sincronizacion se hace directamente via GitHub API.
+    console.log('[Arcano] v6 - Direct sync, no service worker');
   }
   bootApp();
 </script>
