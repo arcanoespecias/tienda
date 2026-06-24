@@ -4,8 +4,8 @@
   "description": "Gestion de especias y blends para Arcano",
   "start_url": "/arcano-app/",
   "display": "standalone",
-  "background_color": "#0a0805",
-  "theme_color": "#0a0805",
+  "background_color": "#1b0b07",
+  "theme_color": "#1b0b07",
   "orientation": "portrait-primary",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },

@@ -512,48 +512,28 @@ function copiarLinkConexion() {
 }
 
 function guardarGhConfigUI() {
-  const owner = document.getElementById('gh-owner').value.trim();
-  const repo = document.getElementById('gh-repo').value.trim();
-  const branch = document.getElementById('gh-branch').value.trim() || 'main';
   const token = document.getElementById('gh-token').value.trim();
-
-  if (!owner || !repo || !token) {
-    toast('Completá owner, repo y token', 'err');
-    return;
-  }
-
-  saveGhConfig({ owner, repo, branch, token });
+  if (!token) { toast('Pegá tu token de GitHub', 'err'); return; }
+  saveGhConfig({ owner: GH_DEFAULT.owner, repo: GH_DEFAULT.repo, branch: GH_DEFAULT.branch, token });
   startGhPolling();
-
-  // Hacer push para subir la data con la config embebida
   ghPush().then(() => {
-    toast('Conectado a GitHub, sincronizando...');
+    toast('Conectado, sincronizando...');
     renderGhAjustes();
   });
 }
 
 async function probarGhConexion() {
-  const owner = document.getElementById('gh-owner').value.trim();
-  const repo = document.getElementById('gh-repo').value.trim();
-  const branch = document.getElementById('gh-branch').value.trim() || 'main';
   const token = document.getElementById('gh-token').value.trim();
   const resultEl = document.getElementById('gh-test-result');
-
-  if (!owner || !repo || !token) {
-    resultEl.innerHTML = '<span class="text-red">Completá todos los campos</span>';
-    return;
-  }
-
-  // Guardar temporalmente para probar
-  saveGhConfig({ owner, repo, branch, token });
-  resultEl.innerHTML = '<span class="text-muted">Probando conexión...</span>';
-
+  if (!token) { resultEl.innerHTML = '<span class="text-red">Pegá tu token</span>'; return; }
+  saveGhConfig({ owner: GH_DEFAULT.owner, repo: GH_DEFAULT.repo, branch: GH_DEFAULT.branch, token });
+  resultEl.innerHTML = '<span class="text-muted">Probando...</span>';
   const result = await ghTestConnection();
   if (result.ok) {
-    resultEl.innerHTML = `<span class="text-green">${result.msg}</span>`;
+    resultEl.innerHTML = '<span class="text-green">' + result.msg + '</span>';
   } else {
-    resultEl.innerHTML = `<span class="text-red">${result.msg}</span>`;
-    clearGhConfig(); // limpiar si falla
+    resultEl.innerHTML = '<span class="text-red">' + result.msg + '</span>';
+    clearGhConfig();
   }
 }
 

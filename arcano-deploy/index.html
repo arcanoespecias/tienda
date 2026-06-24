@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#0a0805">
+<meta name="theme-color" content="#1b0b07">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Arcano">
-<link rel="icon" type="image/png" href="icons/favicon.png?v=8">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=8">
+<link rel="icon" type="image/png" href="icons/favicon.png?v=9">
+<link rel="apple-touch-icon" href="icons/icon-192.png?v=9">
 <title>Arcano — Complice del Sabor</title>
-<link rel="manifest" href="manifest.json?v=8">
-<link rel="stylesheet" href="css/style.css?v=8">
+<link rel="manifest" href="manifest.json?v=9">
+<link rel="stylesheet" href="css/style.css?v=9">
 <!-- LIMPIEZA AUTOMATICA: eliminar cualquier SW viejo y sus caches -->
 <script>
 (function(){
@@ -41,7 +41,7 @@
 <!-- HEADER -->
 <div id="app-header">
   <div class="header-logo">
-    <img src="icons/logo-header.png?v=8" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
+    <img src="icons/logo-header.png?v=9" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
     <div>
       <div class="header-brand">Arcano</div>
       <div class="header-sub">Complice del Sabor</div>
@@ -237,17 +237,9 @@
         </div>
         <p class="text-muted text-sm mb-16">Los datos se guardan en un archivo JSON del repositorio. Los cambios se sincronizan automaticamente entre usuarios.</p>
         <div id="gh-config-form">
-          <div class="fr">
-            <div><label>Owner / Usuario</label><input id="gh-owner" placeholder="Ej: mi-usuario"></div>
-            <div><label>Repositorio</label><input id="gh-repo" placeholder="Ej: arcano-data"></div>
-          </div>
-          <div class="fr">
-            <div><label>Branch (opcional)</label><input id="gh-branch" placeholder="main"></div>
-            <div><label>Personal Access Token *</label><input id="gh-token" type="password" placeholder="ghp_xxxx..."></div>
-          </div>
+          <div class="fr fr1"><div><label>Personal Access Token</label><input id="gh-token" type="password" placeholder="ghp_xxxx..."></div></div>
           <div class="flex gap-8 mt-16">
-            <button class="btn btn-gold" style="flex:1" onclick="guardarGhConfigUI()">Guardar</button>
-            <button class="btn btn-ghost" onclick="probarGhConexion()">Probar conexion</button>
+            <button class="btn btn-gold" style="flex:1" onclick="guardarGhConfigUI()">Conectar</button>
           </div>
           <div id="gh-test-result" class="mt-12" style="font-size:.82rem;min-height:20px"></div>
         </div>
@@ -438,10 +430,10 @@
   </div>
 </div>
 
-<script src="js/db.js?v=8"></script>
-<script src="js/github-sync.js?v=8"></script>
-<script src="js/modules1.js?v=8"></script>
-<script src="js/modules2.js?v=8"></script>
+<script src="js/db.js?v=9"></script>
+<script src="js/github-sync.js?v=9"></script>
+<script src="js/modules1.js?v=9"></script>
+<script src="js/modules2.js?v=9"></script>
 <script>
   function updateSyncUI(status, detail) {
     const dot = document.getElementById('sync-dot');
@@ -464,14 +456,14 @@
   }
 
   async function bootApp() {
-    console.log('[Arcano] v8 - UTF-8 safe sync');
+    console.log('[Arcano] v9 - Persistent sync');
     await initGithubSync();
     seedIfEmpty();
     initPin();
     renderGhAjustes();
     // No registramos SW - la app no necesita cache offline.
     // La sincronizacion se hace directamente via GitHub API.
-    console.log('[Arcano] v8 - UTF-8 safe sync, no SW');
+    console.log('[Arcano] v9 - Persistent sync, no SW');
   }
   bootApp();
 </script>
