@@ -1,4 +1,4 @@
-// ===================== GITHUB SYNC MODULE v5 =====================
+// ===================== GITHUB SYNC MODULE v6 =====================
 
 const GH_SYNC_KEY = 'arcano_github_config';
 const GH_DATA_PATH = 'data/arcano-data.json';
@@ -14,18 +14,23 @@ let ghPushErrors = 0;
 
 function getGhConfig() {
   if (ghConfig) return ghConfig;
+  // El token SOLO vive en localStorage (GH_SYNC_KEY), nunca en el DB compartido
   try {
     const saved = JSON.parse(localStorage.getItem(GH_SYNC_KEY) || 'null');
     if (saved && saved.token && saved.owner && saved.repo) { ghConfig = saved; return ghConfig; }
   } catch {}
+  // Fallback: si el DB tiene owner/repo/branch pero no token, pedir token
   try {
     const dbRaw = localStorage.getItem(DB_KEY);
     if (dbRaw) {
       const db = JSON.parse(dbRaw);
-      if (db._ghConfig && db._ghConfig.token && db._ghConfig.owner && db._ghConfig.repo) {
-        ghConfig = db._ghConfig;
-        localStorage.setItem(GH_SYNC_KEY, JSON.stringify(ghConfig));
-        return ghConfig;
+      if (db._ghConfig && db._ghConfig.owner && db._ghConfig.repo) {
+        const saved = JSON.parse(localStorage.getItem(GH_SYNC_KEY) || 'null');
+        if (saved && saved.token) {
+          ghConfig = { owner: db._ghConfig.owner, repo: db._ghConfig.repo, branch: db._ghConfig.branch || 'main', token: saved.token };
+          localStorage.setItem(GH_SYNC_KEY, JSON.stringify(ghConfig));
+          return ghConfig;
+        }
       }
     }
   } catch {}
@@ -34,12 +39,14 @@ function getGhConfig() {
 
 function saveGhConfig(config) {
   ghConfig = config;
+  // Guardar config COMPLETA (con token) solo en localStorage separado
   localStorage.setItem(GH_SYNC_KEY, JSON.stringify(config));
   try {
     const dbRaw = localStorage.getItem(DB_KEY);
     if (dbRaw) {
       const db = JSON.parse(dbRaw);
-      db._ghConfig = { owner: config.owner, repo: config.repo, branch: config.branch, token: config.token };
+      // En el DB compartido NUNCA va el token (GitHub lo bloquea como "secret")
+      db._ghConfig = { owner: config.owner, repo: config.repo, branch: config.branch };
       localStorage.setItem(DB_KEY, JSON.stringify(db));
     }
   } catch {}
@@ -125,12 +132,20 @@ async function ghPull() {
     ghRemoteSha = data.sha;
     const remoteDB = JSON.parse(atob(data.content));
 
-    if (remoteDB._ghConfig && remoteDB._ghConfig.token && remoteDB._ghConfig.owner && remoteDB._ghConfig.repo) {
-      if (!getGhConfig()) saveGhConfig(remoteDB._ghConfig);
+    // Merge config remota con token local (remoto NUNCA tiene token)
+    if (remoteDB._ghConfig && remoteDB._ghConfig.owner && remoteDB._ghConfig.repo) {
+      const localCfg = JSON.parse(localStorage.getItem(GH_SYNC_KEY) || 'null');
+      const merged = { owner: remoteDB._ghConfig.owner, repo: remoteDB._ghConfig.repo, branch: remoteDB._ghConfig.branch || 'main' };
+      if (localCfg && localCfg.token) merged.token = localCfg.token;
+      if (merged.token) saveGhConfig(merged);
+      // Actualizar _ghConfig en el remoteDB antes de guardar (sin token)
+      remoteDB._ghConfig = { owner: merged.owner, repo: merged.repo, branch: merged.branch };
+    } else {
+      // Limpiar _ghConfig del remoto si no tiene lo necesario
+      if (remoteDB._ghConfig) delete remoteDB._ghConfig;
     }
 
     localStorage.setItem(DB_KEY, JSON.stringify(remoteDB));
-    if (remoteDB._ghConfig) saveGhConfig(remoteDB._ghConfig);
     syncIdCounter(remoteDB);
 
     // Actualizar referencia del usuario actual
@@ -163,7 +178,10 @@ async function ghPush() {
     if (!dbRaw) return;
     const db = JSON.parse(dbRaw);
     const cfg = getGhConfig();
-    if (cfg) db._ghConfig = { owner: cfg.owner, repo: cfg.repo, branch: cfg.branch, token: cfg.token };
+    // NUNCA incluir el token en el contenido que se sube a GitHub
+    if (cfg) db._ghConfig = { owner: cfg.owner, repo: cfg.repo, branch: cfg.branch };
+    // Doble seguridad: eliminar cualquier token residual que pudiera haber quedado
+    if (db._ghConfig && db._ghConfig.token) delete db._ghConfig.token;
     const content = btoa(unescape(encodeURIComponent(JSON.stringify(db, null, 2))));
     const body = { message: 'sync: ' + new Date().toISOString(), content };
     if (ghRemoteSha) body.sha = ghRemoteSha;
@@ -276,6 +294,20 @@ async function ghTestConnection() {
 
 async function initGithubSync() {
   const hashConfigured = checkHashConfig();
+
+  // Limpiar token del DB local si existe (versiones viejas lo guardaban ahi)
+  try {
+    const dbRaw = localStorage.getItem(DB_KEY);
+    if (dbRaw) {
+      const db = JSON.parse(dbRaw);
+      if (db._ghConfig && db._ghConfig.token) {
+        delete db._ghConfig.token;
+        localStorage.setItem(DB_KEY, JSON.stringify(db));
+        console.log('[Sync] Token removido del DB local (limpieza v6)');
+      }
+    }
+  } catch {}
+
   const cfg = getGhConfig();
   if (!cfg) {
     console.log('[Sync] Sin configuracion de GitHub');

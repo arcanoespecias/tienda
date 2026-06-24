@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Arcano">
 <title>Arcano — Complice del Sabor</title>
-<link rel="manifest" href="manifest.json?v=6">
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="manifest" href="manifest.json?v=7">
+<link rel="stylesheet" href="css/style.css?v=7">
 <!-- LIMPIEZA AUTOMATICA: eliminar cualquier SW viejo y sus caches -->
 <script>
 (function(){
@@ -436,10 +436,10 @@
   </div>
 </div>
 
-<script src="js/db.js?v=6"></script>
-<script src="js/github-sync.js?v=6"></script>
-<script src="js/modules1.js?v=6"></script>
-<script src="js/modules2.js?v=6"></script>
+<script src="js/db.js?v=7"></script>
+<script src="js/github-sync.js?v=7"></script>
+<script src="js/modules1.js?v=7"></script>
+<script src="js/modules2.js?v=7"></script>
 <script>
   function updateSyncUI(status, detail) {
     const dot = document.getElementById('sync-dot');
@@ -462,14 +462,14 @@
   }
 
   async function bootApp() {
-    console.log('[Arcano] v6 - Direct sync');
+    console.log('[Arcano] v7 - Token-safe sync');
     await initGithubSync();
     seedIfEmpty();
     initPin();
     renderGhAjustes();
     // No registramos SW - la app no necesita cache offline.
     // La sincronizacion se hace directamente via GitHub API.
-    console.log('[Arcano] v6 - Direct sync, no service worker');
+    console.log('[Arcano] v7 - Token-safe sync, no SW');
   }
   bootApp();
 </script>
