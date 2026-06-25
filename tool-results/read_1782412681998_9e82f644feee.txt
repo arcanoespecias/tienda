@@ -1,0 +1,774 @@
+     1→// ===================== BLENDS =====================
+     2→let blendIngRows = [];
+     3→let editingBlendId = null;
+     4→let editingBEId = null;
+     5→
+     6→function openModalBlend(id = null) {
+     7→  editingBlendId = id;
+     8→  blendIngRows = [];
+     9→  document.getElementById('modal-blend-titulo').textContent = id ? 'Editar blend' : 'Nuevo Blend';
+    10→  const db = getDB();
+    11→  if (id) {
+    12→    const bl = db.blends.find(b => b.id === id);
+    13→    if (bl) {
+    14→      document.getElementById('bl-nombre').value       = bl.nombre;
+    15→      document.getElementById('bl-peso-c').value       = bl.pesoChico || '';
+    16→      document.getElementById('bl-peso-g').value       = bl.pesoGrande || '';
+    17→      document.getElementById('bl-pventa-c').value     = bl.pVentaChico || '';
+    18→      document.getElementById('bl-pventa-g').value     = bl.pVentaGrande || '';
+    19→      document.getElementById('bl-notas').value        = bl.notas || '';
+    20→      blendIngRows = bl.ingredientes.map(i => ({ ...i, _rid: nid() }));
+    21→    }
+    22→  } else {
+    23→    document.getElementById('bl-nombre').value    = '';
+    24→    document.getElementById('bl-peso-c').value    = '';
+    25→    document.getElementById('bl-peso-g').value    = '';
+    26→    document.getElementById('bl-pventa-c').value  = '';
+    27→    document.getElementById('bl-pventa-g').value  = '';
+    28→    document.getElementById('bl-notas').value     = '';
+    29→    blendIngRows = [{ _rid: nid(), espId: null, gramos: 0 }];
+    30→  }
+    31→  renderIngRows();
+    32→  calcBlendModal();
+    33→  openModal('modal-blend');
+    34→}
+    35→
+    36→function addIngRow() {
+    37→  blendIngRows.push({ _rid: nid(), espId: null, gramos: 0 });
+    38→  renderIngRows();
+    39→}
+    40→
+    41→function removeIngRow(rid) {
+    42→  blendIngRows = blendIngRows.filter(r => r._rid !== rid);
+    43→  renderIngRows();
+    44→  calcBlendModal();
+    45→}
+    46→
+    47→function renderIngRows() {
+    48→  const esp = getDB().especias;
+    49→  const opts = esp.map(e => `<option value="${e.id}">${e.nombre} (${fmt(e.precioKg)}/kg)</option>`).join('');
+    50→  document.getElementById('blend-ings-rows').innerHTML = blendIngRows.map(r => `
+    51→    <div class="ing-row" id="row-${r._rid}">
+    52→      <select onchange="ingChange(${r._rid},'espId',this.value)">
+    53→        <option value="">-- Especia --</option>${opts}
+    54→      </select>
+    55→      <input type="number" min="0" max="1000" placeholder="gramos" value="${r.gramos || ''}"
+    56→        oninput="ingChange(${r._rid},'gramos',+this.value)">
+    57→      <div class="ing-cost" id="ic-${r._rid}">$0</div>
+    58→      <button class="btn btn-red btn-sm" onclick="removeIngRow(${r._rid})">×</button>
+    59→    </div>
+    60→  `).join('');
+    61→  blendIngRows.forEach(r => {
+    62→    const sel = document.querySelector(`#row-${r._rid} select`);
+    63→    if (sel && r.espId) sel.value = r.espId;
+    64→    updateIngCost(r);
+    65→  });
+    66→}
+    67→
+    68→function ingChange(rid, field, val) {
+    69→  const r = blendIngRows.find(x => x._rid === rid);
+    70→  if (r) { r[field] = val; updateIngCost(r); calcBlendModal(); }
+    71→}
+    72→
+    73→function updateIngCost(r) {
+    74→  const el = document.getElementById('ic-' + r._rid);
+    75→  if (!el) return;
+    76→  if (!r.espId || !r.gramos) { el.textContent = '$0'; return; }
+    77→  const esp = getDB().especias.find(e => e.id == r.espId);
+    78→  el.textContent = esp ? fmt((esp.precioKg / 1000) * r.gramos) : '$0';
+    79→}
+    80→
+    81→function calcBlendModal() {
+    82→  const db = getDB(); const c = db.costos;
+    83→  let costoKg = 0, totalG = 0;
+    84→  blendIngRows.forEach(r => {
+    85→    if (!r.espId || !r.gramos) return;
+    86→    const esp = db.especias.find(e => e.id == r.espId);
+    87→    if (!esp) return;
+    88→    costoKg += (esp.precioKg / 1000) * r.gramos;
+    89→    totalG  += +r.gramos;
+    90→  });
+    91→  const costo100 = costoKg / 10;
+    92→  const pC = +document.getElementById('bl-peso-c')?.value || 0;
+    93→  const pG = +document.getElementById('bl-peso-g')?.value || 0;
+    94→  const mpC = (costoKg / 1000) * pC;
+    95→  const mpG = (costoKg / 1000) * pG;
+    96→  const fC = c.envChico  + c.pkgChico  + c.etiqueta + c.mo + c.otros;
+    97→  const fG = c.envGrande + c.pkgGrande + c.etiqueta + c.mo + c.otros;
+    98→
+    99→  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+   100→  set('bc-kg',    fmt(costoKg));
+   101→  set('bc-100',   fmt(costo100));
+   102→  set('bc-grams', `${totalG}g de 1000g`);
+   103→  set('bc-mp-c',  fmt(mpC));
+   104→  set('bc-fij-c', fmt(fC));
+   105→  set('bc-tot-c', fmt(mpC + fC));
+   106→  set('bc-mp-g',  fmt(mpG));
+   107→  set('bc-fij-g', fmt(fG));
+   108→  set('bc-tot-g', fmt(mpG + fG));
+   109→
+   110→  const gramEl = document.getElementById('bc-grams');
+   111→  if (gramEl) gramEl.style.color = Math.abs(totalG - 1000) < 1 ? 'var(--green)' : 'var(--yellow)';
+   112→}
+   113→
+   114→function guardarBlend() {
+   115→  const nombre = document.getElementById('bl-nombre').value.trim();
+   116→  if (!nombre) { showAlert('alert-blend','El nombre es obligatorio.','err'); return; }
+   117→  const db = getDB();
+   118→  const ings = blendIngRows.filter(r => r.espId && r.gramos > 0).map(r => {
+   119→    const esp = db.especias.find(e => e.id == r.espId);
+   120→    return { espId: +r.espId, nombre: esp?.nombre || '', gramos: +r.gramos, precioKg: esp?.precioKg || 0 };
+   121→  });
+   122→  if (!ings.length) { showAlert('alert-blend','Agregá al menos una especia.','err'); return; }
+   123→  const bl = {
+   124→    nombre, ingredientes: ings,
+   125→    pesoChico:   +document.getElementById('bl-peso-c').value   || 0,
+   126→    pesoGrande:  +document.getElementById('bl-peso-g').value   || 0,
+   127→    pVentaChico: +document.getElementById('bl-pventa-c').value || 0,
+   128→    pVentaGrande:+document.getElementById('bl-pventa-g').value || 0,
+   129→    notas:        document.getElementById('bl-notas').value.trim(),
+   130→  };
+   131→  if (editingBlendId) {
+   132→    bl.id = editingBlendId;
+   133→    const i = db.blends.findIndex(b => b.id === editingBlendId);
+   134→    if (i >= 0) db.blends[i] = bl;
+   135→  } else { bl.id = nid(); db.blends.push(bl); }
+   136→  saveDB(db);
+   137→  toast(editingBlendId ? 'Blend actualizado ✓' : 'Blend creado ✓');
+   138→  setTimeout(() => closeModal('modal-blend'), 700);
+   139→  renderBlends();
+   140→}
+   141→
+   142→function eliminarBlend(id) {
+   143→  if (!confirm('¿Eliminar este blend?')) return;
+   144→  const db = getDB(); db.blends = db.blends.filter(b => b.id !== id); saveDB(db);
+   145→  renderBlends(); toast('Blend eliminado');
+   146→}
+   147→
+   148→function toggleBlend(id) {
+   149→  const body  = document.getElementById('bb-' + id);
+   150→  const arrow = document.getElementById('arr-' + id);
+   151→  body.classList.toggle('open');
+   152→  if (arrow) arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
+   153→}
+   154→
+   155→function renderBlends() {
+   156→  const db = getDB(); const c = db.costos;
+   157→  const el = document.getElementById('lista-blends');
+   158→  if (!db.blends.length) {
+   159→    el.innerHTML = `<div class="empty"><div class="empty-icon">🫙</div><p>No hay blends. Creá el primero.</p></div>`;
+   160→    return;
+   161→  }
+   162→  el.innerHTML = db.blends.map(bl => {
+   163→    const cd = calcBlendCostData(bl, c);
+   164→    const prod = calcProduccion(bl, db.especias);
+   165→    const totalGramos = bl.ingredientes.reduce((s, i) => s + i.gramos, 0);
+   166→    return `
+   167→    <div class="blend-card">
+   168→      <div class="blend-header" onclick="toggleBlend(${bl.id})">
+   169→        <div>
+   170→          <div class="blend-name">${bl.nombre}</div>
+   171→          <div class="flex gap-8" style="margin-top:5px;flex-wrap:wrap">
+   172→            <span class="badge ba">Costo/kg: ${fmt(cd.costoKg)}</span>
+   173→            <span class="badge ba">Costo/100g: ${fmt(cd.costo100g)}</span>
+   174→            ${totalGramos !== 1000 ? `<span class="badge by">${totalGramos}g/1kg</span>` : ''}
+   175→          </div>
+   176→        </div>
+   177→        <div class="flex gap-8 items-center" onclick="event.stopPropagation()">
+   178→          <button class="btn btn-ghost btn-sm" onclick="openModalBlend(${bl.id})">✏ Editar</button>
+   179→          <button class="btn btn-red btn-sm" onclick="eliminarBlend(${bl.id})">🗑</button>
+   180→          <span id="arr-${bl.id}" class="text-muted text-xs" style="padding:4px">▼</span>
+   181→        </div>
+   182→      </div>
+   183→      <div class="blend-body" id="bb-${bl.id}">
+   184→        <div class="blend-inner">
+   185→          ${bl.notas ? `<div class="cost-box mb-16" style="border-color:var(--gold-dim)"><span class="text-xs text-muted">📝 Notas: </span>${bl.notas}</div>` : ''}
+   186→          <h3 style="margin-bottom:10px">Ingredientes — fórmula /1kg</h3>
+   187→          <div class="tw mb-16">
+   188→            <table>
+   189→              <thead><tr><th>Especia</th><th>Gramos</th><th>%</th><th>Costo</th></tr></thead>
+   190→              <tbody>
+   191→                ${bl.ingredientes.map(i => `<tr>
+   192→                  <td>${i.nombre}</td>
+   193→                  <td>${i.gramos}g</td>
+   194→                  <td class="text-muted">${Math.round(i.gramos/10)}%</td>
+   195→                  <td class="text-gold">${fmt((i.precioKg/1000)*i.gramos)}</td>
+   196→                </tr>`).join('')}
+   197→                <tr style="font-weight:700">
+   198→                  <td>TOTAL</td><td>${totalGramos}g</td><td>${Math.round(totalGramos/10)}%</td>
+   199→                  <td class="text-gold">${fmt(cd.costoKg)}</td>
+   200→                </tr>
+   201→              </tbody>
+   202→            </table>
+   203→          </div>
+   204→          <div class="g2">
+   205→            <div class="cost-box">
+   206→              <div class="fw7 text-gold text-sm mb-12">ENVASE CHICO ${bl.pesoChico ? '('+bl.pesoChico+'g)' : '— sin peso'}</div>
+   207→              <div class="cost-row"><span>Mat. prima</span><span>${fmt(cd.mpChico)}</span></div>
+   208→              <div class="cost-row"><span>Envase + extras</span><span>${fmt(cd.fijosC)}</span></div>
+   209→              <div class="cost-row total"><span>Costo total</span><span>${fmt(cd.totalC)}</span></div>
+   210→              ${bl.pVentaChico ? `
+   211→                <div class="cost-row" style="margin-top:6px"><span>Precio venta</span><span class="text-green fw7">${fmt(bl.pVentaChico)}</span></div>
+   212→                <div class="cost-row ${cd.margenC > 0 ? 'profit' : 'loss'}"><span>Margen</span><span>${cd.margenC !== null ? Math.round(cd.margenC)+'%' : '—'}</span></div>
+   213→              ` : '<div class="text-muted text-xs" style="margin-top:6px">Sin precio de venta</div>'}
+   214→              <div class="divider"></div>
+   215→              <div class="cost-row text-xs"><span class="text-muted">Producción posible</span><span class="text-gold fw7">${prod.unidadesC} u.</span></div>
+   216→            </div>
+   217→            <div class="cost-box">
+   218→              <div class="fw7 text-gold text-sm mb-12">ENVASE GRANDE ${bl.pesoGrande ? '('+bl.pesoGrande+'g)' : '— sin peso'}</div>
+   219→              <div class="cost-row"><span>Mat. prima</span><span>${fmt(cd.mpGrande)}</span></div>
+   220→              <div class="cost-row"><span>Envase + extras</span><span>${fmt(cd.fijosG)}</span></div>
+   221→              <div class="cost-row total"><span>Costo total</span><span>${fmt(cd.totalG)}</span></div>
+   222→              ${bl.pVentaGrande ? `
+   223→                <div class="cost-row" style="margin-top:6px"><span>Precio venta</span><span class="text-green fw7">${fmt(bl.pVentaGrande)}</span></div>
+   224→                <div class="cost-row ${cd.margenG > 0 ? 'profit' : 'loss'}"><span>Margen</span><span>${cd.margenG !== null ? Math.round(cd.margenG)+'%' : '—'}</span></div>
+   225→              ` : '<div class="text-muted text-xs" style="margin-top:6px">Sin precio de venta</div>'}
+   226→              <div class="divider"></div>
+   227→              <div class="cost-row text-xs"><span class="text-muted">Producción posible</span><span class="text-gold fw7">${prod.unidadesG} u.</span></div>
+   228→            </div>
+   229→          </div>
+   230→        </div>
+   231→      </div>
+   232→    </div>`;
+   233→  }).join('');
+   234→}
+   235→
+   236→// ===================== EXPORTAR BLENDS EXCEL =====================
+   237→function exportBlendsExcel() {
+   238→  const db = getDB();
+   239→  if (!db.blends.length) {
+   240→    toast('No hay blends para exportar.', 'err');
+   241→    return;
+   242→  }
+   243→  if (typeof XLSX !== 'undefined') {
+   244→    _doExportBlendsExcel();
+   245→    return;
+   246→  }
+   247→  toast('Cargando libreria Excel...', 'gold');
+   248→  const s = document.createElement('script');
+   249→  s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+   250→  s.onload = function() { _doExportBlendsExcel(); };
+   251→  s.onerror = function() { toast('Error al cargar libreria Excel. Verifica tu conexion.', 'err'); };
+   252→  document.head.appendChild(s);
+   253→}
+   254→
+   255→function _doExportBlendsExcel() {
+   256→  const db = getDB();
+   257→  const c = db.costos;
+   258→
+   259→  // ---- HOJA 1: Resumen de Blends ----
+   260→  const resumenRows = db.blends.map(bl => {
+   261→    const cd = calcBlendCostData(bl, c);
+   262→    const prod = calcProduccion(bl, db.especias);
+   263→    const totalG = bl.ingredientes.reduce((s, i) => s + i.gramos, 0);
+   264→    const ingNombres = bl.ingredientes.map(i => i.nombre + ' (' + i.gramos + 'g)').join(', ');
+   265→    return {
+   266→      'Nombre': bl.nombre,
+   267→      'Ingredientes': ingNombres,
+   268→      'Cantidad ingredientes': bl.ingredientes.length,
+   269→      'Peso total formula': totalG + 'g',
+   270→      'Costo/kg': Math.round(cd.costoKg),
+   271→      'Costo/100g': Math.round(cd.costo100g),
+   272→      'Peso envase chico (g)': bl.pesoChico || '',
+   273→      'Costo total chico': Math.round(cd.totalC),
+   274→      'Precio venta chico': bl.pVentaChico || '',
+   275→      'Margen chico %': cd.margenC !== null ? Math.round(cd.margenC) + '%' : '',
+   276→      'Produccion posible chico (u.)': prod.unidadesC,
+   277→      'Peso envase grande (g)': bl.pesoGrande || '',
+   278→      'Costo total grande': Math.round(cd.totalG),
+   279→      'Precio venta grande': bl.pVentaGrande || '',
+   280→      'Margen grande %': cd.margenG !== null ? Math.round(cd.margenG) + '%' : '',
+   281→      'Produccion posible grande (u.)': prod.unidadesG,
+   282→      'Notas': bl.notas || ''
+   283→    };
+   284→  });
+   285→
+   286→  // ---- HOJA 2: Ingredientes detallados ----
+   287→  const ingRows = [];
+   288→  db.blends.forEach(bl => {
+   289→    const cd = calcBlendCostData(bl, c);
+   290→    const totalG = bl.ingredientes.reduce((s, i) => s + i.gramos, 0);
+   291→    bl.ingredientes.forEach((ing, idx) => {
+   292→      const costoIng = (ing.precioKg / 1000) * ing.gramos;
+   293→      ingRows.push({
+   294→        'Blend': bl.nombre,
+   295→        '#': idx + 1,
+   296→        'Especia': ing.nombre,
+   297→        'Gramos en formula': ing.gramos,
+   298→        '% sobre 1kg': Math.round(ing.gramos / 10) + '%',
+   299→        'Precio/kg especia': ing.precioKg || 0,
+   300→        'Costo en formula': Math.round(costoIng),
+   301→        'Costo/kg del blend': Math.round(cd.costoKg),
+   302→        'Peso envase chico (g)': bl.pesoChico || '',
+   303→        'Peso envase grande (g)': bl.pesoGrande || ''
+   304→      });
+   305→    });
+   306→    // Fila subtotal del blend
+   307→    ingRows.push({
+   308→      'Blend': 'SUBTOTAL: ' + bl.nombre,
+   309→      '#': '',
+   310→      'Especia': bl.ingredientes.length + ' ingredientes',
+   311→      'Gramos en formula': totalG,
+   312→      '% sobre 1kg': Math.round(totalG / 10) + '%',
+   313→      'Precio/kg especia': '',
+   314→      'Costo en formula': Math.round(cd.costoKg),
+   315→      'Costo/kg del blend': '',
+   316→      'Peso envase chico (g)': '',
+   317→      'Peso envase grande (g)': ''
+   318→    });
+   319→    // Fila vacia separadora
+   320→    ingRows.push({
+   321→      'Blend': '', '#': '', 'Especia': '', 'Gramos en formula': '',
+   322→      '% sobre 1kg': '', 'Precio/kg especia': '', 'Costo en formula': '',
+   323→      'Costo/kg del blend': '', 'Peso envase chico (g)': '', 'Peso envase grande (g)': ''
+   324→    });
+   325→  });
+   326→
+   327→  // ---- HOJA 3: Costos fijos ----
+   328→  const costosFijosRows = [
+   329→    { 'Concepto': 'Envase chico ($/u)', 'Valor': c.envChico },
+   330→    { 'Concepto': 'Envase grande ($/u)', 'Valor': c.envGrande },
+   331→    { 'Concepto': 'Packaging chico ($/u)', 'Valor': c.pkgChico },
+   332→    { 'Concepto': 'Packaging grande ($/u)', 'Valor': c.pkgGrande },
+   333→    { 'Concepto': 'Etiqueta ($/u)', 'Valor': c.etiqueta },
+   334→    { 'Concepto': 'Mano de obra ($/u)', 'Valor': c.mo },
+   335→    { 'Concepto': 'Otros ($/u)', 'Valor': c.otros },
+   336→    { 'Concepto': 'Costos fijos chico (total)', 'Valor': c.envChico + c.pkgChico + c.etiqueta + c.mo + c.otros },
+   337→    { 'Concepto': 'Costos fijos grande (total)', 'Valor': c.envGrande + c.pkgGrande + c.etiqueta + c.mo + c.otros },
+   338→  ];
+   339→
+   340→  // Crear workbook
+   341→  const wb = XLSX.utils.book_new();
+   342→
+   343→  // Hoja resumen
+   344→  const ws1 = XLSX.utils.json_to_sheet(resumenRows);
+   345→  // Ajustar anchos de columna
+   346→  ws1['!cols'] = [
+   347→    { wch: 22 },  // Nombre
+   348→    { wch: 55 },  // Ingredientes
+   349→    { wch: 14 },  // Cantidad ingredientes
+   350→    { wch: 14 },  // Peso total
+   351→    { wch: 12 },  // Costo/kg
+   352→    { wch: 12 },  // Costo/100g
+   353→    { wch: 16 },  // Peso chico
+   354→    { wch: 14 },  // Costo total chico
+   355→    { wch: 14 },  // Precio venta chico
+   356→    { wch: 12 },  // Margen chico
+   357→    { wch: 16 },  // Prod posible chico
+   358→    { wch: 16 },  // Peso grande
+   359→    { wch: 14 },  // Costo total grande
+   360→    { wch: 14 },  // Precio venta grande
+   361→    { wch: 12 },  // Margen grande
+   362→    { wch: 16 },  // Prod posible grande
+   363→    { wch: 35 },  // Notas
+   364→  ];
+   365→  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Blends');
+   366→
+   367→  // Hoja ingredientes
+   368→  const ws2 = XLSX.utils.json_to_sheet(ingRows);
+   369→  ws2['!cols'] = [
+   370→    { wch: 24 },  // Blend
+   371→    { wch: 4 },   // #
+   372→    { wch: 24 },  // Especia
+   373→    { wch: 14 },  // Gramos
+   374→    { wch: 12 },  // %
+   375→    { wch: 14 },  // Precio/kg
+   376→    { wch: 14 },  // Costo formula
+   377→    { wch: 16 },  // Costo/kg blend
+   378→    { wch: 16 },  // Peso chico
+   379→    { wch: 16 },  // Peso grande
+   380→  ];
+   381→  XLSX.utils.book_append_sheet(wb, ws2, 'Ingredientes');
+   382→
+   383→  // Hoja costos fijos
+   384→  const ws3 = XLSX.utils.json_to_sheet(costosFijosRows);
+   385→  ws3['!cols'] = [
+   386→    { wch: 30 },
+   387→    { wch: 14 },
+   388→  ];
+   389→  XLSX.utils.book_append_sheet(wb, ws3, 'Costos Fijos');
+   390→
+   391→  // Generar y descargar
+   392→  const nombreArchivo = 'Arcano_Blends_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+   393→  XLSX.writeFile(wb, nombreArchivo);
+   394→  toast('Excel descargado: ' + nombreArchivo);
+   395→}
+   396→
+   397→// ===================== VENTAS =====================
+   398→let ventaItems = [];
+   399→let editingVentaId = null;
+   400→
+   401→function openModalVenta(id = null) {
+   402→  editingVentaId = id;
+   403→  ventaItems = [];
+   404→  document.getElementById('modal-venta-titulo').textContent = id ? 'Editar venta' : 'Nueva venta';
+   405→  const db = getDB();
+   406→  // Populate product select (blends + especias)
+   407→  const sel = document.getElementById('v-prod-sel');
+   408→  sel.innerHTML = '<option value="">-- Producto --</option>';
+   409→  sel.innerHTML += '<optgroup label="Blends — Chico">' +
+   410→    db.blends.filter(b=>b.pVentaChico>0).map(b=>`<option value="bc-${b.id}">${b.nombre} (chico) — ${fmt(b.pVentaChico)}</option>`).join('') + '</optgroup>';
+   411→  sel.innerHTML += '<optgroup label="Blends — Grande">' +
+   412→    db.blends.filter(b=>b.pVentaGrande>0).map(b=>`<option value="bg-${b.id}">${b.nombre} (grande) — ${fmt(b.pVentaGrande)}</option>`).join('') + '</optgroup>';
+   413→  sel.innerHTML += '<optgroup label="Especias">' +
+   414→    db.especias.filter(e=>e.precioKg>0).map(e=>`<option value="e-${e.id}">${e.nombre}</option>`).join('') + '</optgroup>';
+   415→
+   416→  if (id) {
+   417→    const v = db.ventas.find(x => x.id === id);
+   418→    if (v) {
+   419→      ventaItems = [...v.items];
+   420→      document.getElementById('v-desc').value   = v.descuento || 0;
+   421→      document.getElementById('v-estado').value = v.estado || 'completada';
+   422→      document.getElementById('v-nota').value   = v.nota || '';
+   423→    }
+   424→  } else {
+   425→    document.getElementById('v-desc').value   = '0';
+   426→    document.getElementById('v-estado').value = 'completada';
+   427→    document.getElementById('v-nota').value   = '';
+   428→  }
+   429→  renderVentaItems();
+   430→  openModal('modal-venta');
+   431→}
+   432→
+   433→function agregarItemVenta() {
+   434→  const sel = document.getElementById('v-prod-sel');
+   435→  const val = sel.value; if (!val) return;
+   436→  const qty = parseInt(document.getElementById('v-qty').value) || 1;
+   437→  const db  = getDB();
+   438→  let nombre, precio;
+   439→  if (val.startsWith('bc-')) {
+   440→    const bl = db.blends.find(b => b.id === +val.slice(3));
+   441→    if (!bl) return;
+   442→    nombre = bl.nombre + ' (chico)'; precio = bl.pVentaChico;
+   443→  } else if (val.startsWith('bg-')) {
+   444→    const bl = db.blends.find(b => b.id === +val.slice(3));
+   445→    if (!bl) return;
+   446→    nombre = bl.nombre + ' (grande)'; precio = bl.pVentaGrande;
+   447→  } else {
+   448→    const esp = db.especias.find(e => e.id === +val.slice(2));
+   449→    if (!esp) return;
+   450→    nombre = esp.nombre; precio = 0; // precio libre para especias sueltas
+   451→  }
+   452→  const ex = ventaItems.find(i => i.key === val);
+   453→  if (ex) ex.qty += qty;
+   454→  else ventaItems.push({ key: val, nombre, precio, qty });
+   455→  renderVentaItems();
+   456→}
+   457→
+   458→function removeVentaItem(idx) { ventaItems.splice(idx, 1); renderVentaItems(); }
+   459→
+   460→function renderVentaItems() {
+   461→  const el = document.getElementById('v-items-lista');
+   462→  if (!ventaItems.length) {
+   463→    el.innerHTML = '<div class="text-muted text-sm" style="padding:8px">Sin productos aún</div>';
+   464→    recalcVenta(); return;
+   465→  }
+   466→  el.innerHTML = ventaItems.map((i, idx) => `
+   467→    <div class="flex items-center justify-between" style="padding:7px 0;border-bottom:1px solid var(--border);gap:8px">
+   468→      <span class="text-sm">${i.nombre} × ${i.qty}</span>
+   469→      <div class="flex items-center gap-8">
+   470→        <input type="number" value="${i.precio}" style="width:100px" oninput="ventaItems[${idx}].precio=+this.value;recalcVenta()">
+   471→        <button class="btn btn-red btn-sm" onclick="removeVentaItem(${idx})">×</button>
+   472→      </div>
+   473→    </div>
+   474→  `).join('');
+   475→  recalcVenta();
+   476→}
+   477→
+   478→function recalcVenta() {
+   479→  const sub  = ventaItems.reduce((s, i) => s + i.precio * i.qty, 0);
+   480→  const desc = parseFloat(document.getElementById('v-desc')?.value || 0) || 0;
+   481→  const total = Math.max(0, sub - desc);
+   482→  const el = document.getElementById('v-total');
+   483→  if (el) el.textContent = fmt(total);
+   484→}
+   485→
+   486→function guardarVenta() {
+   487→  if (!ventaItems.length) { showAlert('alert-venta','Agregá al menos un producto.','err'); return; }
+   488→  const db   = getDB();
+   489→  const desc = parseFloat(document.getElementById('v-desc').value) || 0;
+   490→  const sub  = ventaItems.reduce((s, i) => s + i.precio * i.qty, 0);
+   491→  const v = {
+   492→    items:     [...ventaItems],
+   493→    subtotal:  sub,
+   494→    descuento: desc,
+   495→    total:     Math.max(0, sub - desc),
+   496→    estado:    document.getElementById('v-estado').value,
+   497→    nota:      document.getElementById('v-nota').value.trim(),
+   498→    usuario:   currentUser?.nombre || 'Sistema',
+   499→  };
+   500→  if (editingVentaId) {
+   501→    v.id = editingVentaId;
+   502→    const old = db.ventas.find(x => x.id === editingVentaId);
+   503→    v.fecha = old?.fecha || new Date().toISOString();
+   504→    const i = db.ventas.findIndex(x => x.id === editingVentaId);
+   505→    if (i >= 0) db.ventas[i] = v;
+   506→  } else {
+   507→    v.id = nid(); v.fecha = new Date().toISOString();
+   508→    db.ventas.unshift(v);
+   509→  }
+   510→  saveDB(db);
+   511→  toast('Venta guardada ✓');
+   512→  setTimeout(() => closeModal('modal-venta'), 700);
+   513→  renderVentas(); renderDashboard();
+   514→}
+   515→
+   516→function eliminarVenta(id) {
+   517→  if (!confirm('¿Eliminar esta venta?')) return;
+   518→  const db = getDB(); db.ventas = db.ventas.filter(v => v.id !== id); saveDB(db);
+   519→  renderVentas(); renderDashboard(); toast('Venta eliminada');
+   520→}
+   521→
+   522→function renderVentas() {
+   523→  const q   = (document.getElementById('search-ventas')?.value || '').toLowerCase();
+   524→  const est = document.getElementById('filter-estado')?.value || '';
+   525→  const db  = getDB();
+   526→  let list  = db.ventas;
+   527→  if (q)   list = list.filter(v => v.items.some(i => i.nombre.toLowerCase().includes(q)) || (v.nota||'').toLowerCase().includes(q));
+   528→  if (est) list = list.filter(v => v.estado === est);
+   529→  const tbody = document.getElementById('tabla-ventas');
+   530→  if (!list.length) {
+   531→    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">🧾</div><p>Sin ventas.</p></div></td></tr>`;
+   532→    return;
+   533→  }
+   534→  tbody.innerHTML = list.map(v => `<tr>
+   535→    <td class="text-muted text-xs">${fmtDateTime(v.fecha)}</td>
+   536→    <td class="text-sm" style="max-width:180px">${v.items.map(i=>`${i.nombre}×${i.qty}`).join(', ')}</td>
+   537→    <td>${fmt(v.subtotal)}</td>
+   538→    <td class="text-muted">${v.descuento ? fmt(v.descuento) : '—'}</td>
+   539→    <td class="fw7 text-gold">${fmt(v.total)}</td>
+   540→    <td>${estadoBadge(v.estado)}</td>
+   541→    <td class="tr" style="white-space:nowrap">
+   542→      <button class="btn btn-ghost btn-sm" onclick="openModalVenta(${v.id})">✏</button>
+   543→      <button class="btn btn-red btn-sm" onclick="eliminarVenta(${v.id})">🗑</button>
+   544→    </td>
+   545→  </tr>`).join('');
+   546→}
+   547→
+   548→// ===================== REPORTES =====================
+   549→function showTab(id) {
+   550→  document.querySelectorAll('#page-reportes > div[id^="rep-"]').forEach(d => d.style.display = 'none');
+   551→  document.getElementById(id).style.display = 'block';
+   552→  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+   553→  event.currentTarget.classList.add('active');
+   554→  renderReportes();
+   555→}
+   556→
+   557→function renderReportes() {
+   558→  const db   = getDB(); const c = db.costos;
+   559→  const comp = db.ventas.filter(v => v.estado !== 'cancelada');
+   560→  const total = comp.reduce((s, v) => s + v.total, 0);
+   561→  const mesKey = new Date().toLocaleDateString('es-AR', { year:'numeric', month:'long' });
+   562→
+   563→  // Por mes
+   564→  const porMes = {};
+   565→  comp.forEach(v => {
+   566→    const k = new Date(v.fecha).toLocaleDateString('es-AR', { year:'numeric', month:'long' });
+   567→    if (!porMes[k]) porMes[k] = { count:0, total:0 };
+   568→    porMes[k].count++; porMes[k].total += v.total;
+   569→  });
+   570→  const mesActual = porMes[mesKey] || { count:0, total:0 };
+   571→
+   572→  document.getElementById('rep-stats').innerHTML = `
+   573→    <div class="stat"><div class="stat-label">Total histórico</div><div class="stat-value">${fmt(total)}</div></div>
+   574→    <div class="stat"><div class="stat-label">Ventas totales</div><div class="stat-value">${comp.length}</div></div>
+   575→    <div class="stat"><div class="stat-label">Este mes</div><div class="stat-value">${fmt(mesActual.total)}</div><div class="stat-sub">${mesActual.count} ventas</div></div>
+   576→  `;
+   577→
+   578→  document.getElementById('rep-mes-tabla').innerHTML = Object.keys(porMes).reverse().slice(0,12).map(k => `<tr>
+   579→    <td>${k}</td><td>${porMes[k].count}</td>
+   580→    <td class="fw7 text-gold">${fmt(porMes[k].total)}</td>
+   581→    <td>${fmt(porMes[k].total / porMes[k].count)}</td>
+   582→  </tr>`).join('') || '<tr><td colspan="4" class="text-muted">Sin datos</td></tr>';
+   583→
+   584→  // Por producto
+   585→  const porProd = {};
+   586→  comp.forEach(v => v.items.forEach(i => {
+   587→    if (!porProd[i.nombre]) porProd[i.nombre] = { qty:0, total:0 };
+   588→    porProd[i.nombre].qty   += i.qty;
+   589→    porProd[i.nombre].total += i.precio * i.qty;
+   590→  }));
+   591→  const prodList = Object.entries(porProd).sort((a,b) => b[1].total - a[1].total);
+   592→  document.getElementById('rep-prod-tabla').innerHTML = prodList.map(([n,{qty,t2}],_,arr) => {
+   593→    const tot = porProd[n].total;
+   594→    return `<tr>
+   595→      <td>${n}</td><td>${porProd[n].qty}</td>
+   596→      <td class="fw7 text-gold">${fmt(tot)}</td>
+   597→      <td>${total ? Math.round(tot/total*100)+'%' : '—'}</td>
+   598→    </tr>`;
+   599→  }).join('') || '<tr><td colspan="4" class="text-muted">Sin datos</td></tr>';
+   600→
+   601→  // Rentabilidad de blends
+   602→  document.getElementById('rep-rent-tabla').innerHTML = db.blends.map(bl => {
+   603→    const cd = calcBlendCostData(bl, c);
+   604→    return `<tr>
+   605→      <td><strong>${bl.nombre}</strong></td>
+   606→      <td>${fmt(cd.costoKg)}</td>
+   607→      <td>${fmt(cd.totalC)} ${bl.pVentaChico ? `<span class="badge ${cd.margenC>0?'bg':'br'} ml-4">${Math.round(cd.margenC)}%</span>` : '—'}</td>
+   608→      <td>${fmt(cd.totalG)} ${bl.pVentaGrande ? `<span class="badge ${cd.margenG>0?'bg':'br'}">${Math.round(cd.margenG)}%</span>` : '—'}</td>
+   609→    </tr>`;
+   610→  }).join('') || '<tr><td colspan="4" class="text-muted">Sin blends</td></tr>';
+   611→}
+   612→
+   613→// ===================== AJUSTES (usuarios + GitHub sync) =====================
+   614→function renderAjustes() {
+   615→  const db = getDB();
+   616→  document.getElementById('ajustes-usuarios').innerHTML = db.usuarios.map(u => `
+   617→    <div class="flex items-center justify-between" style="padding:10px 0;border-bottom:1px solid var(--border)">
+   618→      <div class="flex items-center gap-8">
+   619→        <div class="user-avatar" style="width:32px;height:32px;font-size:.9rem">${u.emoji}</div>
+   620→        <div>
+   621→          <div class="fw7 text-sm">${u.nombre}</div>
+   622→          <div class="text-xs text-muted">${u.rol} · PIN: ${'●'.repeat(u.pin.length)}</div>
+   623→        </div>
+   624→      </div>
+   625→      <div class="flex gap-8">
+   626→        <button class="btn btn-ghost btn-sm" onclick="openModalUsuario(${u.id})">✏</button>
+   627→        ${db.usuarios.length > 1 ? `<button class="btn btn-red btn-sm" onclick="eliminarUsuario(${u.id})">🗑</button>` : ''}
+   628→      </div>
+   629→    </div>
+   630→  `).join('');
+   631→  renderGhAjustes();
+   632→}
+   633→
+   634→// ===================== GITHUB SYNC UI =====================
+   635→
+   636→function renderGhAjustes() {
+   637→  const cfg = getGhConfig();
+   638→  const badge = document.getElementById('gh-status-badge');
+   639→  const form = document.getElementById('gh-config-form');
+   640→  const info = document.getElementById('gh-connected-info');
+   641→
+   642→  if (!badge || !form || !info) return;
+   643→
+   644→  if (cfg) {
+   645→    badge.className = 'badge bg';
+   646→    badge.textContent = 'Conectado';
+   647→    form.style.display = 'none';
+   648→    info.style.display = 'block';
+   649→    const repoEl = document.getElementById('gh-info-repo');
+   650→    const branchEl = document.getElementById('gh-info-branch');
+   651→    const linkEl = document.getElementById('gh-share-link');
+   652→    if (repoEl) repoEl.textContent = cfg.owner + '/' + cfg.repo;
+   653→    if (branchEl) branchEl.textContent = cfg.branch || 'main';
+   654→    if (linkEl) linkEl.value = generarLinkConexion();
+   655→  } else {
+   656→    badge.className = 'badge br';
+   657→    badge.textContent = 'Desconectado';
+   658→    form.style.display = 'block';
+   659→    info.style.display = 'none';
+   660→  }
+   661→}
+   662→
+   663→function copiarLinkConexion() {
+   664→  const link = generarLinkConexion();
+   665→  if (!link) { toast('No hay configuración', 'err'); return; }
+   666→  navigator.clipboard.writeText(link).then(() => {
+   667→    toast('Link copiado al portapapeles');
+   668→  }).catch(() => {
+   669→    // Fallback para browsers sin clipboard API
+   670→    const input = document.getElementById('gh-share-link');
+   671→    if (input) { input.select(); document.execCommand('copy'); toast('Link copiado'); }
+   672→  });
+   673→}
+   674→
+   675→function guardarGhConfigUI() {
+   676→  const token = document.getElementById('gh-token').value.trim();
+   677→  if (!token) { toast('Pegá tu token de GitHub', 'err'); return; }
+   678→  saveGhConfig({ owner: GH_DEFAULT.owner, repo: GH_DEFAULT.repo, branch: GH_DEFAULT.branch, token });
+   679→  startGhPolling();
+   680→  ghPush().then(() => {
+   681→    toast('Conectado, sincronizando...');
+   682→    renderGhAjustes();
+   683→  });
+   684→}
+   685→
+   686→async function probarGhConexion() {
+   687→  const token = document.getElementById('gh-token').value.trim();
+   688→  const resultEl = document.getElementById('gh-test-result');
+   689→  if (!token) { resultEl.innerHTML = '<span class="text-red">Pegá tu token</span>'; return; }
+   690→  saveGhConfig({ owner: GH_DEFAULT.owner, repo: GH_DEFAULT.repo, branch: GH_DEFAULT.branch, token });
+   691→  resultEl.innerHTML = '<span class="text-muted">Probando...</span>';
+   692→  const result = await ghTestConnection();
+   693→  if (result.ok) {
+   694→    resultEl.innerHTML = '<span class="text-green">' + result.msg + '</span>';
+   695→  } else {
+   696→    resultEl.innerHTML = '<span class="text-red">' + result.msg + '</span>';
+   697→    clearGhConfig();
+   698→  }
+   699→}
+   700→
+   701→async function forzarSyncManual() {
+   702→  toast('Sincronizando...');
+   703→  const pulled = await ghPull();
+   704→  if (pulled) {
+   705→    toast('Datos actualizados desde GitHub');
+   706→    refreshCurrentPage();
+   707→  } else {
+   708→    // Hacer push de lo local
+   709→    await ghPush();
+   710→    toast('Datos locales subidos a GitHub');
+   711→  }
+   712→}
+   713→
+   714→function desconectarGh() {
+   715→  if (!confirm('¿Desconectar la sincronización con GitHub? Los datos seguirán disponibles localmente.')) return;
+   716→  clearGhConfig();
+   717→  renderGhAjustes();
+   718→  toast('Sincronización desconectada');
+   719→}
+   720→
+   721→// ===================== USUARIOS =====================
+   722→
+   723→let editingUserId = null;
+   724→function openModalUsuario(id = null) {
+   725→  editingUserId = id;
+   726→  document.getElementById('modal-usr-titulo').textContent = id ? 'Editar usuario' : 'Nuevo usuario';
+   727→  const db = getDB();
+   728→  if (id) {
+   729→    const u = db.usuarios.find(x => x.id === id);
+   730→    if (u) {
+   731→      document.getElementById('usr-nombre').value = u.nombre;
+   732→      document.getElementById('usr-pin').value    = u.pin;
+   733→      document.getElementById('usr-rol').value    = u.rol;
+   734→      document.getElementById('usr-emoji').value  = u.emoji;
+   735→    }
+   736→  } else {
+   737→    document.getElementById('usr-nombre').value = '';
+   738→    document.getElementById('usr-pin').value    = '';
+   739→    document.getElementById('usr-rol').value    = 'operador';
+   740→    document.getElementById('usr-emoji').value  = '🌿';
+   741→  }
+   742→  openModal('modal-usuario');
+   743→}
+   744→
+   745→function guardarUsuario() {
+   746→  const nombre = document.getElementById('usr-nombre').value.trim();
+   747→  const pin    = document.getElementById('usr-pin').value.trim();
+   748→  if (!nombre || !pin) { showAlert('alert-usr','Nombre y PIN son obligatorios.','err'); return; }
+   749→  if (pin.length < 4) { showAlert('alert-usr','El PIN debe tener al menos 4 dígitos.','err'); return; }
+   750→  const db = getDB();
+   751→  const u = { nombre, pin, rol: document.getElementById('usr-rol').value, emoji: document.getElementById('usr-emoji').value || '👤' };
+   752→  if (editingUserId) {
+   753→    u.id = editingUserId;
+   754→    const i = db.usuarios.findIndex(x => x.id === editingUserId);
+   755→    if (i >= 0) db.usuarios[i] = u;
+   756→  } else { u.id = nid(); db.usuarios.push(u); }
+   757→  saveDB(db);
+   758→  toast('Usuario guardado ✓');
+   759→  setTimeout(() => closeModal('modal-usuario'), 700);
+   760→  renderAjustes();
+   761→}
+   762→
+   763→function eliminarUsuario(id) {
+   764→  if (!confirm('¿Eliminar este usuario?')) return;
+   765→  const db = getDB(); db.usuarios = db.usuarios.filter(u => u.id !== id); saveDB(db);
+   766→  renderAjustes(); toast('Usuario eliminado');
+   767→}
+   768→
+   769→function borrarTodo() {
+   770→  if (!confirm('¿Borrar TODOS los datos?')) return;
+   771→  if (!confirm('Segunda confirmación: ¿borrar definitivamente?')) return;
+   772→  localStorage.removeItem('arcano_v1'); toast('Datos borrados'); location.reload();
+   773→}
+   774→
