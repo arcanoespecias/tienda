@@ -31,6 +31,15 @@ with open(os.path.join(DEPLOY_DIR, 'js', 'modules2.js'), 'r', encoding='utf-8') 
 with open(os.path.join(DEPLOY_DIR, 'manifest.json'), 'r', encoding='utf-8') as f:
     files['manifest.json'] = f.read()
 
+with open(os.path.join(DEPLOY_DIR, 'sw.js'), 'r', encoding='utf-8') as f:
+    files['sw.js'] = f.read()
+
+with open(os.path.join(DEPLOY_DIR, 'version.json'), 'r', encoding='utf-8') as f:
+    files['version.json'] = f.read()
+
+with open(os.path.join(DEPLOY_DIR, '_headers'), 'r', encoding='utf-8') as f:
+    files['_headers'] = f.read()
+
 for icon_name in ['icons/icon-192.png', 'icons/icon-512.png', 'icons/logo-header.png', 'icons/logo-pin.png', 'icons/favicon.png']:
     with open(os.path.join(DEPLOY_DIR, icon_name), 'rb') as f:
         files[icon_name] = base64.b64encode(f.read()).decode('ascii')
@@ -91,7 +100,7 @@ input:focus{border-color:#f0c040}
     <label>Owner / Usuario de GitHub</label>
     <input id="inp-owner" value="arcanoespecias" placeholder="ej: mi-usuario">
     <label>Repositorio</label>
-    <input id="inp-repo" value="arcano-app" placeholder="ej: mi-repo">
+    <input id="inp-repo" value="arcano-v2" placeholder="ej: mi-repo">
     <label>Branch</label>
     <input id="inp-branch" value="main" placeholder="main">
     <label>Personal Access Token (PAT)</label>
@@ -146,7 +155,7 @@ function setProgress(pct) {
 
 async function githubPut(owner, repo, path, contentB64, branch, token, sha) {
   var url = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
-  var body = { message: 'Arcano v13 - full theming + PWA config', content: contentB64, branch: branch };
+  var body = { message: 'Arcano v18 - fresh deploy to arcano-v2', content: contentB64, branch: branch };
   if (sha) body.sha = sha;
   var res = await fetch(url, {
     method: 'PUT',

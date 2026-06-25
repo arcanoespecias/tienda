@@ -7,7 +7,7 @@ const GH_POLL_INTERVAL = 3000;
 
 // Repo hardcodeado: sobrevive al borrado de cache/cookies.
 // Solo se necesita el token (se pide una sola vez y se guarda en localStorage).
-const GH_DEFAULT = { owner: 'arcanoespecias', repo: 'arcano-app', branch: 'main' };
+const GH_DEFAULT = { owner: 'arcanoespecias', repo: 'arcano-v2', branch: 'main' };
 
 let ghConfig = null;
 let ghRemoteSha = null;

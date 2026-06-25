@@ -3,32 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="theme-color" content="#1b0b07">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Arcano">
-<link rel="icon" type="image/png" href="icons/favicon.png?v=13">
-<link rel="apple-touch-icon" href="icons/icon-192.png?v=13">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Arcano — Complice del Sabor</title>
-<link rel="manifest" href="manifest.json?v=13">
-<link rel="stylesheet" href="css/style.css?v=13">
-<!-- LIMPIEZA AUTOMATICA: eliminar cualquier SW viejo y sus caches -->
-<script>
-(function(){
-  try {
-    if('serviceWorker' in navigator){
-      navigator.serviceWorker.getRegistrations().then(function(regs){
-        regs.forEach(function(r){ r.unregister(); });
-      });
-      if('caches' in window){
-        caches.keys().then(function(ks){
-          ks.forEach(function(k){ caches.delete(k); });
-        });
-      }
-    }
-  } catch(e){}
-})();
-</script>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
@@ -38,7 +24,7 @@
 <!-- PWA INSTALL BANNER -->
 <div id="pwa-banner" style="display:none">
   <div class="pwa-banner-inner">
-    <img src="icons/icon-192.png?v=13" alt="" style="width:40px;height:40px;border-radius:8px">
+    <img src="icons/icon-192.png" alt="" style="width:40px;height:40px;border-radius:8px">
     <div class="pwa-banner-text">
       <div class="fw7 text-sm">Instalar Arcano</div>
       <div class="text-xs text-muted">Acceso rapido desde tu pantalla de inicio</div>
@@ -54,7 +40,7 @@
 <!-- HEADER -->
 <div id="app-header">
   <div class="header-logo">
-    <img src="icons/logo-header.png?v=13" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
+    <img src="icons/logo-header.png" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
     <div>
       <div class="header-brand">Arcano</div>
       <div class="header-sub">Complice del Sabor</div>
@@ -75,6 +61,7 @@
   <button class="nav-btn" onclick="goPage('costos',this)">Costos</button>
   <button class="nav-btn" onclick="goPage('especias',this)">Especias</button>
   <button class="nav-btn" onclick="goPage('blends',this)">Blends</button>
+  <button class="nav-btn" onclick="goPage('envases',this)">Envases</button>
   <button class="nav-btn" onclick="goPage('ventas',this)">Ventas</button>
   <button class="nav-btn" onclick="goPage('reportes',this)">Reportes</button>
   <button class="nav-btn" id="nav-ajustes" onclick="goPage('ajustes',this)">⚙ Ajustes</button>
@@ -172,6 +159,15 @@
     </div>
   </div>
   <div id="lista-blends"></div>
+</div>
+
+<!-- ENVASES -->
+<div id="page-envases" class="page">
+  <div class="flex items-center justify-between mb-20">
+    <div class="page-title" style="margin:0">Envases</div>
+    <button class="btn btn-gold" id="btn-new-envase" onclick="openModalEnvase()" style="display:none">+ Nuevo envase</button>
+  </div>
+  <div id="lista-envases"></div>
 </div>
 
 <!-- VENTAS -->
@@ -378,6 +374,10 @@
             <button class="btn btn-ghost" style="flex:1" onclick="forzarSyncManual()">Forzar sincronizacion</button>
             <button class="btn btn-red" onclick="desconectarGh()">Desconectar</button>
           </div>
+          <div style="margin-top:12px">
+            <button class="btn btn-gold btn-full" onclick="forceReloadAllDevices()" style="background:linear-gradient(135deg,#2a7a3a,#4caf50)">Forzar actualizacion en todos los dispositivos</button>
+            <p class="text-muted text-xs mt-8" style="margin:0">Borra cache y recarga la app en todos los celulares/tablets conectados.</p>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -548,11 +548,64 @@
   </div>
 </div>
 
-<script src="js/db.js?v=13"></script>
-<script src="js/github-sync.js?v=13"></script>
-<script src="js/modules1.js?v=13"></script>
-<script src="js/modules2.js?v=13"></script>
+<!-- MODAL ENVASE -->
+<div class="modal-overlay" id="modal-env">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-env-titulo">Nuevo envase</span>
+      <button class="modal-close" onclick="closeModal('modal-env')">x</button>
+    </div>
+    <div id="alert-env" class="alert"></div>
+    <div class="fr fr1"><div><label>Nombre *</label><input id="env-nombre" placeholder="Ej: Frasco 100ml"></div></div>
+    <div class="fr">
+      <div><label>Tipo</label><select id="env-tipo"><option value="chico">Pequeno</option><option value="grande">Grande</option></select></div>
+      <div><label>Peso (g)</label><input id="env-peso" type="number" min="0"></div>
+    </div>
+    <div class="fr">
+      <div><label>Stock (unidades)</label><input id="env-stock" type="number" min="0" value="0"></div>
+      <div><label>Stock minimo</label><input id="env-stockmin" type="number" min="0" value="20"></div>
+    </div>
+    <div class="fr fr1"><div><label>Precio ($/u)</label><input id="env-precio" type="number" min="0" value="0"></div></div>
+    <button class="btn btn-gold btn-full mt-16" onclick="guardarEnvase()">Guardar envase</button>
+  </div>
+</div>
+
+<!-- MODAL STOCK ENVASE -->
+<div class="modal-overlay" id="modal-env-stock">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="me-nombre">Stock envase</span>
+      <button class="modal-close" onclick="closeModal('modal-env-stock')">x</button>
+    </div>
+    <div id="alert-env-stock" class="alert"></div>
+    <input type="hidden" id="me-env-id">
+    <div class="cost-box mb-16">
+      <div class="cost-row"><span>Stock actual</span><span class="fw7 text-gold" id="me-stock-actual">—</span></div>
+    </div>
+    <div class="fr">
+      <div><label>Tipo</label><select id="me-tipo"><option value="entrada">Entrada (compra)</option><option value="salida">Salida (uso/merma)</option></select></div>
+      <div><label>Cantidad (unidades)</label><input id="me-cantidad" type="number" min="0" placeholder="0"></div>
+    </div>
+    <div class="fr fr1"><div><label>Nota</label><input id="me-nota" placeholder="Ej: Compra proveedor"></div></div>
+    <button class="btn btn-gold btn-full mb-16" onclick="guardarMovEnvase()">Registrar movimiento</button>
+    <h3>Historial</h3>
+    <div id="me-historial"></div>
+  </div>
+</div>
+
+<script src="js/db.js"></script>
+<script src="js/github-sync.js"></script>
+<script src="js/modules1.js"></script>
+<script src="js/modules2.js"></script>
 <script>
+  // Mostrar/ocultar btn admin en envases
+  var _origGoPage = goPage;
+  goPage = function(name, btn) {
+    _origGoPage(name, btn);
+    var bEnv = document.getElementById('btn-new-envase');
+    if(bEnv) bEnv.style.display = (currentUser && currentUser.rol === 'admin' && name === 'envases') ? '' : 'none';
+  };
+
   function updateSyncUI(status, detail) {
     const dot = document.getElementById('sync-dot');
     const txt = document.getElementById('sync-text');
@@ -573,11 +626,27 @@
     } else { toast('Sync no configurado', 'err'); }
   }
 
+  // Service Worker registration
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(function(reg) {
+      reg.addEventListener('updatefound', function() {
+        var newWorker = reg.installing;
+        newWorker.addEventListener('statechange', function() {
+          if (newWorker.state === 'activated' && !sessionStorage.getItem('_sw_reloaded')) {
+            sessionStorage.setItem('_sw_reloaded', '1');
+            window.location.reload();
+          }
+        });
+      });
+    }).catch(function(err) {
+      console.warn('[Arcano] SW registro fallo:', err);
+    });
+  }
+
   async function bootApp() {
-    console.log('[Arcano] v13 - Full theming + PWA config');
+    console.log('[Arcano] v18 - arcano-v2 fresh start');
     await initGithubSync();
     seedIfEmpty();
-    // Aplicar config PWA (colores, titulo, etc.)
     if (typeof applyPWAConfig === 'function') applyPWAConfig(getPWAConfig());
     initPin();
     renderGhAjustes();
