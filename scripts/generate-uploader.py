@@ -155,7 +155,7 @@ function setProgress(pct) {
 
 async function githubPut(owner, repo, path, contentB64, branch, token, sha) {
   var url = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
-  var body = { message: 'Arcano v18 - fresh deploy to arcano-v2', content: contentB64, branch: branch };
+  var body = { message: 'Arcano v19-sync-fix - deploy arcano-v2', content: contentB64, branch: branch };
   if (sha) body.sha = sha;
   var res = await fetch(url, {
     method: 'PUT',
