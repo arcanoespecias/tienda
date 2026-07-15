@@ -1,0 +1,633 @@
+     1→// ===================== BLENDS =====================
+     2→let blendIngRows = [];
+     3→let editingBlendId = null;
+     4→let editingBEId = null;
+     5→
+     6→function openModalBlend(id = null) {
+     7→  editingBlendId = id;
+     8→  blendIngRows = [];
+     9→  document.getElementById('modal-blend-titulo').textContent = id ? 'Editar blend' : 'Nuevo Blend';
+    10→  const db = getDB();
+    11→  if (id) {
+    12→    const bl = db.blends.find(b => b.id === id);
+    13→    if (bl) {
+    14→      document.getElementById('bl-nombre').value       = bl.nombre;
+    15→      document.getElementById('bl-peso-c').value       = bl.pesoChico || '';
+    16→      document.getElementById('bl-peso-g').value       = bl.pesoGrande || '';
+    17→      document.getElementById('bl-pventa-c').value     = bl.pVentaChico || '';
+    18→      document.getElementById('bl-pventa-g').value     = bl.pVentaGrande || '';
+    19→      document.getElementById('bl-notas').value        = bl.notas || '';
+    20→      blendIngRows = bl.ingredientes.map(i => ({ ...i, _rid: nid() }));
+    21→    }
+    22→  } else {
+    23→    document.getElementById('bl-nombre').value    = '';
+    24→    document.getElementById('bl-peso-c').value    = '';
+    25→    document.getElementById('bl-peso-g').value    = '';
+    26→    document.getElementById('bl-pventa-c').value  = '';
+    27→    document.getElementById('bl-pventa-g').value  = '';
+    28→    document.getElementById('bl-notas').value     = '';
+    29→    blendIngRows = [{ _rid: nid(), espId: null, gramos: 0 }];
+    30→  }
+    31→  renderIngRows();
+    32→  calcBlendModal();
+    33→  openModal('modal-blend');
+    34→}
+    35→
+    36→function addIngRow() {
+    37→  blendIngRows.push({ _rid: nid(), espId: null, gramos: 0 });
+    38→  renderIngRows();
+    39→}
+    40→
+    41→function removeIngRow(rid) {
+    42→  blendIngRows = blendIngRows.filter(r => r._rid !== rid);
+    43→  renderIngRows();
+    44→  calcBlendModal();
+    45→}
+    46→
+    47→function renderIngRows() {
+    48→  const esp = getDB().especias;
+    49→  const opts = esp.map(e => `<option value="${e.id}">${e.nombre} (${fmt(e.precioKg)}/kg)</option>`).join('');
+    50→  document.getElementById('blend-ings-rows').innerHTML = blendIngRows.map(r => `
+    51→    <div class="ing-row" id="row-${r._rid}">
+    52→      <select onchange="ingChange(${r._rid},'espId',this.value)">
+    53→        <option value="">-- Especia --</option>${opts}
+    54→      </select>
+    55→      <input type="number" min="0" max="1000" placeholder="gramos" value="${r.gramos || ''}"
+    56→        oninput="ingChange(${r._rid},'gramos',+this.value)">
+    57→      <div class="ing-cost" id="ic-${r._rid}">$0</div>
+    58→      <button class="btn btn-red btn-sm" onclick="removeIngRow(${r._rid})">×</button>
+    59→    </div>
+    60→  `).join('');
+    61→  blendIngRows.forEach(r => {
+    62→    const sel = document.querySelector(`#row-${r._rid} select`);
+    63→    if (sel && r.espId) sel.value = r.espId;
+    64→    updateIngCost(r);
+    65→  });
+    66→}
+    67→
+    68→function ingChange(rid, field, val) {
+    69→  const r = blendIngRows.find(x => x._rid === rid);
+    70→  if (r) { r[field] = val; updateIngCost(r); calcBlendModal(); }
+    71→}
+    72→
+    73→function updateIngCost(r) {
+    74→  const el = document.getElementById('ic-' + r._rid);
+    75→  if (!el) return;
+    76→  if (!r.espId || !r.gramos) { el.textContent = '$0'; return; }
+    77→  const esp = getDB().especias.find(e => e.id == r.espId);
+    78→  el.textContent = esp ? fmt((esp.precioKg / 1000) * r.gramos) : '$0';
+    79→}
+    80→
+    81→function calcBlendModal() {
+    82→  const db = getDB(); const c = db.costos;
+    83→  let costoKg = 0, totalG = 0;
+    84→  blendIngRows.forEach(r => {
+    85→    if (!r.espId || !r.gramos) return;
+    86→    const esp = db.especias.find(e => e.id == r.espId);
+    87→    if (!esp) return;
+    88→    costoKg += (esp.precioKg / 1000) * r.gramos;
+    89→    totalG  += +r.gramos;
+    90→  });
+    91→  const costo100 = costoKg / 10;
+    92→  const pC = +document.getElementById('bl-peso-c')?.value || 0;
+    93→  const pG = +document.getElementById('bl-peso-g')?.value || 0;
+    94→  const mpC = (costoKg / 1000) * pC;
+    95→  const mpG = (costoKg / 1000) * pG;
+    96→  const fC = c.envChico  + c.pkgChico  + c.etiqueta + c.mo + c.otros;
+    97→  const fG = c.envGrande + c.pkgGrande + c.etiqueta + c.mo + c.otros;
+    98→
+    99→  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+   100→  set('bc-kg',    fmt(costoKg));
+   101→  set('bc-100',   fmt(costo100));
+   102→  set('bc-grams', `${totalG}g de 1000g`);
+   103→  set('bc-mp-c',  fmt(mpC));
+   104→  set('bc-fij-c', fmt(fC));
+   105→  set('bc-tot-c', fmt(mpC + fC));
+   106→  set('bc-mp-g',  fmt(mpG));
+   107→  set('bc-fij-g', fmt(fG));
+   108→  set('bc-tot-g', fmt(mpG + fG));
+   109→
+   110→  const gramEl = document.getElementById('bc-grams');
+   111→  if (gramEl) gramEl.style.color = Math.abs(totalG - 1000) < 1 ? 'var(--green)' : 'var(--yellow)';
+   112→}
+   113→
+   114→function guardarBlend() {
+   115→  const nombre = document.getElementById('bl-nombre').value.trim();
+   116→  if (!nombre) { showAlert('alert-blend','El nombre es obligatorio.','err'); return; }
+   117→  const db = getDB();
+   118→  const ings = blendIngRows.filter(r => r.espId && r.gramos > 0).map(r => {
+   119→    const esp = db.especias.find(e => e.id == r.espId);
+   120→    return { espId: +r.espId, nombre: esp?.nombre || '', gramos: +r.gramos, precioKg: esp?.precioKg || 0 };
+   121→  });
+   122→  if (!ings.length) { showAlert('alert-blend','Agregá al menos una especia.','err'); return; }
+   123→  const bl = {
+   124→    nombre, ingredientes: ings,
+   125→    pesoChico:   +document.getElementById('bl-peso-c').value   || 0,
+   126→    pesoGrande:  +document.getElementById('bl-peso-g').value   || 0,
+   127→    pVentaChico: +document.getElementById('bl-pventa-c').value || 0,
+   128→    pVentaGrande:+document.getElementById('bl-pventa-g').value || 0,
+   129→    notas:        document.getElementById('bl-notas').value.trim(),
+   130→  };
+   131→  if (editingBlendId) {
+   132→    bl.id = editingBlendId;
+   133→    const i = db.blends.findIndex(b => b.id === editingBlendId);
+   134→    if (i >= 0) db.blends[i] = bl;
+   135→  } else { bl.id = nid(); db.blends.push(bl); }
+   136→  saveDB(db);
+   137→  toast(editingBlendId ? 'Blend actualizado ✓' : 'Blend creado ✓');
+   138→  setTimeout(() => closeModal('modal-blend'), 700);
+   139→  renderBlends();
+   140→}
+   141→
+   142→function eliminarBlend(id) {
+   143→  if (!confirm('¿Eliminar este blend?')) return;
+   144→  const db = getDB(); db.blends = db.blends.filter(b => b.id !== id); saveDB(db);
+   145→  renderBlends(); toast('Blend eliminado');
+   146→}
+   147→
+   148→function toggleBlend(id) {
+   149→  const body  = document.getElementById('bb-' + id);
+   150→  const arrow = document.getElementById('arr-' + id);
+   151→  body.classList.toggle('open');
+   152→  if (arrow) arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
+   153→}
+   154→
+   155→function renderBlends() {
+   156→  const db = getDB(); const c = db.costos;
+   157→  const el = document.getElementById('lista-blends');
+   158→  if (!db.blends.length) {
+   159→    el.innerHTML = `<div class="empty"><div class="empty-icon">🫙</div><p>No hay blends. Creá el primero.</p></div>`;
+   160→    return;
+   161→  }
+   162→  el.innerHTML = db.blends.map(bl => {
+   163→    const cd = calcBlendCostData(bl, c);
+   164→    const prod = calcProduccion(bl, db.especias);
+   165→    const totalGramos = bl.ingredientes.reduce((s, i) => s + i.gramos, 0);
+   166→    return `
+   167→    <div class="blend-card">
+   168→      <div class="blend-header" onclick="toggleBlend(${bl.id})">
+   169→        <div>
+   170→          <div class="blend-name">${bl.nombre}</div>
+   171→          <div class="flex gap-8" style="margin-top:5px;flex-wrap:wrap">
+   172→            <span class="badge ba">Costo/kg: ${fmt(cd.costoKg)}</span>
+   173→            <span class="badge ba">Costo/100g: ${fmt(cd.costo100g)}</span>
+   174→            ${totalGramos !== 1000 ? `<span class="badge by">${totalGramos}g/1kg</span>` : ''}
+   175→          </div>
+   176→        </div>
+   177→        <div class="flex gap-8 items-center" onclick="event.stopPropagation()">
+   178→          <button class="btn btn-ghost btn-sm" onclick="openModalBlend(${bl.id})">✏ Editar</button>
+   179→          <button class="btn btn-red btn-sm" onclick="eliminarBlend(${bl.id})">🗑</button>
+   180→          <span id="arr-${bl.id}" class="text-muted text-xs" style="padding:4px">▼</span>
+   181→        </div>
+   182→      </div>
+   183→      <div class="blend-body" id="bb-${bl.id}">
+   184→        <div class="blend-inner">
+   185→          ${bl.notas ? `<div class="cost-box mb-16" style="border-color:var(--gold-dim)"><span class="text-xs text-muted">📝 Notas: </span>${bl.notas}</div>` : ''}
+   186→          <h3 style="margin-bottom:10px">Ingredientes — fórmula /1kg</h3>
+   187→          <div class="tw mb-16">
+   188→            <table>
+   189→              <thead><tr><th>Especia</th><th>Gramos</th><th>%</th><th>Costo</th></tr></thead>
+   190→              <tbody>
+   191→                ${bl.ingredientes.map(i => `<tr>
+   192→                  <td>${i.nombre}</td>
+   193→                  <td>${i.gramos}g</td>
+   194→                  <td class="text-muted">${Math.round(i.gramos/10)}%</td>
+   195→                  <td class="text-gold">${fmt((i.precioKg/1000)*i.gramos)}</td>
+   196→                </tr>`).join('')}
+   197→                <tr style="font-weight:700">
+   198→                  <td>TOTAL</td><td>${totalGramos}g</td><td>${Math.round(totalGramos/10)}%</td>
+   199→                  <td class="text-gold">${fmt(cd.costoKg)}</td>
+   200→                </tr>
+   201→              </tbody>
+   202→            </table>
+   203→          </div>
+   204→          <div class="g2">
+   205→            <div class="cost-box">
+   206→              <div class="fw7 text-gold text-sm mb-12">ENVASE CHICO ${bl.pesoChico ? '('+bl.pesoChico+'g)' : '— sin peso'}</div>
+   207→              <div class="cost-row"><span>Mat. prima</span><span>${fmt(cd.mpChico)}</span></div>
+   208→              <div class="cost-row"><span>Envase + extras</span><span>${fmt(cd.fijosC)}</span></div>
+   209→              <div class="cost-row total"><span>Costo total</span><span>${fmt(cd.totalC)}</span></div>
+   210→              ${bl.pVentaChico ? `
+   211→                <div class="cost-row" style="margin-top:6px"><span>Precio venta</span><span class="text-green fw7">${fmt(bl.pVentaChico)}</span></div>
+   212→                <div class="cost-row ${cd.margenC > 0 ? 'profit' : 'loss'}"><span>Margen</span><span>${cd.margenC !== null ? Math.round(cd.margenC)+'%' : '—'}</span></div>
+   213→              ` : '<div class="text-muted text-xs" style="margin-top:6px">Sin precio de venta</div>'}
+   214→              <div class="divider"></div>
+   215→              <div class="cost-row text-xs"><span class="text-muted">Producción posible</span><span class="text-gold fw7">${prod.unidadesC} u.</span></div>
+   216→            </div>
+   217→            <div class="cost-box">
+   218→              <div class="fw7 text-gold text-sm mb-12">ENVASE GRANDE ${bl.pesoGrande ? '('+bl.pesoGrande+'g)' : '— sin peso'}</div>
+   219→              <div class="cost-row"><span>Mat. prima</span><span>${fmt(cd.mpGrande)}</span></div>
+   220→              <div class="cost-row"><span>Envase + extras</span><span>${fmt(cd.fijosG)}</span></div>
+   221→              <div class="cost-row total"><span>Costo total</span><span>${fmt(cd.totalG)}</span></div>
+   222→              ${bl.pVentaGrande ? `
+   223→                <div class="cost-row" style="margin-top:6px"><span>Precio venta</span><span class="text-green fw7">${fmt(bl.pVentaGrande)}</span></div>
+   224→                <div class="cost-row ${cd.margenG > 0 ? 'profit' : 'loss'}"><span>Margen</span><span>${cd.margenG !== null ? Math.round(cd.margenG)+'%' : '—'}</span></div>
+   225→              ` : '<div class="text-muted text-xs" style="margin-top:6px">Sin precio de venta</div>'}
+   226→              <div class="divider"></div>
+   227→              <div class="cost-row text-xs"><span class="text-muted">Producción posible</span><span class="text-gold fw7">${prod.unidadesG} u.</span></div>
+   228→            </div>
+   229→          </div>
+   230→        </div>
+   231→      </div>
+   232→    </div>`;
+   233→  }).join('');
+   234→}
+   235→
+   236→// ===================== VENTAS =====================
+   237→let ventaItems = [];
+   238→let editingVentaId = null;
+   239→
+   240→function openModalVenta(id = null) {
+   241→  editingVentaId = id;
+   242→  ventaItems = [];
+   243→  document.getElementById('modal-venta-titulo').textContent = id ? 'Editar venta' : 'Nueva venta';
+   244→  const db = getDB();
+   245→  // Populate product select (blends + especias)
+   246→  const sel = document.getElementById('v-prod-sel');
+   247→  sel.innerHTML = '<option value="">-- Producto --</option>';
+   248→  sel.innerHTML += '<optgroup label="Blends — Chico">' +
+   249→    db.blends.filter(b=>b.pVentaChico>0).map(b=>`<option value="bc-${b.id}">${b.nombre} (chico) — ${fmt(b.pVentaChico)}</option>`).join('') + '</optgroup>';
+   250→  sel.innerHTML += '<optgroup label="Blends — Grande">' +
+   251→    db.blends.filter(b=>b.pVentaGrande>0).map(b=>`<option value="bg-${b.id}">${b.nombre} (grande) — ${fmt(b.pVentaGrande)}</option>`).join('') + '</optgroup>';
+   252→  sel.innerHTML += '<optgroup label="Especias">' +
+   253→    db.especias.filter(e=>e.precioKg>0).map(e=>`<option value="e-${e.id}">${e.nombre}</option>`).join('') + '</optgroup>';
+   254→
+   255→  if (id) {
+   256→    const v = db.ventas.find(x => x.id === id);
+   257→    if (v) {
+   258→      ventaItems = [...v.items];
+   259→      document.getElementById('v-desc').value   = v.descuento || 0;
+   260→      document.getElementById('v-estado').value = v.estado || 'completada';
+   261→      document.getElementById('v-nota').value   = v.nota || '';
+   262→    }
+   263→  } else {
+   264→    document.getElementById('v-desc').value   = '0';
+   265→    document.getElementById('v-estado').value = 'completada';
+   266→    document.getElementById('v-nota').value   = '';
+   267→  }
+   268→  renderVentaItems();
+   269→  openModal('modal-venta');
+   270→}
+   271→
+   272→function agregarItemVenta() {
+   273→  const sel = document.getElementById('v-prod-sel');
+   274→  const val = sel.value; if (!val) return;
+   275→  const qty = parseInt(document.getElementById('v-qty').value) || 1;
+   276→  const db  = getDB();
+   277→  let nombre, precio;
+   278→  if (val.startsWith('bc-')) {
+   279→    const bl = db.blends.find(b => b.id === +val.slice(3));
+   280→    if (!bl) return;
+   281→    nombre = bl.nombre + ' (chico)'; precio = bl.pVentaChico;
+   282→  } else if (val.startsWith('bg-')) {
+   283→    const bl = db.blends.find(b => b.id === +val.slice(3));
+   284→    if (!bl) return;
+   285→    nombre = bl.nombre + ' (grande)'; precio = bl.pVentaGrande;
+   286→  } else {
+   287→    const esp = db.especias.find(e => e.id === +val.slice(2));
+   288→    if (!esp) return;
+   289→    nombre = esp.nombre; precio = 0; // precio libre para especias sueltas
+   290→  }
+   291→  const ex = ventaItems.find(i => i.key === val);
+   292→  if (ex) ex.qty += qty;
+   293→  else ventaItems.push({ key: val, nombre, precio, qty });
+   294→  renderVentaItems();
+   295→}
+   296→
+   297→function removeVentaItem(idx) { ventaItems.splice(idx, 1); renderVentaItems(); }
+   298→
+   299→function renderVentaItems() {
+   300→  const el = document.getElementById('v-items-lista');
+   301→  if (!ventaItems.length) {
+   302→    el.innerHTML = '<div class="text-muted text-sm" style="padding:8px">Sin productos aún</div>';
+   303→    recalcVenta(); return;
+   304→  }
+   305→  el.innerHTML = ventaItems.map((i, idx) => `
+   306→    <div class="flex items-center justify-between" style="padding:7px 0;border-bottom:1px solid var(--border);gap:8px">
+   307→      <span class="text-sm">${i.nombre} × ${i.qty}</span>
+   308→      <div class="flex items-center gap-8">
+   309→        <input type="number" value="${i.precio}" style="width:100px" oninput="ventaItems[${idx}].precio=+this.value;recalcVenta()">
+   310→        <button class="btn btn-red btn-sm" onclick="removeVentaItem(${idx})">×</button>
+   311→      </div>
+   312→    </div>
+   313→  `).join('');
+   314→  recalcVenta();
+   315→}
+   316→
+   317→function recalcVenta() {
+   318→  const sub  = ventaItems.reduce((s, i) => s + i.precio * i.qty, 0);
+   319→  const desc = parseFloat(document.getElementById('v-desc')?.value || 0) || 0;
+   320→  const total = Math.max(0, sub - desc);
+   321→  const el = document.getElementById('v-total');
+   322→  if (el) el.textContent = fmt(total);
+   323→}
+   324→
+   325→function guardarVenta() {
+   326→  if (!ventaItems.length) { showAlert('alert-venta','Agregá al menos un producto.','err'); return; }
+   327→  const db   = getDB();
+   328→  const desc = parseFloat(document.getElementById('v-desc').value) || 0;
+   329→  const sub  = ventaItems.reduce((s, i) => s + i.precio * i.qty, 0);
+   330→  const v = {
+   331→    items:     [...ventaItems],
+   332→    subtotal:  sub,
+   333→    descuento: desc,
+   334→    total:     Math.max(0, sub - desc),
+   335→    estado:    document.getElementById('v-estado').value,
+   336→    nota:      document.getElementById('v-nota').value.trim(),
+   337→    usuario:   currentUser?.nombre || 'Sistema',
+   338→  };
+   339→  if (editingVentaId) {
+   340→    v.id = editingVentaId;
+   341→    const old = db.ventas.find(x => x.id === editingVentaId);
+   342→    v.fecha = old?.fecha || new Date().toISOString();
+   343→    const i = db.ventas.findIndex(x => x.id === editingVentaId);
+   344→    if (i >= 0) db.ventas[i] = v;
+   345→  } else {
+   346→    v.id = nid(); v.fecha = new Date().toISOString();
+   347→    db.ventas.unshift(v);
+   348→  }
+   349→  saveDB(db);
+   350→  toast('Venta guardada ✓');
+   351→  setTimeout(() => closeModal('modal-venta'), 700);
+   352→  renderVentas(); renderDashboard();
+   353→}
+   354→
+   355→function eliminarVenta(id) {
+   356→  if (!confirm('¿Eliminar esta venta?')) return;
+   357→  const db = getDB(); db.ventas = db.ventas.filter(v => v.id !== id); saveDB(db);
+   358→  renderVentas(); renderDashboard(); toast('Venta eliminada');
+   359→}
+   360→
+   361→function renderVentas() {
+   362→  const q   = (document.getElementById('search-ventas')?.value || '').toLowerCase();
+   363→  const est = document.getElementById('filter-estado')?.value || '';
+   364→  const db  = getDB();
+   365→  let list  = db.ventas;
+   366→  if (q)   list = list.filter(v => v.items.some(i => i.nombre.toLowerCase().includes(q)) || (v.nota||'').toLowerCase().includes(q));
+   367→  if (est) list = list.filter(v => v.estado === est);
+   368→  const tbody = document.getElementById('tabla-ventas');
+   369→  if (!list.length) {
+   370→    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-icon">🧾</div><p>Sin ventas.</p></div></td></tr>`;
+   371→    return;
+   372→  }
+   373→  tbody.innerHTML = list.map(v => `<tr>
+   374→    <td class="text-muted text-xs">${fmtDateTime(v.fecha)}</td>
+   375→    <td class="text-sm" style="max-width:180px">${v.items.map(i=>`${i.nombre}×${i.qty}`).join(', ')}</td>
+   376→    <td>${fmt(v.subtotal)}</td>
+   377→    <td class="text-muted">${v.descuento ? fmt(v.descuento) : '—'}</td>
+   378→    <td class="fw7 text-gold">${fmt(v.total)}</td>
+   379→    <td>${estadoBadge(v.estado)}</td>
+   380→    <td class="tr" style="white-space:nowrap">
+   381→      <button class="btn btn-ghost btn-sm" onclick="openModalVenta(${v.id})">✏</button>
+   382→      <button class="btn btn-red btn-sm" onclick="eliminarVenta(${v.id})">🗑</button>
+   383→    </td>
+   384→  </tr>`).join('');
+   385→}
+   386→
+   387→// ===================== REPORTES =====================
+   388→function showTab(id) {
+   389→  document.querySelectorAll('#page-reportes > div[id^="rep-"]').forEach(d => d.style.display = 'none');
+   390→  document.getElementById(id).style.display = 'block';
+   391→  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+   392→  event.currentTarget.classList.add('active');
+   393→  renderReportes();
+   394→}
+   395→
+   396→function renderReportes() {
+   397→  const db   = getDB(); const c = db.costos;
+   398→  const comp = db.ventas.filter(v => v.estado !== 'cancelada');
+   399→  const total = comp.reduce((s, v) => s + v.total, 0);
+   400→  const mesKey = new Date().toLocaleDateString('es-AR', { year:'numeric', month:'long' });
+   401→
+   402→  // Por mes
+   403→  const porMes = {};
+   404→  comp.forEach(v => {
+   405→    const k = new Date(v.fecha).toLocaleDateString('es-AR', { year:'numeric', month:'long' });
+   406→    if (!porMes[k]) porMes[k] = { count:0, total:0 };
+   407→    porMes[k].count++; porMes[k].total += v.total;
+   408→  });
+   409→  const mesActual = porMes[mesKey] || { count:0, total:0 };
+   410→
+   411→  document.getElementById('rep-stats').innerHTML = `
+   412→    <div class="stat"><div class="stat-label">Total histórico</div><div class="stat-value">${fmt(total)}</div></div>
+   413→    <div class="stat"><div class="stat-label">Ventas totales</div><div class="stat-value">${comp.length}</div></div>
+   414→    <div class="stat"><div class="stat-label">Este mes</div><div class="stat-value">${fmt(mesActual.total)}</div><div class="stat-sub">${mesActual.count} ventas</div></div>
+   415→  `;
+   416→
+   417→  document.getElementById('rep-mes-tabla').innerHTML = Object.keys(porMes).reverse().slice(0,12).map(k => `<tr>
+   418→    <td>${k}</td><td>${porMes[k].count}</td>
+   419→    <td class="fw7 text-gold">${fmt(porMes[k].total)}</td>
+   420→    <td>${fmt(porMes[k].total / porMes[k].count)}</td>
+   421→  </tr>`).join('') || '<tr><td colspan="4" class="text-muted">Sin datos</td></tr>';
+   422→
+   423→  // Por producto
+   424→  const porProd = {};
+   425→  comp.forEach(v => v.items.forEach(i => {
+   426→    if (!porProd[i.nombre]) porProd[i.nombre] = { qty:0, total:0 };
+   427→    porProd[i.nombre].qty   += i.qty;
+   428→    porProd[i.nombre].total += i.precio * i.qty;
+   429→  }));
+   430→  const prodList = Object.entries(porProd).sort((a,b) => b[1].total - a[1].total);
+   431→  document.getElementById('rep-prod-tabla').innerHTML = prodList.map(([n,{qty,t2}],_,arr) => {
+   432→    const tot = porProd[n].total;
+   433→    return `<tr>
+   434→      <td>${n}</td><td>${porProd[n].qty}</td>
+   435→      <td class="fw7 text-gold">${fmt(tot)}</td>
+   436→      <td>${total ? Math.round(tot/total*100)+'%' : '—'}</td>
+   437→    </tr>`;
+   438→  }).join('') || '<tr><td colspan="4" class="text-muted">Sin datos</td></tr>';
+   439→
+   440→  // Rentabilidad de blends
+   441→  document.getElementById('rep-rent-tabla').innerHTML = db.blends.map(bl => {
+   442→    const cd = calcBlendCostData(bl, c);
+   443→    return `<tr>
+   444→      <td><strong>${bl.nombre}</strong></td>
+   445→      <td>${fmt(cd.costoKg)}</td>
+   446→      <td>${fmt(cd.totalC)} ${bl.pVentaChico ? `<span class="badge ${cd.margenC>0?'bg':'br'} ml-4">${Math.round(cd.margenC)}%</span>` : '—'}</td>
+   447→      <td>${fmt(cd.totalG)} ${bl.pVentaGrande ? `<span class="badge ${cd.margenG>0?'bg':'br'}">${Math.round(cd.margenG)}%</span>` : '—'}</td>
+   448→    </tr>`;
+   449→  }).join('') || '<tr><td colspan="4" class="text-muted">Sin blends</td></tr>';
+   450→}
+   451→
+   452→// ===================== AJUSTES (usuarios + GitHub sync) =====================
+   453→function renderAjustes() {
+   454→  const db = getDB();
+   455→  document.getElementById('ajustes-usuarios').innerHTML = db.usuarios.map(u => `
+   456→    <div class="flex items-center justify-between" style="padding:10px 0;border-bottom:1px solid var(--border)">
+   457→      <div class="flex items-center gap-8">
+   458→        <div class="user-avatar" style="width:32px;height:32px;font-size:.9rem">${u.emoji}</div>
+   459→        <div>
+   460→          <div class="fw7 text-sm">${u.nombre}</div>
+   461→          <div class="text-xs text-muted">${u.rol} · PIN: ${'●'.repeat(u.pin.length)}</div>
+   462→        </div>
+   463→      </div>
+   464→      <div class="flex gap-8">
+   465→        <button class="btn btn-ghost btn-sm" onclick="openModalUsuario(${u.id})">✏</button>
+   466→        ${db.usuarios.length > 1 ? `<button class="btn btn-red btn-sm" onclick="eliminarUsuario(${u.id})">🗑</button>` : ''}
+   467→      </div>
+   468→    </div>
+   469→  `).join('');
+   470→  renderGhAjustes();
+   471→}
+   472→
+   473→// ===================== GITHUB SYNC UI =====================
+   474→
+   475→function renderGhAjustes() {
+   476→  const cfg = getGhConfig();
+   477→  const badge = document.getElementById('gh-status-badge');
+   478→  const form = document.getElementById('gh-config-form');
+   479→  const info = document.getElementById('gh-connected-info');
+   480→
+   481→  if (!badge || !form || !info) return;
+   482→
+   483→  if (cfg) {
+   484→    badge.className = 'badge bg';
+   485→    badge.textContent = 'Conectado';
+   486→    form.style.display = 'none';
+   487→    info.style.display = 'block';
+   488→    const repoEl = document.getElementById('gh-info-repo');
+   489→    const branchEl = document.getElementById('gh-info-branch');
+   490→    const linkEl = document.getElementById('gh-share-link');
+   491→    if (repoEl) repoEl.textContent = cfg.owner + '/' + cfg.repo;
+   492→    if (branchEl) branchEl.textContent = cfg.branch || 'main';
+   493→    if (linkEl) linkEl.value = generarLinkConexion();
+   494→  } else {
+   495→    badge.className = 'badge br';
+   496→    badge.textContent = 'Desconectado';
+   497→    form.style.display = 'block';
+   498→    info.style.display = 'none';
+   499→  }
+   500→}
+   501→
+   502→function copiarLinkConexion() {
+   503→  const link = generarLinkConexion();
+   504→  if (!link) { toast('No hay configuración', 'err'); return; }
+   505→  navigator.clipboard.writeText(link).then(() => {
+   506→    toast('Link copiado al portapapeles');
+   507→  }).catch(() => {
+   508→    // Fallback para browsers sin clipboard API
+   509→    const input = document.getElementById('gh-share-link');
+   510→    if (input) { input.select(); document.execCommand('copy'); toast('Link copiado'); }
+   511→  });
+   512→}
+   513→
+   514→function guardarGhConfigUI() {
+   515→  const owner = document.getElementById('gh-owner').value.trim();
+   516→  const repo = document.getElementById('gh-repo').value.trim();
+   517→  const branch = document.getElementById('gh-branch').value.trim() || 'main';
+   518→  const token = document.getElementById('gh-token').value.trim();
+   519→
+   520→  if (!owner || !repo || !token) {
+   521→    toast('Completá owner, repo y token', 'err');
+   522→    return;
+   523→  }
+   524→
+   525→  saveGhConfig({ owner, repo, branch, token });
+   526→  startGhPolling();
+   527→
+   528→  // Hacer push para subir la data con la config embebida
+   529→  ghPush().then(() => {
+   530→    toast('Conectado a GitHub, sincronizando...');
+   531→    renderGhAjustes();
+   532→  });
+   533→}
+   534→
+   535→async function probarGhConexion() {
+   536→  const owner = document.getElementById('gh-owner').value.trim();
+   537→  const repo = document.getElementById('gh-repo').value.trim();
+   538→  const branch = document.getElementById('gh-branch').value.trim() || 'main';
+   539→  const token = document.getElementById('gh-token').value.trim();
+   540→  const resultEl = document.getElementById('gh-test-result');
+   541→
+   542→  if (!owner || !repo || !token) {
+   543→    resultEl.innerHTML = '<span class="text-red">Completá todos los campos</span>';
+   544→    return;
+   545→  }
+   546→
+   547→  // Guardar temporalmente para probar
+   548→  saveGhConfig({ owner, repo, branch, token });
+   549→  resultEl.innerHTML = '<span class="text-muted">Probando conexión...</span>';
+   550→
+   551→  const result = await ghTestConnection();
+   552→  if (result.ok) {
+   553→    resultEl.innerHTML = `<span class="text-green">${result.msg}</span>`;
+   554→  } else {
+   555→    resultEl.innerHTML = `<span class="text-red">${result.msg}</span>`;
+   556→    clearGhConfig(); // limpiar si falla
+   557→  }
+   558→}
+   559→
+   560→async function forzarSyncManual() {
+   561→  toast('Sincronizando...');
+   562→  const pulled = await ghPull();
+   563→  if (pulled) {
+   564→    toast('Datos actualizados desde GitHub');
+   565→    refreshCurrentPage();
+   566→  } else {
+   567→    // Hacer push de lo local
+   568→    await ghPush();
+   569→    toast('Datos locales subidos a GitHub');
+   570→  }
+   571→}
+   572→
+   573→function desconectarGh() {
+   574→  if (!confirm('¿Desconectar la sincronización con GitHub? Los datos seguirán disponibles localmente.')) return;
+   575→  clearGhConfig();
+   576→  renderGhAjustes();
+   577→  toast('Sincronización desconectada');
+   578→}
+   579→
+   580→// ===================== USUARIOS =====================
+   581→
+   582→let editingUserId = null;
+   583→function openModalUsuario(id = null) {
+   584→  editingUserId = id;
+   585→  document.getElementById('modal-usr-titulo').textContent = id ? 'Editar usuario' : 'Nuevo usuario';
+   586→  const db = getDB();
+   587→  if (id) {
+   588→    const u = db.usuarios.find(x => x.id === id);
+   589→    if (u) {
+   590→      document.getElementById('usr-nombre').value = u.nombre;
+   591→      document.getElementById('usr-pin').value    = u.pin;
+   592→      document.getElementById('usr-rol').value    = u.rol;
+   593→      document.getElementById('usr-emoji').value  = u.emoji;
+   594→    }
+   595→  } else {
+   596→    document.getElementById('usr-nombre').value = '';
+   597→    document.getElementById('usr-pin').value    = '';
+   598→    document.getElementById('usr-rol').value    = 'operador';
+   599→    document.getElementById('usr-emoji').value  = '🌿';
+   600→  }
+   601→  openModal('modal-usuario');
+   602→}
+   603→
+   604→function guardarUsuario() {
+   605→  const nombre = document.getElementById('usr-nombre').value.trim();
+   606→  const pin    = document.getElementById('usr-pin').value.trim();
+   607→  if (!nombre || !pin) { showAlert('alert-usr','Nombre y PIN son obligatorios.','err'); return; }
+   608→  if (pin.length < 4) { showAlert('alert-usr','El PIN debe tener al menos 4 dígitos.','err'); return; }
+   609→  const db = getDB();
+   610→  const u = { nombre, pin, rol: document.getElementById('usr-rol').value, emoji: document.getElementById('usr-emoji').value || '👤' };
+   611→  if (editingUserId) {
+   612→    u.id = editingUserId;
+   613→    const i = db.usuarios.findIndex(x => x.id === editingUserId);
+   614→    if (i >= 0) db.usuarios[i] = u;
+   615→  } else { u.id = nid(); db.usuarios.push(u); }
+   616→  saveDB(db);
+   617→  toast('Usuario guardado ✓');
+   618→  setTimeout(() => closeModal('modal-usuario'), 700);
+   619→  renderAjustes();
+   620→}
+   621→
+   622→function eliminarUsuario(id) {
+   623→  if (!confirm('¿Eliminar este usuario?')) return;
+   624→  const db = getDB(); db.usuarios = db.usuarios.filter(u => u.id !== id); saveDB(db);
+   625→  renderAjustes(); toast('Usuario eliminado');
+   626→}
+   627→
+   628→function borrarTodo() {
+   629→  if (!confirm('¿Borrar TODOS los datos?')) return;
+   630→  if (!confirm('Segunda confirmación: ¿borrar definitivamente?')) return;
+   631→  localStorage.removeItem('arcano_v1'); toast('Datos borrados'); location.reload();
+   632→}
+   633→

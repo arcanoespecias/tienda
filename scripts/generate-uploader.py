@@ -22,11 +22,11 @@ with open(os.path.join(DEPLOY_DIR, 'js', 'db.js'), 'r', encoding='utf-8') as f:
 with open(os.path.join(DEPLOY_DIR, 'js', 'firebase-sync.js'), 'r', encoding='utf-8') as f:
     files['js/firebase-sync.js'] = f.read()
 
-with open(os.path.join(DEPLOY_DIR, 'js', 'modules1.js'), 'r', encoding='utf-8') as f:
-    files['js/modules1.js'] = f.read()
+with open(os.path.join(DEPLOY_DIR, 'js', 'core.js'), 'r', encoding='utf-8') as f:
+    files['js/core.js'] = f.read()
 
-with open(os.path.join(DEPLOY_DIR, 'js', 'modules2.js'), 'r', encoding='utf-8') as f:
-    files['js/modules2.js'] = f.read()
+with open(os.path.join(DEPLOY_DIR, 'js', 'pages.js'), 'r', encoding='utf-8') as f:
+    files['js/pages.js'] = f.read()
 
 with open(os.path.join(DEPLOY_DIR, 'manifest.json'), 'r', encoding='utf-8') as f:
     files['manifest.json'] = f.read()
@@ -155,7 +155,7 @@ function setProgress(pct) {
 
 async function githubPut(owner, repo, path, contentB64, branch, token, sha) {
   var url = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
-  var body = { message: 'Arcano v21 - Firebase Realtime Sync', content: contentB64, branch: branch };
+  var body = { message: 'Arcano ERP v1 - Rebuild completo', content: contentB64, branch: branch };
   if (sha) body.sha = sha;
   var res = await fetch(url, {
     method: 'PUT',

@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== USUARIOS =====================
+model User {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  pin       String
+  role      String   @default("operador") // admin, operador, cliente
+  emoji     String   @default("👤")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales     Sale[]
+}
+
+// ===================== ESPECIAS (materias primas) =====================
+model Spice {
+  id       String  @id @default(cuid())
+  name     String
+  priceKg  Float   @default(0)
+  stock    Float   @default(0)
+  stockMin Float   @default(500)
+
+  blendIngredients BlendIngredient[]
+  stockMovements   StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===================== BLENDS =====================
+model Blend {
+  id           String  @id @default(cuid())
+  name         String
+  pesoChico    Float   @default(0)
+  pesoGrande   Float   @default(0)
+  precioChico  Float   @default(0)
+  precioGrande Float   @default(0)
+  notas        String?
+
+  ingredients  BlendIngredient[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BlendIngredient {
+  id      String @id @default(cuid())
+  blendId String
+  spiceId String
+  grams   Float
+  priceKg Float
+
+  blend Blend @relation(fields: [blendId], references: [id], onDelete: Cascade)
+  spice Spice @relation(fields: [spiceId], references: [id])
+
+  @@unique([blendId, spiceId])
+}
+
+// ===================== COSTOS FIJOS =====================
+model CostConfig {
+  id        String @id @default(cuid())
+  envChico  Float  @default(1780)
+  envGrande Float  @default(1750)
+  pkgChico  Float  @default(0)
+  pkgGrande Float  @default(0)
+  etiqueta  Float  @default(0)
+  mo        Float  @default(0)
+  otros     Float  @default(0)
+}
+
+// ===================== MOVIMIENTOS DE STOCK =====================
+model StockMovement {
+  id       String   @id @default(cuid())
+  spiceId  String
+  tipo     String   // ENTRADA, SALIDA
+  cantidad Float
+  nota     String?
+  fecha    DateTime @default(now())
+  usuario  String?
+
+  spice    Spice    @relation(fields: [spiceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+// ===================== COMPRAS / INSUMOS =====================
+model Supply {
+  id        String  @id @default(cuid())
+  tipo      String  // ESPECIA, ENVASE, ETIQUETA, PACKAGING, OTRO
+  name      String
+  supplier  String  @default("")
+  price     Float   @default(0)
+  unit      String  @default("kg")
+  stock     Float   @default(0)
+
+  purchaseItems PurchaseItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Purchase {
+  id       String   @id @default(cuid())
+  supplier String
+  fecha    DateTime @default(now())
+  total    Float    @default(0)
+  notas    String?
+
+  items    PurchaseItem[]
+
+  createdAt DateTime @default(now())
+}
+
+model PurchaseItem {
+  id         String @id @default(cuid())
+  purchaseId String
+  supplyId   String
+  quantity   Float
+  unitCost   Float
+  totalCost  Float
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  supply   Supply   @relation(fields: [supplyId], references: [id])
+}
+
+// ===================== VENTAS =====================
+model Sale {
+  id       String   @id @default(cuid())
+  clientId String?
+  total    Float    @default(0)
+  estado   String   @default("pendiente") // pendiente, completada, cancelada, entregada
+  notas    String?
+  fecha    DateTime @default(now())
+
+  client   User?    @relation(fields: [clientId], references: [id])
+  items    SaleItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SaleItem {
+  id        String @id @default(cuid())
+  saleId    String
+  name      String
+  qty       Float
+  unitPrice Float
+  total     Float
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+}

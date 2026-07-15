@@ -1,0 +1,652 @@
+     1→<!DOCTYPE html>
+     2→<html lang="es">
+     3→<head>
+     4→<meta charset="UTF-8">
+     5→<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+     6→<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+     7→<meta http-equiv="Pragma" content="no-cache">
+     8→<meta http-equiv="Expires" content="0">
+     9→<meta name="theme-color" content="#1b0b07">
+    10→<meta name="mobile-web-app-capable" content="yes">
+    11→<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    12→<meta name="apple-mobile-web-app-title" content="Arcano">
+    13→<link rel="icon" type="image/png" href="icons/favicon.png">
+    14→<link rel="apple-touch-icon" href="icons/icon-192.png">
+    15→<title>Arcano — Complice del Sabor</title>
+    16→<link rel="manifest" href="manifest.json?v=21">
+    17→<link rel="stylesheet" href="css/style.css?v=19">
+    18→</head>
+    19→<body>
+    20→
+    21→<!-- PIN SCREEN -->
+    22→<div id="pin-screen" style="display:flex"></div>
+    23→
+    24→<!-- PWA INSTALL BANNER -->
+    25→<div id="pwa-banner" style="display:none">
+    26→  <div class="pwa-banner-inner">
+    27→    <img src="icons/icon-192.png" alt="" style="width:40px;height:40px;border-radius:8px">
+    28→    <div class="pwa-banner-text">
+    29→      <div class="fw7 text-sm">Instalar Arcano</div>
+    30→      <div class="text-xs text-muted">Acceso rapido desde tu pantalla de inicio</div>
+    31→    </div>
+    32→    <button class="btn btn-gold btn-sm" id="pwa-install-btn" onclick="installPWA()">Instalar</button>
+    33→    <button class="btn btn-ghost btn-sm" onclick="dismissPWA()" style="padding:5px 8px;font-size:.9rem">x</button>
+    34→  </div>
+    35→</div>
+    36→
+    37→<!-- TOAST -->
+    38→<div id="toast"></div>
+    39→
+    40→<!-- HEADER -->
+    41→<div id="app-header">
+    42→  <div class="header-logo">
+    43→    <img src="icons/logo-header.png" alt="Arcano" style="width:34px;height:34px;border-radius:50%;object-fit:cover">
+    44→    <div>
+    45→      <div class="header-brand">Arcano</div>
+    46→      <div class="header-sub">Complice del Sabor</div>
+    47→    </div>
+    48→  </div>
+    49→  <div class="header-pin">
+    50→    <div id="sync-indicator" onclick="forceSyncNow()" title="Click para forzar sync" style="cursor:pointer;font-size:.7rem;margin-right:8px;display:flex;align-items:center;gap:4px">
+    51→      <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#666;display:inline-block"></span>
+    52→      <span id="sync-text" style="color:var(--muted);font-size:.6rem">—</span>
+    53→    </div>
+    54→    <div class="user-chip" id="user-chip" onclick="logoutUser()">— Salir</div>
+    55→  </div>
+    56→</div>
+    57→
+    58→<!-- NAV -->
+    59→<nav id="app-nav">
+    60→  <button class="nav-btn active" onclick="goPage('dashboard',this)">Dashboard</button>
+    61→  <button class="nav-btn" onclick="goPage('costos',this)">Costos</button>
+    62→  <button class="nav-btn" onclick="goPage('especias',this)">Especias</button>
+    63→  <button class="nav-btn" onclick="goPage('blends',this)">Blends</button>
+    64→  <button class="nav-btn" onclick="goPage('envases',this)">Envases</button>
+    65→  <button class="nav-btn" onclick="goPage('ventas',this)">Ventas</button>
+    66→  <button class="nav-btn" onclick="goPage('reportes',this)">Reportes</button>
+    67→  <button class="nav-btn" id="nav-ajustes" onclick="goPage('ajustes',this)">⚙ Ajustes</button>
+    68→</nav>
+    69→
+    70→<main>
+    71→
+    72→<!-- DASHBOARD -->
+    73→<div id="page-dashboard" class="page active">
+    74→  <div class="page-title">Dashboard</div>
+    75→  <div class="g4 mb-20" id="dash-stats"></div>
+    76→  <div class="g2 mb-20">
+    77→    <div class="card">
+    78→      <h3>Ventas ultimos 7 dias</h3>
+    79→      <div class="bar-chart" id="chart-7d"></div>
+    80→    </div>
+    81→    <div class="card">
+    82→      <h3>Stock bajo — alerta</h3>
+    83→      <div id="dash-stock-bajo"></div>
+    84→    </div>
+    85→  </div>
+    86→  <div class="g2">
+    87→    <div class="card">
+    88→      <h3>Ultimas ventas</h3>
+    89→      <div class="tw"><table>
+    90→        <thead><tr><th>Fecha</th><th>Productos</th><th>Total</th><th>Estado</th></tr></thead>
+    91→        <tbody id="dash-ventas-tabla"></tbody>
+    92→      </table></div>
+    93→    </div>
+    94→    <div class="card">
+    95→      <h3>Productos mas vendidos</h3>
+    96→      <div id="dash-top"></div>
+    97→    </div>
+    98→  </div>
+    99→</div>
+   100→
+   101→<!-- COSTOS -->
+   102→<div id="page-costos" class="page">
+   103→  <div class="page-title">Costos</div>
+   104→  <div class="g2 mb-20">
+   105→    <div class="card">
+   106→      <h3>Envases</h3>
+   107→      <div class="fr">
+   108→        <div><label>Envase Chico ($/u)</label><input type="number" id="c-env-c" oninput="saveCostos()"></div>
+   109→        <div><label>Envase Grande ($/u)</label><input type="number" id="c-env-g" oninput="saveCostos()"></div>
+   110→      </div>
+   111→    </div>
+   112→    <div class="card">
+   113→      <h3>Packaging</h3>
+   114→      <div class="fr">
+   115→        <div><label>Packaging Chico</label><input type="number" id="c-pkg-c" oninput="saveCostos()"></div>
+   116→        <div><label>Packaging Grande</label><input type="number" id="c-pkg-g" oninput="saveCostos()"></div>
+   117→      </div>
+   118→    </div>
+   119→  </div>
+   120→  <div class="card mb-20">
+   121→    <h3>Otros costos fijos por unidad</h3>
+   122→    <div class="fr3">
+   123→      <div><label>Etiqueta</label><input type="number" id="c-etiq" oninput="saveCostos()"></div>
+   124→      <div><label>Mano de obra</label><input type="number" id="c-mo" oninput="saveCostos()"></div>
+   125→      <div><label>Otros</label><input type="number" id="c-otros" oninput="saveCostos()"></div>
+   126→    </div>
+   127→  </div>
+   128→  <div class="card">
+   129→    <h3>Resumen de costos fijos por unidad</h3>
+   130→    <div class="g2 mt-12" id="resumen-costos"></div>
+   131→  </div>
+   132→</div>
+   133→
+   134→<!-- ESPECIAS -->
+   135→<div id="page-especias" class="page">
+   136→  <div class="flex items-center justify-between mb-20">
+   137→    <div class="page-title" style="margin:0">Especias</div>
+   138→    <button class="btn btn-gold" onclick="openModalEspecia()">+ Nueva especia</button>
+   139→  </div>
+   140→  <div class="search-wrap">
+   141→    <input id="search-esp" placeholder="Buscar especia..." oninput="renderEspecias()">
+   142→  </div>
+   143→  <div class="card">
+   144→    <div class="tw">
+   145→      <table>
+   146→        <thead><tr><th>Nombre</th><th>Precio/kg</th><th>Precio/100g</th><th>Stock</th><th>Minimo</th><th>Estado</th><th></th></tr></thead>
+   147→        <tbody id="tabla-especias"></tbody>
+   148→      </table></div>
+   149→    </div>
+   150→</div>
+   151→
+   152→<!-- BLENDS -->
+   153→<div id="page-blends" class="page">
+   154→  <div class="flex items-center justify-between mb-20">
+   155→    <div class="page-title" style="margin:0">Blends</div>
+   156→    <div class="flex gap-8">
+   157→      <button class="btn btn-ghost btn-sm" id="btn-export-blends" onclick="exportBlendsExcel()" style="display:none">📥 Exportar Excel</button>
+   158→      <button class="btn btn-gold" onclick="openModalBlend()">+ Nuevo blend</button>
+   159→    </div>
+   160→  </div>
+   161→  <div id="lista-blends"></div>
+   162→</div>
+   163→
+   164→<!-- ENVASES -->
+   165→<div id="page-envases" class="page">
+   166→  <div class="flex items-center justify-between mb-20">
+   167→    <div class="page-title" style="margin:0">Envases</div>
+   168→    <button class="btn btn-gold" id="btn-new-envase" onclick="openModalEnvase()" style="display:none">+ Nuevo envase</button>
+   169→  </div>
+   170→  <div id="lista-envases"></div>
+   171→</div>
+   172→
+   173→<!-- VENTAS -->
+   174→<div id="page-ventas" class="page">
+   175→  <div class="flex items-center justify-between mb-20">
+   176→    <div class="page-title" style="margin:0">Ventas</div>
+   177→    <button class="btn btn-gold" onclick="openModalVenta()">+ Nueva venta</button>
+   178→  </div>
+   179→  <div class="flex gap-8 mb-16" style="flex-wrap:wrap">
+   180→    <div class="search-wrap" style="flex:1;min-width:200px;margin-bottom:0">
+   181→      <input id="search-ventas" placeholder="Buscar..." oninput="renderVentas()">
+   182→    </div>
+   183→    <select id="filter-estado" onchange="renderVentas()" style="width:auto">
+   184→      <option value="">Todos los estados</option>
+   185→      <option value="completada">Completada</option>
+   186→      <option value="pendiente">Pendiente</option>
+   187→      <option value="cancelada">Cancelada</option>
+   188→      <option value="entregada">Entregada</option>
+   189→    </select>
+   190→  </div>
+   191→  <div class="card">
+   192→    <div class="tw">
+   193→      <table>
+   194→        <thead><tr><th>Fecha</th><th>Productos</th><th>Subtotal</th><th>Desc.</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+   195→        <tbody id="tabla-ventas"></tbody>
+   196→      </table></div>
+   197→    </div>
+   198→  </div>
+   199→</div>
+   200→
+   201→<!-- REPORTES -->
+   202→<div id="page-reportes" class="page">
+   203→  <div class="page-title">Reportes</div>
+   204→  <div class="g3 mb-20" id="rep-stats"></div>
+   205→  <div class="tabs">
+   206→    <button class="tab active" onclick="showTab('rep-mes')">Por mes</button>
+   207→    <button class="tab" onclick="showTab('rep-prod')">Por producto</button>
+   208→    <button class="tab" onclick="showTab('rep-rent')">Rentabilidad</button>
+   209→  </div>
+   210→  <div id="rep-mes" class="card">
+   211→    <h3>Ventas por mes</h3>
+   212→    <div class="tw"><table>
+   213→      <thead><tr><th>Mes</th><th>Ventas</th><th>Ingresos</th><th>Prom./venta</th></tr></thead>
+   214→      <tbody id="rep-mes-tabla"></tbody>
+   215→    </table></div>
+   216→  </div>
+   217→  <div id="rep-prod" class="card" style="display:none">
+   218→    <h3>Rendimiento por producto</h3>
+   219→    <div class="tw"><table>
+   220→      <thead><tr><th>Producto</th><th>Unidades</th><th>Ingresos</th><th>% del total</th></tr></thead>
+   221→      <tbody id="rep-prod-tabla"></tbody>
+   222→    </table></div>
+   223→  </div>
+   224→  <div id="rep-rent" class="card" style="display:none">
+   225→    <h3>Rentabilidad por blend</h3>
+   226→    <div class="tw"><table>
+   227→      <thead><tr><th>Blend</th><th>Costo/kg</th><th>Unidad Chica</th><th>Unidad Grande</th></tr></thead>
+   228→      <tbody id="rep-rent-tabla"></tbody>
+   229→    </table></div>
+   230→  </div>
+   231→</div>
+   232→
+   233→<!-- AJUSTES -->
+   234→<div id="page-ajustes" class="page">
+   235→  <div class="page-title">Ajustes</div>
+   236→
+   237→  <!-- PWA CONFIG -->
+   238→  <div class="card mb-20" id="pwa-config-card">
+   239→    <div class="flex items-center justify-between mb-16">
+   240→      <h3 style="margin:0">Apariencia y PWA</h3>
+   241→      <div class="flex gap-8">
+   242→        <span id="pwa-status-badge" class="badge by">—</span>
+   243→        <button class="btn btn-gold btn-sm" id="pwa-install-btn-settings" onclick="installPWA()" style="display:none">Instalar app</button>
+   244→      </div>
+   245→    </div>
+   246→
+   247→    <!-- IDENTIDAD -->
+   248→    <div class="section-title mb-12">Identidad</div>
+   249→    <div class="g2 mb-16">
+   250→      <div><label>Nombre de la app</label><input id="pwa-cfg-name" placeholder="Arcano — Complice del Sabor" oninput="previewPWA()"></div>
+   251→      <div><label>Nombre corto</label><input id="pwa-cfg-short" placeholder="Arcano" oninput="previewPWA()"></div>
+   252→    </div>
+   253→    <div class="g2 mb-16">
+   254→      <div><label>Descripcion</label><input id="pwa-cfg-desc" placeholder="Gestion de especias y blends"></div>
+   255→      <div><label>Orientacion</label>
+   256→        <select id="pwa-cfg-orient" onchange="previewPWA()">
+   257→          <option value="portrait-primary">Vertical</option>
+   258→          <option value="landscape-primary">Horizontal</option>
+   259→          <option value="any">Libre</option>
+   260→        </select>
+   261→      </div>
+   262→    </div>
+   263→
+   264→    <hr class="divider">
+   265→
+   266→    <!-- COLORES -->
+   267→    <div class="section-title mb-12">Colores</div>
+   268→    <div class="g2 mb-12">
+   269→      <div><label>Fondo principal</label>
+   270→        <div class="flex gap-8"><input id="pwa-cfg-bg" type="color" value="#1b0b07" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-bg-text" value="#1b0b07" maxlength="7" oninput="syncColorInput('bg')" style="flex:1"></div>
+   271→      </div>
+   272→      <div><label>Fondo header / nav</label>
+   273→        <div class="flex gap-8"><input id="pwa-cfg-bg2" type="color" value="#221108" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-bg2-text" value="#221108" maxlength="7" oninput="syncColorInput('bg2')" style="flex:1"></div>
+   274→      </div>
+   275→    </div>
+   276→    <div class="g2 mb-12">
+   277→      <div><label>Superficie (tarjetas)</label>
+   278→        <div class="flex gap-8"><input id="pwa-cfg-surface" type="color" value="#2a150e" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-surface-text" value="#2a150e" maxlength="7" oninput="syncColorInput('surface')" style="flex:1"></div>
+   279→      </div>
+   280→      <div><label>Superficie 2 (inputs)</label>
+   281→        <div class="flex gap-8"><input id="pwa-cfg-surface2" type="color" value="#331e12" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-surface2-text" value="#331e12" maxlength="7" oninput="syncColorInput('surface2')" style="flex:1"></div>
+   282→      </div>
+   283→    </div>
+   284→    <div class="g2 mb-12">
+   285→      <div><label>Color accent (dorado)</label>
+   286→        <div class="flex gap-8"><input id="pwa-cfg-gold" type="color" value="#c9963a" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-gold-text" value="#c9963a" maxlength="7" oninput="syncColorInput('gold')" style="flex:1"></div>
+   287→      </div>
+   288→      <div><label>Color accent claro</label>
+   289→        <div class="flex gap-8"><input id="pwa-cfg-gold2" type="color" value="#e8b84b" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-gold2-text" value="#e8b84b" maxlength="7" oninput="syncColorInput('gold2')" style="flex:1"></div>
+   290→      </div>
+   291→    </div>
+   292→    <div class="g2 mb-16">
+   293→      <div><label>Texto principal</label>
+   294→        <div class="flex gap-8"><input id="pwa-cfg-cream" type="color" value="#f0e8d0" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-cream-text" value="#f0e8d0" maxlength="7" oninput="syncColorInput('cream')" style="flex:1"></div>
+   295→      </div>
+   296→      <div><label>Texto secundario</label>
+   297→        <div class="flex gap-8"><input id="pwa-cfg-muted" type="color" value="#7a6a50" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-muted-text" value="#7a6a50" maxlength="7" oninput="syncColorInput('muted')" style="flex:1"></div>
+   298→      </div>
+   299→    </div>
+   300→    <div class="mb-16"><label>Color tema (barra del celular)</label>
+   301→      <div class="flex gap-8"><input id="pwa-cfg-theme" type="color" value="#1b0b07" style="width:44px;height:36px;padding:2px;cursor:pointer" oninput="previewPWA()"><input id="pwa-cfg-theme-text" value="#1b0b07" maxlength="7" oninput="syncColorInput('theme')" style="flex:1"></div>
+   302→    </div>
+   303→
+   304→    <hr class="divider">
+   305→
+   306→    <!-- TIPOGRAFIA -->
+   307→    <div class="section-title mb-12">Tipografia</div>
+   308→    <div class="g2 mb-16">
+   309→      <div>
+   310→        <label>Tamano fuente base <span id="pwa-cfg-fs-base-val" class="text-gold">15px</span></label>
+   311→        <input id="pwa-cfg-fs-base" type="range" min="11" max="20" step="1" value="15" oninput="previewPWA()">
+   312→      </div>
+   313→      <div>
+   314→        <label>Tamano titulos <span id="pwa-cfg-fs-title-val" class="text-gold">1.9rem</span></label>
+   315→        <input id="pwa-cfg-fs-title" type="range" min="1.0" max="3.0" step="0.1" value="1.9" oninput="previewPWA()">
+   316→      </div>
+   317→    </div>
+   318→
+   319→    <hr class="divider">
+   320→
+   321→    <!-- VISTA PREVIA + BOTONES -->
+   322→    <div class="cost-box mb-16" id="pwa-preview-box">
+   323→      <div class="text-xs text-muted mb-12">Vista previa</div>
+   324→      <div class="flex items-center gap-8">
+   325→        <img src="icons/icon-192.png?v=13" style="width:36px;height:36px;border-radius:8px">
+   326→        <div>
+   327→          <div class="fw7 text-sm" id="pwa-preview-name">Arcano</div>
+   328→          <div class="text-xs text-muted" id="pwa-preview-desc">Complice del Sabor</div>
+   329→        </div>
+   330→      </div>
+   331→    </div>
+   332→    <div class="flex gap-8">
+   333→      <button class="btn btn-gold" style="flex:1" onclick="guardarPWAConfig()">Guardar configuracion</button>
+   334→      <button class="btn btn-ghost" style="flex:1" onclick="resetPWAConfig()">Restaurar valores</button>
+   335→    </div>
+   336→  </div>
+   337→
+   338→  <div class="g2">
+   339→    <div class="card">
+   340→      <div class="flex items-center justify-between mb-16">
+   341→        <h3 style="margin:0">Usuarios</h3>
+   342→        <button class="btn btn-gold btn-sm" onclick="openModalUsuario()">+ Nuevo</button>
+   343→      </div>
+   344→      <div id="ajustes-usuarios"></div>
+   345→    </div>
+   346→    <div>
+   347→      <div class="card mb-16">
+   348→        <div class="flex items-center justify-between mb-16">
+   349→          <h3 style="margin:0">Sincronizacion</h3>
+   350→          <span id="gh-status-badge" class="badge br">Conectando...</span>
+   351→        </div>
+   352→        <p class="text-muted text-sm mb-16">Los datos se sincronizan en tiempo real entre todos los dispositivos. Sin configuracion adicional necesaria.</p>
+   353→        <div id="gh-connected-info">
+   354→          <div class="cost-box mb-16">
+   355→            <div class="cost-row"><span>Motor</span><span class="text-gold fw7">Firebase Realtime</span></div>
+   356→            <div class="cost-row"><span>Estado</span><span id="sync-status-text" class="text-green fw7">Conectando...</span></div>
+   357→          </div>
+   358→          <div class="flex gap-8">
+   359→            <button class="btn btn-ghost" style="flex:1" onclick="fbForceReload()">Forzar sincronizacion</button>
+   360→            <button class="btn btn-red" onclick="fbClearRemote()">Borrar datos remotos</button>
+   361→          </div>
+   362→        </div>
+   363→      </div>
+   364→      <div class="card">
+   365→        <h3>Zona de peligro</h3>
+   366→        <p class="text-muted text-sm mb-16">Borra todos los datos localmente.</p>
+   367→        <button class="btn btn-red" onclick="borrarTodo()">Borrar todo</button>
+   368→      </div>
+   369→    </div>
+   370→  </div>
+   371→</div>
+   372→
+   373→</main>
+   374→
+   375→<!-- MODAL ESPECIA -->
+   376→<div class="modal-overlay" id="modal-esp">
+   377→  <div class="modal">
+   378→    <div class="modal-header">
+   379→      <span class="modal-title" id="modal-esp-titulo">Nueva especia</span>
+   380→      <button class="modal-close" onclick="closeModal('modal-esp')">x</button>
+   381→    </div>
+   382→    <div id="alert-esp" class="alert"></div>
+   383→    <div class="fr fr1"><div><label>Nombre *</label><input id="esp-nombre" placeholder="Ej: Comino"></div></div>
+   384→    <div class="fr">
+   385→      <div><label>Precio por kg ($) *</label><input id="esp-precio" type="number" min="0" oninput="calcEsp100()"></div>
+   386→      <div><label>Precio por 100g</label><input id="esp-100" readonly></div>
+   387→    </div>
+   388→    <div class="fr">
+   389→      <div><label>Stock actual (g)</label><input id="esp-stock" type="number" min="0" value="0"></div>
+   390→      <div><label>Stock minimo (g)</label><input id="esp-stockmin" type="number" min="0" value="500"></div>
+   391→    </div>
+   392→    <button class="btn btn-gold btn-full mt-16" onclick="guardarEspecia()">Guardar</button>
+   393→  </div>
+   394→</div>
+   395→
+   396→<!-- MODAL STOCK -->
+   397→<div class="modal-overlay" id="modal-stock">
+   398→  <div class="modal">
+   399→    <div class="modal-header">
+   400→      <span class="modal-title" id="ms-nombre">Stock</span>
+   401→      <button class="modal-close" onclick="closeModal('modal-stock')">x</button>
+   402→    </div>
+   403→    <div id="alert-stock" class="alert"></div>
+   404→    <input type="hidden" id="ms-esp-id">
+   405→    <div class="cost-box mb-16">
+   406→      <div class="cost-row"><span>Stock actual</span><span class="fw7 text-gold" id="ms-stock-actual">—</span></div>
+   407→    </div>
+   408→    <div class="fr">
+   409→      <div>
+   410→        <label>Tipo</label>
+   411→        <select id="ms-tipo">
+   412→          <option value="entrada">Entrada (compra)</option>
+   413→          <option value="salida">Salida (uso/merma)</option>
+   414→        </select>
+   415→      </div>
+   416→      <div><label>Cantidad (gramos)</label><input id="ms-cantidad" type="number" min="0" placeholder="0"></div>
+   417→    </div>
+   418→    <div class="fr fr1"><div><label>Nota (opcional)</label><input id="ms-nota-stock" placeholder="Ej: Compra proveedor X"></div></div>
+   419→    <button class="btn btn-gold btn-full mb-16" onclick="guardarMovimiento()">Registrar movimiento</button>
+   420→    <h3>Ultimos movimientos</h3>
+   421→    <div id="ms-historial"></div>
+   422→  </div>
+   423→</div>
+   424→
+   425→<!-- MODAL BLEND -->
+   426→<div class="modal-overlay" id="modal-blend">
+   427→  <div class="modal" style="max-width:620px">
+   428→    <div class="modal-header">
+   429→      <span class="modal-title" id="modal-blend-titulo">Nuevo Blend</span>
+   430→      <button class="modal-close" onclick="closeModal('modal-blend')">x</button>
+   431→    </div>
+   432→    <div id="alert-blend" class="alert"></div>
+   433→    <div class="fr fr1"><div><label>Nombre *</label><input id="bl-nombre" placeholder="Ej: Garam Masala"></div></div>
+   434→    <div class="fr">
+   435→      <div><label>Peso envase chico (g)</label><input id="bl-peso-c" type="number" min="0" oninput="calcBlendModal()"></div>
+   436→      <div><label>Peso envase grande (g)</label><input id="bl-peso-g" type="number" min="0" oninput="calcBlendModal()"></div>
+   437→    </div>
+   438→    <div class="fr">
+   439→      <div><label>Precio venta chico ($)</label><input id="bl-pventa-c" type="number" min="0"></div>
+   440→      <div><label>Precio venta grande ($)</label><input id="bl-pventa-g" type="number" min="0"></div>
+   441→    </div>
+   442→    <div class="fr fr1"><div><label>Notas / instrucciones</label><textarea id="bl-notas" placeholder="Ej: Mezclar en seco."></textarea></div></div>
+   443→    <div class="divider"></div>
+   444→    <h3>Ingredientes — formula para 1kg</h3>
+   445→    <div id="blend-ings-rows"></div>
+   446→    <button class="btn btn-ghost btn-sm mt-12" onclick="addIngRow()">+ Agregar especia</button>
+   447→    <div class="cost-box mt-16">
+   448→      <div class="fr" style="margin-bottom:0">
+   449→        <div>
+   450→          <div class="cost-row"><span>Costo blend /kg</span><span id="bc-kg">$0</span></div>
+   451→          <div class="cost-row"><span>Costo blend /100g</span><span id="bc-100">$0</span></div>
+   452→          <div class="text-xs mt-12" id="bc-grams" style="text-align:center"></div>
+   453→        </div>
+   454→        <div>
+   455→          <div class="cost-row total"><span>Total u. chica</span><span id="bc-tot-c">$0</span></div>
+   456→          <div class="cost-row text-xs"><span class="text-muted">MP chico</span><span id="bc-mp-c">$0</span></div>
+   457→          <div class="cost-row text-xs"><span class="text-muted">Fijos chico</span><span id="bc-fij-c">$0</span></div>
+   458→          <div class="cost-row total" style="margin-top:8px"><span>Total u. grande</span><span id="bc-tot-g">$0</span></div>
+   459→          <div class="cost-row text-xs"><span class="text-muted">MP grande</span><span id="bc-mp-g">$0</span></div>
+   460→          <div class="cost-row text-xs"><span class="text-muted">Fijos grande</span><span id="bc-fij-g">$0</span></div>
+   461→        </div>
+   462→      </div>
+   463→    </div>
+   464→    <button class="btn btn-gold btn-full mt-16" onclick="guardarBlend()">Guardar blend</button>
+   465→  </div>
+   466→</div>
+   467→
+   468→<!-- MODAL VENTA -->
+   469→<div class="modal-overlay" id="modal-venta">
+   470→  <div class="modal">
+   471→    <div class="modal-header">
+   472→      <span class="modal-title" id="modal-venta-titulo">Nueva venta</span>
+   473→      <button class="modal-close" onclick="closeModal('modal-venta')">x</button>
+   474→    </div>
+   475→    <div id="alert-venta" class="alert"></div>
+   476→    <div class="mb-16">
+   477→      <label>Agregar producto</label>
+   478→      <div class="flex gap-8 mb-12">
+   479→        <select id="v-prod-sel" style="flex:1"></select>
+   480→        <input id="v-qty" type="number" min="1" value="1" style="width:65px">
+   481→        <button class="btn btn-ghost btn-sm" onclick="agregarItemVenta()">+ Add</button>
+   482→      </div>
+   483→      <div id="v-items-lista" style="background:var(--surface2);border-radius:8px;padding:10px;min-height:48px"></div>
+   484→    </div>
+   485→    <div class="fr">
+   486→      <div><label>Descuento ($)</label><input id="v-desc" type="number" min="0" value="0" oninput="recalcVenta()"></div>
+   487→      <div style="display:flex;flex-direction:column;justify-content:flex-end">
+   488→        <label>Total</label>
+   489→        <div class="fw7 text-gold" style="font-size:1.3rem;padding:8px 0" id="v-total">$0</div>
+   490→      </div>
+   491→    </div>
+   492→    <div class="fr">
+   493→      <div><label>Estado</label>
+   494→        <select id="v-estado">
+   495→          <option value="completada">Completada</option>
+   496→          <option value="pendiente">Pendiente</option>
+   497→          <option value="entregada">Entregada</option>
+   498→          <option value="cancelada">Cancelada</option>
+   499→        </select>
+   500→      </div>
+   501→      <div><label>Nota</label><input id="v-nota" placeholder="Ej: Pago en cuotas..."></div>
+   502→    </div>
+   503→    <button class="btn btn-gold btn-full mt-16" onclick="guardarVenta()">Guardar venta</button>
+   504→  </div>
+   505→</div>
+   506→
+   507→<!-- MODAL USUARIO -->
+   508→<div class="modal-overlay" id="modal-usuario">
+   509→  <div class="modal">
+   510→    <div class="modal-header">
+   511→      <span class="modal-title" id="modal-usr-titulo">Nuevo usuario</span>
+   512→      <button class="modal-close" onclick="closeModal('modal-usuario')">x</button>
+   513→    </div>
+   514→    <div id="alert-usr" class="alert"></div>
+   515→    <div class="fr">
+   516→      <div><label>Nombre *</label><input id="usr-nombre" placeholder="Ej: Maria"></div>
+   517→      <div><label>Emoji / avatar</label><input id="usr-emoji" placeholder="🌶" maxlength="2"></div>
+   518→    </div>
+   519→    <div class="fr">
+   520→      <div><label>PIN (min. 4 digitos) *</label><input id="usr-pin" type="password" maxlength="8" placeholder="...."></div>
+   521→      <div><label>Rol</label>
+   522→        <select id="usr-rol">
+   523→          <option value="admin">Admin</option>
+   524→          <option value="operador">Operador</option>
+   525→        </select>
+   526→      </div>
+   527→    </div>
+   528→    <button class="btn btn-gold btn-full mt-16" onclick="guardarUsuario()">Guardar usuario</button>
+   529→  </div>
+   530→</div>
+   531→
+   532→<!-- MODAL ENVASE -->
+   533→<div class="modal-overlay" id="modal-env">
+   534→  <div class="modal">
+   535→    <div class="modal-header">
+   536→      <span class="modal-title" id="modal-env-titulo">Nuevo envase</span>
+   537→      <button class="modal-close" onclick="closeModal('modal-env')">x</button>
+   538→    </div>
+   539→    <div id="alert-env" class="alert"></div>
+   540→    <div class="fr fr1"><div><label>Nombre *</label><input id="env-nombre" placeholder="Ej: Frasco 100ml"></div></div>
+   541→    <div class="fr">
+   542→      <div><label>Tipo</label><select id="env-tipo"><option value="chico">Pequeno</option><option value="grande">Grande</option></select></div>
+   543→      <div><label>Peso (g)</label><input id="env-peso" type="number" min="0"></div>
+   544→    </div>
+   545→    <div class="fr">
+   546→      <div><label>Stock (unidades)</label><input id="env-stock" type="number" min="0" value="0"></div>
+   547→      <div><label>Stock minimo</label><input id="env-stockmin" type="number" min="0" value="20"></div>
+   548→    </div>
+   549→    <div class="fr fr1"><div><label>Precio ($/u)</label><input id="env-precio" type="number" min="0" value="0"></div></div>
+   550→    <button class="btn btn-gold btn-full mt-16" onclick="guardarEnvase()">Guardar envase</button>
+   551→  </div>
+   552→</div>
+   553→
+   554→<!-- MODAL STOCK ENVASE -->
+   555→<div class="modal-overlay" id="modal-env-stock">
+   556→  <div class="modal">
+   557→    <div class="modal-header">
+   558→      <span class="modal-title" id="me-nombre">Stock envase</span>
+   559→      <button class="modal-close" onclick="closeModal('modal-env-stock')">x</button>
+   560→    </div>
+   561→    <div id="alert-env-stock" class="alert"></div>
+   562→    <input type="hidden" id="me-env-id">
+   563→    <div class="cost-box mb-16">
+   564→      <div class="cost-row"><span>Stock actual</span><span class="fw7 text-gold" id="me-stock-actual">—</span></div>
+   565→    </div>
+   566→    <div class="fr">
+   567→      <div><label>Tipo</label><select id="me-tipo"><option value="entrada">Entrada (compra)</option><option value="salida">Salida (uso/merma)</option></select></div>
+   568→      <div><label>Cantidad (unidades)</label><input id="me-cantidad" type="number" min="0" placeholder="0"></div>
+   569→    </div>
+   570→    <div class="fr fr1"><div><label>Nota</label><input id="me-nota" placeholder="Ej: Compra proveedor"></div></div>
+   571→    <button class="btn btn-gold btn-full mb-16" onclick="guardarMovEnvase()">Registrar movimiento</button>
+   572→    <h3>Historial</h3>
+   573→    <div id="me-historial"></div>
+   574→  </div>
+   575→</div>
+   576→
+   577→<script src="js/db.js?v=21"></script>
+   578→<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+   579→<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+   580→<script src="js/firebase-sync.js?v=21"></script>
+   581→<script src="js/modules1.js?v=21"></script>
+   582→<script src="js/modules2.js?v=21"></script>
+   583→<script>
+   584→  // Mostrar/ocultar btn admin en envases
+   585→  var _origGoPage = goPage;
+   586→  goPage = function(name, btn) {
+   587→    _origGoPage(name, btn);
+   588→    var bEnv = document.getElementById('btn-new-envase');
+   589→    if(bEnv) bEnv.style.display = (currentUser && currentUser.rol === 'admin' && name === 'envases') ? '' : 'none';
+   590→  };
+   591→
+   592→  function updateSyncUI(status, detail) {
+   593→    var dot = document.getElementById('sync-dot');
+   594→    var txt = document.getElementById('sync-text');
+   595→    if (!dot || !txt) return;
+   596→    if (status === 'syncing') { dot.style.background = '#c9963a'; txt.textContent = 'Sync...'; }
+   597→    else if (status === 'ok') { dot.style.background = '#4caf50'; txt.textContent = detail || 'OK'; }
+   598→    else if (status === 'error') { dot.style.background = '#e07070'; txt.textContent = detail || 'Offline'; }
+   599→    else { dot.style.background = '#666'; txt.textContent = '—'; }
+   600→  }
+   601→
+   602→  function forceSyncNow() {
+   603→    if (typeof fbForceReload === 'function') {
+   604→      updateSyncUI('syncing');
+   605→      fbForceReload();
+   606→    }
+   607→  }
+   608→
+   609→  // Service Worker registration
+   610→  if ('serviceWorker' in navigator) {
+   611→    navigator.serviceWorker.register('sw.js?v=21').then(function(reg) {
+   612→      reg.addEventListener('updatefound', function() {
+   613→        var newWorker = reg.installing;
+   614→        newWorker.addEventListener('statechange', function() {
+   615→          if (newWorker.state === 'activated' && !sessionStorage.getItem('_sw_reloaded')) {
+   616→            sessionStorage.setItem('_sw_reloaded', '1');
+   617→            window.location.reload();
+   618→          }
+   619→        });
+   620→      });
+   621→    }).catch(function(err) {
+   622→      console.warn('[Arcano] SW registro fallo:', err);
+   623→    });
+   624→  }
+   625→
+   626→  function bootApp() {
+   627→    console.log('[Arcano] v21 - Firebase Realtime Sync');
+   628→    updateSyncUI('syncing', '...');
+   629→
+   630→    initFirebase();
+   631→    startFirebaseSync(function(remoteData) {
+   632→      // Firebase listo (con datos, vacio, o con error de permisos)
+   633→      if (remoteData) {
+   634→        console.log('[Arcano] Datos de Firebase cargados');
+   635→      } else {
+   636→        console.log('[Arcano] Sin datos remotos - usando datos locales');
+   637→      }
+   638→      seedIfEmpty();
+   639→      if (typeof applyPWAConfig === 'function') applyPWAConfig(getPWAConfig());
+   640→      initPin();
+   641→      renderGhAjustes();
+   642→      if (fbIsConnected()) {
+   643→        updateSyncUI('ok', 'OK');
+   644→      } else {
+   645→        updateSyncUI('error', 'Ver reglas');
+   646→      }
+   647→    });
+   648→  }
+   649→  bootApp();
+   650→</script>
+   651→</body>
+   652→</html>

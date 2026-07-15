@@ -1,0 +1,1963 @@
+     1→/* ============================================
+     2→   Arcano — Cómplice del Sabor
+     3→   ERP Style System
+     4→   ============================================ */
+     5→
+     6→/* Google Fonts */
+     7→@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+     8→
+     9→/* ============================================
+    10→   CSS Variables
+    11→   ============================================ */
+    12→:root {
+    13→  --bg:        #1b0b07;
+    14→  --bg2:       #221108;
+    15→  --surface:   #2a150e;
+    16→  --surface2:  #331e12;
+    17→  --surface3:  #3d2a18;
+    18→  --gold:      #c9963a;
+    19→  --gold2:     #e8b84b;
+    20→  --gold-dim:  #7a5a20;
+    21→  --burgundy:  #8b1a2a;
+    22→  --cream:     #f0e8d0;
+    23→  --muted:     #7a6a50;
+    24→  --border:    #3d2a18;
+    25→  --border2:   #2e1f12;
+    26→  --green:     #5a9e5a;
+    27→  --red:       #c04040;
+    28→  --yellow:    #c8a030;
+    29→  --radius:    10px;
+    30→  --font-head: 'Cormorant Garamond', Georgia, serif;
+    31→  --font-body: 'Inter', system-ui, sans-serif;
+    32→}
+    33→
+    34→/* ============================================
+    35→   Reset & Base
+    36→   ============================================ */
+    37→*, *::before, *::after {
+    38→  box-sizing: border-box;
+    39→  margin: 0;
+    40→  padding: 0;
+    41→}
+    42→
+    43→html {
+    44→  height: 100%;
+    45→}
+    46→
+    47→body {
+    48→  background: var(--bg);
+    49→  color: var(--cream);
+    50→  font-family: var(--font-body);
+    51→  min-height: 100vh;
+    52→  font-size: 15px;
+    53→  line-height: 1.5;
+    54→  -webkit-font-smoothing: antialiased;
+    55→  -moz-osx-font-smoothing: grayscale;
+    56→}
+    57→
+    58→/* ============================================
+    59→   Page System
+    60→   ============================================ */
+    61→.page {
+    62→  display: none;
+    63→}
+    64→
+    65→.page.active {
+    66→  display: block;
+    67→}
+    68→
+    69→/* ============================================
+    70→   Layout Utilities
+    71→   ============================================ */
+    72→.flex {
+    73→  display: flex;
+    74→}
+    75→
+    76→.items-center {
+    77→  align-items: center;
+    78→}
+    79→
+    80→.justify-between {
+    81→  justify-content: space-between;
+    82→}
+    83→
+    84→.gap-8 {
+    85→  gap: 8px;
+    86→}
+    87→
+    88→.gap-12 {
+    89→  gap: 12px;
+    90→}
+    91→
+    92→.fr {
+    93→  display: flex;
+    94→  gap: 12px;
+    95→}
+    96→
+    97→.fr1 {
+    98→  display: flex;
+    99→  flex-direction: column;
+   100→  gap: 6px;
+   101→}
+   102→
+   103→.g2 {
+   104→  display: grid;
+   105→  grid-template-columns: repeat(2, 1fr);
+   106→  gap: 12px;
+   107→}
+   108→
+   109→.g3 {
+   110→  display: grid;
+   111→  grid-template-columns: repeat(3, 1fr);
+   112→  gap: 12px;
+   113→}
+   114→
+   115→.g4 {
+   116→  display: grid;
+   117→  grid-template-columns: repeat(4, 1fr);
+   118→  gap: 12px;
+   119→}
+   120→
+   121→/* ============================================
+   122→   Spacing Utilities
+   123→   ============================================ */
+   124→.mb-8 {
+   125→  margin-bottom: 8px;
+   126→}
+   127→
+   128→.mb-12 {
+   129→  margin-bottom: 12px;
+   130→}
+   131→
+   132→.mb-16 {
+   133→  margin-bottom: 16px;
+   134→}
+   135→
+   136→.mb-20 {
+   137→  margin-bottom: 20px;
+   138→}
+   139→
+   140→.mt-8 {
+   141→  margin-top: 8px;
+   142→}
+   143→
+   144→.mt-12 {
+   145→  margin-top: 12px;
+   146→}
+   147→
+   148→.mt-16 {
+   149→  margin-top: 16px;
+   150→}
+   151→
+   152→/* ============================================
+   153→   Typography Utilities
+   154→   ============================================ */
+   155→.text-xs {
+   156→  font-size: .75rem;
+   157→}
+   158→
+   159→.text-sm {
+   160→  font-size: .85rem;
+   161→}
+   162→
+   163→.fw7 {
+   164→  font-weight: 700;
+   165→}
+   166→
+   167→.fw8 {
+   168→  font-weight: 800;
+   169→}
+   170→
+   171→.text-gold {
+   172→  color: var(--gold2);
+   173→}
+   174→
+   175→.text-muted {
+   176→  color: var(--muted);
+   177→}
+   178→
+   179→.text-red {
+   180→  color: var(--red);
+   181→}
+   182→
+   183→.text-green {
+   184→  color: var(--green);
+   185→}
+   186→
+   187→.tr {
+   188→  text-align: right;
+   189→}
+   190→
+   191→/* ============================================
+   192→   Typography — Page & Section Headings
+   193→   ============================================ */
+   194→.page-title {
+   195→  font-family: var(--font-head);
+   196→  font-size: 1.6rem;
+   197→  font-weight: 700;
+   198→  color: var(--cream);
+   199→  margin-bottom: 20px;
+   200→  letter-spacing: .02em;
+   201→}
+   202→
+   203→.section-title {
+   204→  font-family: var(--font-head);
+   205→  font-size: 1rem;
+   206→  font-weight: 600;
+   207→  color: var(--gold);
+   208→  margin-bottom: 12px;
+   209→  letter-spacing: .03em;
+   210→}
+   211→
+   212→/* ============================================
+   213→   Buttons
+   214→   ============================================ */
+   215→.btn {
+   216→  display: inline-flex;
+   217→  align-items: center;
+   218→  justify-content: center;
+   219→  padding: 10px 16px;
+   220→  border-radius: 8px;
+   221→  border: 1px solid var(--border);
+   222→  background: var(--surface);
+   223→  color: var(--cream);
+   224→  font-weight: 600;
+   225→  font-size: .85rem;
+   226→  font-family: var(--font-body);
+   227→  cursor: pointer;
+   228→  transition: opacity .2s, border-color .2s;
+   229→  white-space: nowrap;
+   230→  text-decoration: none;
+   231→  line-height: 1.4;
+   232→}
+   233→
+   234→.btn:hover {
+   235→  opacity: .85;
+   236→}
+   237→
+   238→.btn-gold {
+   239→  background: linear-gradient(135deg, var(--gold), var(--gold2));
+   240→  color: #1a0e00;
+   241→  border: none;
+   242→}
+   243→
+   244→.btn-gold:hover {
+   245→  opacity: .9;
+   246→}
+   247→
+   248→.btn-ghost {
+   249→  background: transparent;
+   250→  color: var(--muted);
+   251→  border: 1px solid var(--border);
+   252→}
+   253→
+   254→.btn-ghost:hover {
+   255→  color: var(--cream);
+   256→  border-color: var(--gold-dim);
+   257→  opacity: 1;
+   258→}
+   259→
+   260→.btn-sm {
+   261→  padding: 6px 12px;
+   262→  font-size: .78rem;
+   263→}
+   264→
+   265→.btn-full {
+   266→  width: 100%;
+   267→}
+   268→
+   269→.btn-danger {
+   270→  background: var(--red);
+   271→  color: #fff;
+   272→  border-color: var(--red);
+   273→}
+   274→
+   275→.btn-danger:hover {
+   276→  opacity: .9;
+   277→}
+   278→
+   279→/* ============================================
+   280→   Cards & Surfaces
+   281→   ============================================ */
+   282→.card {
+   283→  background: var(--surface);
+   284→  border: 1px solid var(--border);
+   285→  border-radius: var(--radius);
+   286→  padding: 16px;
+   287→  margin-bottom: 12px;
+   288→}
+   289→
+   290→.card-gold {
+   291→  background: var(--surface);
+   292→  border: 1px solid var(--gold-dim);
+   293→  border-radius: var(--radius);
+   294→  padding: 16px;
+   295→  margin-bottom: 12px;
+   296→}
+   297→
+   298→/* ============================================
+   299→   Forms
+   300→   ============================================ */
+   301→label {
+   302→  display: block;
+   303→  font-size: .72rem;
+   304→  font-weight: 700;
+   305→  color: var(--muted);
+   306→  text-transform: uppercase;
+   307→  letter-spacing: .05em;
+   308→  margin-bottom: 4px;
+   309→}
+   310→
+   311→input,
+   312→select,
+   313→textarea {
+   314→  width: 100%;
+   315→  background: var(--bg);
+   316→  border: 1px solid var(--border);
+   317→  border-radius: 8px;
+   318→  color: var(--cream);
+   319→  font-size: .88rem;
+   320→  padding: 10px 12px;
+   321→  outline: none;
+   322→  font-family: var(--font-body);
+   323→  transition: border-color .2s;
+   324→}
+   325→
+   326→input:focus,
+   327→select:focus,
+   328→textarea:focus {
+   329→  border-color: var(--gold);
+   330→}
+   331→
+   332→input::placeholder,
+   333→textarea::placeholder {
+   334→  color: var(--muted);
+   335→  opacity: .6;
+   336→}
+   337→
+   338→select {
+   339→  cursor: pointer;
+   340→  -webkit-appearance: none;
+   341→  -moz-appearance: none;
+   342→  appearance: none;
+   343→  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237a6a50' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+   344→  background-repeat: no-repeat;
+   345→  background-position: right 12px center;
+   346→  padding-right: 32px;
+   347→}
+   348→
+   349→select option {
+   350→  background: var(--bg2);
+   351→  color: var(--cream);
+   352→}
+   353→
+   354→textarea {
+   355→  resize: vertical;
+   356→  min-height: 60px;
+   357→}
+   358→
+   359→.fr label,
+   360→.fr1 label {
+   361→  margin-bottom: 4px;
+   362→}
+   363→
+   364→/* ============================================
+   365→   Tables
+   366→   ============================================ */
+   367→.tw {
+   368→  overflow-x: auto;
+   369→  -webkit-overflow-scrolling: touch;
+   370→}
+   371→
+   372→.tw table {
+   373→  width: 100%;
+   374→  border-collapse: collapse;
+   375→}
+   376→
+   377→.tw th {
+   378→  font-size: .72rem;
+   379→  text-transform: uppercase;
+   380→  color: var(--muted);
+   381→  text-align: left;
+   382→  padding: 8px 10px;
+   383→  border-bottom: 1px solid var(--border);
+   384→  font-weight: 600;
+   385→  white-space: nowrap;
+   386→}
+   387→
+   388→.tw td {
+   389→  padding: 8px 10px;
+   390→  border-bottom: 1px solid rgba(61, 42, 24, .4);
+   391→  font-size: .85rem;
+   392→  vertical-align: middle;
+   393→}
+   394→
+   395→.tw tr:hover td {
+   396→  background: rgba(201, 150, 58, .04);
+   397→}
+   398→
+   399→/* ============================================
+   400→   Badges
+   401→   ============================================ */
+   402→.badge {
+   403→  display: inline-block;
+   404→  padding: 2px 8px;
+   405→  border-radius: 20px;
+   406→  font-size: .7rem;
+   407→  font-weight: 700;
+   408→  letter-spacing: .02em;
+   409→  line-height: 1.5;
+   410→}
+   411→
+   412→.badge.bg {
+   413→  background: rgba(90, 158, 90, .2);
+   414→  color: var(--green);
+   415→}
+   416→
+   417→.badge.by {
+   418→  background: rgba(200, 160, 48, .2);
+   419→  color: var(--yellow);
+   420→}
+   421→
+   422→.badge.br {
+   423→  background: rgba(192, 64, 64, .2);
+   424→  color: var(--red);
+   425→}
+   426→
+   427→.badge.ba {
+   428→  background: rgba(201, 150, 58, .15);
+   429→  color: var(--gold);
+   430→}
+   431→
+   432→.badge.bb {
+   433→  background: rgba(139, 26, 42, .2);
+   434→  color: #e55;
+   435→}
+   436→
+   437→/* ============================================
+   438→   Stats
+   439→   ============================================ */
+   440→.stat {
+   441→  background: var(--surface);
+   442→  border: 1px solid var(--border);
+   443→  border-radius: var(--radius);
+   444→  padding: 16px;
+   445→}
+   446→
+   447→.stat-label {
+   448→  font-size: .75rem;
+   449→  color: var(--muted);
+   450→  text-transform: uppercase;
+   451→  letter-spacing: .04em;
+   452→  margin-bottom: 6px;
+   453→}
+   454→
+   455→.stat-value {
+   456→  font-size: 1.3rem;
+   457→  font-weight: 800;
+   458→  color: var(--gold2);
+   459→}
+   460→
+   461→.stat-sub {
+   462→  font-size: .72rem;
+   463→  color: var(--muted);
+   464→  margin-top: 4px;
+   465→}
+   466→
+   467→/* ============================================
+   468→   Movement / Action Rows
+   469→   ============================================ */
+   470→.mov-row {
+   471→  display: flex;
+   472→  align-items: center;
+   473→  justify-content: space-between;
+   474→  padding: 10px 0;
+   475→  border-bottom: 1px solid rgba(61, 42, 24, .3);
+   476→  gap: 12px;
+   477→  font-size: .85rem;
+   478→}
+   479→
+   480→.mov-row:last-child {
+   481→  border-bottom: none;
+   482→}
+   483→
+   484→.mov-in {
+   485→  color: var(--green);
+   486→  font-weight: 700;
+   487→  min-width: 50px;
+   488→}
+   489→
+   490→.mov-out {
+   491→  color: var(--red);
+   492→  font-weight: 700;
+   493→  min-width: 50px;
+   494→}
+   495→
+   496→.mov-date {
+   497→  font-size: .72rem;
+   498→  color: var(--muted);
+   499→  white-space: nowrap;
+   500→}
+   501→
+   502→/* ============================================
+   503→   Tabs
+   504→   ============================================ */
+   505→.tabs {
+   506→  display: flex;
+   507→  gap: 4px;
+   508→  overflow-x: auto;
+   509→  padding-bottom: 2px;
+   510→  -webkit-overflow-scrolling: touch;
+   511→}
+   512→
+   513→.tab {
+   514→  padding: 8px 16px;
+   515→  background: transparent;
+   516→  border: none;
+   517→  color: var(--muted);
+   518→  font-size: .82rem;
+   519→  font-weight: 600;
+   520→  cursor: pointer;
+   521→  border-bottom: 2px solid transparent;
+   522→  font-family: var(--font-body);
+   523→  white-space: nowrap;
+   524→  transition: color .2s, border-color .2s;
+   525→}
+   526→
+   527→.tab:hover {
+   528→  color: var(--cream);
+   529→}
+   530→
+   531→.tab.active {
+   532→  color: var(--gold2);
+   533→  border-bottom-color: var(--gold2);
+   534→}
+   535→
+   536→/* ============================================
+   537→   Alerts
+   538→   ============================================ */
+   539→.alert {
+   540→  padding: 10px 14px;
+   541→  border-radius: 8px;
+   542→  font-size: .82rem;
+   543→  display: none;
+   544→  line-height: 1.5;
+   545→}
+   546→
+   547→.alert.show {
+   548→  display: block;
+   549→}
+   550→
+   551→.alert-err {
+   552→  background: rgba(192, 64, 64, .15);
+   553→  color: var(--red);
+   554→  border: 1px solid rgba(192, 64, 64, .3);
+   555→}
+   556→
+   557→/* ============================================
+   558→   Divider
+   559→   ============================================ */
+   560→.divider {
+   561→  border: none;
+   562→  border-top: 1px solid var(--border);
+   563→  margin: 12px 0;
+   564→}
+   565→
+   566→/* ============================================
+   567→   Cost Box
+   568→   ============================================ */
+   569→.cost-box {
+   570→  background: var(--bg);
+   571→  border: 1px solid var(--border);
+   572→  border-radius: 8px;
+   573→  padding: 12px;
+   574→}
+   575→
+   576→.cost-row {
+   577→  display: flex;
+   578→  justify-content: space-between;
+   579→  padding: 4px 0;
+   580→  font-size: .85rem;
+   581→}
+   582→
+   583→.cost-row.total {
+   584→  font-weight: 700;
+   585→  font-size: 1rem;
+   586→  color: var(--gold2);
+   587→  padding-top: 8px;
+   588→  margin-top: 4px;
+   589→  border-top: 1px solid var(--border);
+   590→}
+   591→
+   592→.profit {
+   593→  color: var(--green);
+   594→}
+   595→
+   596→.loss {
+   597→  color: var(--red);
+   598→}
+   599→
+   600→/* ============================================
+   601→   Actions Row
+   602→   ============================================ */
+   603→.actions-row {
+   604→  display: flex;
+   605→  gap: 8px;
+   606→  margin-bottom: 16px;
+   607→  flex-wrap: wrap;
+   608→}
+   609→
+   610→/* ============================================
+   611→   Ingredient Row (Blend Recipes)
+   612→   ============================================ */
+   613→.ing-row {
+   614→  display: flex;
+   615→  gap: 8px;
+   616→  align-items: center;
+   617→  margin-bottom: 8px;
+   618→  flex-wrap: wrap;
+   619→}
+   620→
+   621→.ing-row select {
+   622→  flex: 2;
+   623→  min-width: 120px;
+   624→}
+   625→
+   626→.ing-row input {
+   627→  flex: 1;
+   628→  min-width: 80px;
+   629→}
+   630→
+   631→.ing-cost {
+   632→  min-width: 80px;
+   633→  text-align: right;
+   634→  font-size: .82rem;
+   635→  color: var(--gold);
+   636→}
+   637→
+   638→/* ============================================
+   639→   Empty State
+   640→   ============================================ */
+   641→.empty {
+   642→  text-align: center;
+   643→  padding: 40px 20px;
+   644→  color: var(--muted);
+   645→}
+   646→
+   647→.empty-icon {
+   648→  font-size: 2.5rem;
+   649→  margin-bottom: 12px;
+   650→  opacity: .5;
+   651→}
+   652→
+   653→/* ============================================
+   654→   Modal
+   655→   ============================================ */
+   656→.modal-overlay {
+   657→  position: fixed;
+   658→  inset: 0;
+   659→  background: rgba(0, 0, 0, .7);
+   660→  z-index: 1000;
+   661→  display: none;
+   662→  justify-content: center;
+   663→  align-items: flex-start;
+   664→  padding: 20px;
+   665→  overflow-y: auto;
+   666→}
+   667→
+   668→.modal-overlay.open {
+   669→  display: flex;
+   670→}
+   671→
+   672→.modal {
+   673→  background: var(--surface);
+   674→  border: 1px solid var(--border);
+   675→  border-radius: 14px;
+   676→  width: 100%;
+   677→  max-width: 540px;
+   678→  max-height: 85vh;
+   679→  overflow-y: auto;
+   680→  padding: 0;
+   681→  margin: auto 0;
+   682→  animation: modalIn .2s ease-out;
+   683→}
+   684→
+   685→@keyframes modalIn {
+   686→  from {
+   687→    opacity: 0;
+   688→    transform: translateY(12px) scale(.97);
+   689→  }
+   690→  to {
+   691→    opacity: 1;
+   692→    transform: translateY(0) scale(1);
+   693→  }
+   694→}
+   695→
+   696→.modal-header {
+   697→  display: flex;
+   698→  justify-content: space-between;
+   699→  align-items: center;
+   700→  padding: 16px 20px;
+   701→  border-bottom: 1px solid var(--border);
+   702→  position: sticky;
+   703→  top: 0;
+   704→  background: var(--surface);
+   705→  z-index: 1;
+   706→  border-radius: 14px 14px 0 0;
+   707→}
+   708→
+   709→.modal-title {
+   710→  font-size: 1.05rem;
+   711→  font-weight: 700;
+   712→  color: var(--cream);
+   713→}
+   714→
+   715→.modal-close {
+   716→  background: none;
+   717→  border: none;
+   718→  color: var(--muted);
+   719→  font-size: 1.5rem;
+   720→  cursor: pointer;
+   721→  padding: 0 4px;
+   722→  line-height: 1;
+   723→  transition: color .15s;
+   724→}
+   725→
+   726→.modal-close:hover {
+   727→  color: var(--cream);
+   728→}
+   729→
+   730→/* Modal body content — direct child of .modal */
+   731→.modal > .card,
+   732→.modal > .fr,
+   733→.modal > .fr1,
+   734→.modal > .g2,
+   735→.modal > .mb-12,
+   736→.modal > .mb-16,
+   737→.modal > .mb-20,
+   738→.modal > .actions-row,
+   739→.modal > form {
+   740→  padding: 0 20px;
+   741→}
+   742→
+   743→.modal > .card {
+   744→  border: none;
+   745→  padding: 0 20px 4px;
+   746→}
+   747→
+   748→/* ============================================
+   749→   Toast
+   750→   ============================================ */
+   751→#toast {
+   752→  position: fixed;
+   753→  bottom: 20px;
+   754→  left: 50%;
+   755→  transform: translateX(-50%);
+   756→  z-index: 2000;
+   757→  padding: 10px 20px;
+   758→  border-radius: 10px;
+   759→  font-size: .85rem;
+   760→  font-weight: 600;
+   761→  display: none;
+   762→  box-shadow: 0 4px 20px rgba(0, 0, 0, .4);
+   763→  white-space: nowrap;
+   764→  font-family: var(--font-body);
+   765→}
+   766→
+   767→#toast.show {
+   768→  display: block;
+   769→  animation: toastIn .3s ease-out;
+   770→}
+   771→
+   772→@keyframes toastIn {
+   773→  from {
+   774→    opacity: 0;
+   775→    transform: translateX(-50%) translateY(8px);
+   776→  }
+   777→  to {
+   778→    opacity: 1;
+   779→    transform: translateX(-50%) translateY(0);
+   780→  }
+   781→}
+   782→
+   783→/* ============================================
+   784→   Scrollbar
+   785→   ============================================ */
+   786→::-webkit-scrollbar {
+   787→  width: 5px;
+   788→  height: 5px;
+   789→}
+   790→
+   791→::-webkit-scrollbar-track {
+   792→  background: var(--bg2);
+   793→}
+   794→
+   795→::-webkit-scrollbar-thumb {
+   796→  background: var(--gold-dim);
+   797→  border-radius: 4px;
+   798→}
+   799→
+   800→::-webkit-scrollbar-thumb:hover {
+   801→  background: var(--gold);
+   802→}
+   803→
+   804→/* Firefox scrollbar */
+   805→* {
+   806→  scrollbar-width: thin;
+   807→  scrollbar-color: var(--gold-dim) var(--bg2);
+   808→}
+   809→
+   810→/* ============================================
+   811→   Admin App Shell
+   812→   ============================================ */
+   813→#admin-app {
+   814→  flex-direction: column;
+   815→  min-height: 100vh;
+   816→}
+   817→
+   818→/* ============================================
+   819→   Header (Admin)
+   820→   ============================================ */
+   821→#app-header {
+   822→  background: var(--bg2);
+   823→  border-bottom: 1px solid var(--border2);
+   824→  padding: 0 16px;
+   825→  height: 56px;
+   826→  display: flex;
+   827→  align-items: center;
+   828→  justify-content: space-between;
+   829→  position: sticky;
+   830→  top: 0;
+   831→  z-index: 100;
+   832→}
+   833→
+   834→.header-logo {
+   835→  display: flex;
+   836→  align-items: center;
+   837→  gap: 10px;
+   838→}
+   839→
+   840→.header-logo img {
+   841→  height: 32px;
+   842→}
+   843→
+   844→.header-brand {
+   845→  font-family: var(--font-head);
+   846→  font-size: 1.15rem;
+   847→  font-weight: 700;
+   848→  color: var(--gold2);
+   849→  letter-spacing: .06em;
+   850→}
+   851→
+   852→.header-sub {
+   853→  font-size: .6rem;
+   854→  color: var(--muted);
+   855→}
+   856→
+   857→.header-pin {
+   858→  display: flex;
+   859→  align-items: center;
+   860→  gap: 10px;
+   861→}
+   862→
+   863→.user-chip {
+   864→  display: flex;
+   865→  align-items: center;
+   866→  gap: 6px;
+   867→  padding: 6px 10px;
+   868→  background: var(--surface);
+   869→  border: 1px solid var(--border);
+   870→  border-radius: 20px;
+   871→  cursor: pointer;
+   872→  font-size: .82rem;
+   873→  transition: border-color .2s;
+   874→}
+   875→
+   876→.user-chip:hover {
+   877→  border-color: var(--gold-dim);
+   878→}
+   879→
+   880→/* ============================================
+   881→   Navigation (Admin)
+   882→   ============================================ */
+   883→#app-nav {
+   884→  background: var(--bg2);
+   885→  border-bottom: 1px solid var(--border);
+   886→  display: flex;
+   887→  padding: 0 12px;
+   888→  gap: 2px;
+   889→  overflow-x: auto;
+   890→  -webkit-overflow-scrolling: touch;
+   891→}
+   892→
+   893→.nav-btn {
+   894→  padding: 12px 16px;
+   895→  background: none;
+   896→  border: none;
+   897→  border-bottom: 2px solid transparent;
+   898→  color: var(--muted);
+   899→  font-size: .82rem;
+   900→  font-weight: 600;
+   901→  cursor: pointer;
+   902→  white-space: nowrap;
+   903→  font-family: var(--font-body);
+   904→  transition: color .2s, border-color .2s;
+   905→}
+   906→
+   907→.nav-btn:hover {
+   908→  color: var(--cream);
+   909→}
+   910→
+   911→.nav-btn.active {
+   912→  color: var(--gold2);
+   913→  border-bottom-color: var(--gold2);
+   914→}
+   915→
+   916→#app-main {
+   917→  padding: 16px;
+   918→  max-width: 1100px;
+   919→  margin: 0 auto;
+   920→}
+   921→
+   922→/* ============================================
+   923→   PIN Screen
+   924→   ============================================ */
+   925→#pin-screen {
+   926→  min-height: 100vh;
+   927→  display: flex;
+   928→  justify-content: center;
+   929→  align-items: center;
+   930→  padding: 20px;
+   931→}
+   932→
+   933→#pin-content {
+   934→  width: 100%;
+   935→  max-width: 340px;
+   936→  text-align: center;
+   937→}
+   938→
+   939→.pin-logo {
+   940→  font-family: var(--font-head);
+   941→  font-size: 2.2rem;
+   942→  font-weight: 700;
+   943→  color: var(--gold2);
+   944→  letter-spacing: .12em;
+   945→  margin-bottom: 4px;
+   946→}
+   947→
+   948→.pin-sub {
+   949→  font-size: .82rem;
+   950→  color: var(--muted);
+   951→  margin-bottom: 24px;
+   952→}
+   953→
+   954→.pin-display {
+   955→  display: flex;
+   956→  justify-content: center;
+   957→  gap: 12px;
+   958→  margin-bottom: 20px;
+   959→}
+   960→
+   961→.pin-dot {
+   962→  width: 16px;
+   963→  height: 16px;
+   964→  border-radius: 50%;
+   965→  border: 2px solid var(--gold-dim);
+   966→  transition: all .15s;
+   967→}
+   968→
+   969→.pin-dot.filled {
+   970→  background: var(--gold2);
+   971→  border-color: var(--gold2);
+   972→  transform: scale(1.1);
+   973→}
+   974→
+   975→.pin-pad {
+   976→  display: grid;
+   977→  grid-template-columns: repeat(3, 1fr);
+   978→  gap: 8px;
+   979→  max-width: 240px;
+   980→  margin: 0 auto;
+   981→}
+   982→
+   983→.pin-digit {
+   984→  width: 60px;
+   985→  height: 60px;
+   986→  border-radius: 50%;
+   987→  border: 1px solid var(--border);
+   988→  background: var(--surface);
+   989→  color: var(--cream);
+   990→  font-size: 1.3rem;
+   991→  font-weight: 600;
+   992→  cursor: pointer;
+   993→  display: flex;
+   994→  align-items: center;
+   995→  justify-content: center;
+   996→  font-family: var(--font-body);
+   997→  transition: all .15s;
+   998→  margin: 0 auto;
+   999→}
+  1000→
+  1001→.pin-digit:hover {
+  1002→  background: var(--surface2);
+  1003→  border-color: var(--gold-dim);
+  1004→}
+  1005→
+  1006→.pin-digit:active {
+  1007→  transform: scale(.95);
+  1008→}
+  1009→
+  1010→.pin-back {
+  1011→  font-size: 1.1rem;
+  1012→  color: var(--muted);
+  1013→}
+  1014→
+  1015→.user-list {
+  1016→  display: flex;
+  1017→  flex-direction: column;
+  1018→  gap: 8px;
+  1019→  margin-bottom: 16px;
+  1020→}
+  1021→
+  1022→.user-btn {
+  1023→  display: flex;
+  1024→  align-items: center;
+  1025→  gap: 12px;
+  1026→  padding: 14px 16px;
+  1027→  background: var(--surface);
+  1028→  border: 1px solid var(--border);
+  1029→  border-radius: var(--radius);
+  1030→  cursor: pointer;
+  1031→  text-align: left;
+  1032→  color: var(--cream);
+  1033→  font-family: var(--font-body);
+  1034→  font-size: .9rem;
+  1035→  transition: all .15s;
+  1036→}
+  1037→
+  1038→.user-btn:hover {
+  1039→  border-color: var(--gold-dim);
+  1040→  background: var(--surface2);
+  1041→}
+  1042→
+  1043→.user-avatar {
+  1044→  width: 40px;
+  1045→  height: 40px;
+  1046→  border-radius: 50%;
+  1047→  background: var(--gold-dim);
+  1048→  color: var(--cream);
+  1049→  display: flex;
+  1050→  align-items: center;
+  1051→  justify-content: center;
+  1052→  font-size: 1.1rem;
+  1053→  font-weight: 700;
+  1054→  flex-shrink: 0;
+  1055→}
+  1056→
+  1057→/* ============================================
+  1058→   Storefront (Public Shop)
+  1059→   ============================================ */
+  1060→#storefront {
+  1061→  min-height: 100vh;
+  1062→}
+  1063→
+  1064→#store-header {
+  1065→  background: var(--bg2);
+  1066→  border-bottom: 1px solid var(--border2);
+  1067→  position: sticky;
+  1068→  top: 0;
+  1069→  z-index: 100;
+  1070→}
+  1071→
+  1072→.store-header-inner {
+  1073→  max-width: 1200px;
+  1074→  margin: 0 auto;
+  1075→  display: flex;
+  1076→  align-items: center;
+  1077→  justify-content: space-between;
+  1078→  padding: 0 20px;
+  1079→  height: 56px;
+  1080→}
+  1081→
+  1082→.store-brand {
+  1083→  display: flex;
+  1084→  flex-direction: column;
+  1085→}
+  1086→
+  1087→.store-logo-text {
+  1088→  font-family: var(--font-head);
+  1089→  font-size: 1.3rem;
+  1090→  font-weight: 700;
+  1091→  color: var(--gold2);
+  1092→  letter-spacing: .08em;
+  1093→}
+  1094→
+  1095→.store-sub {
+  1096→  font-size: .6rem;
+  1097→  color: var(--muted);
+  1098→  letter-spacing: .1em;
+  1099→  text-transform: uppercase;
+  1100→}
+  1101→
+  1102→.store-actions {
+  1103→  display: flex;
+  1104→  align-items: center;
+  1105→  gap: 8px;
+  1106→}
+  1107→
+  1108→#store-nav {
+  1109→  background: var(--bg2);
+  1110→  border-bottom: 1px solid var(--border2);
+  1111→  display: flex;
+  1112→  justify-content: center;
+  1113→  padding: 0 16px;
+  1114→  gap: 4px;
+  1115→}
+  1116→
+  1117→.store-nav-btn {
+  1118→  background: none;
+  1119→  border: none;
+  1120→  color: var(--muted);
+  1121→  cursor: pointer;
+  1122→  padding: 12px 20px;
+  1123→  font-size: .82rem;
+  1124→  font-weight: 600;
+  1125→  border-bottom: 2px solid transparent;
+  1126→  white-space: nowrap;
+  1127→  font-family: var(--font-body);
+  1128→  transition: color .2s, border-color .2s;
+  1129→}
+  1130→
+  1131→.store-nav-btn:hover {
+  1132→  color: var(--cream);
+  1133→}
+  1134→
+  1135→.store-nav-btn.active {
+  1136→  color: var(--gold2);
+  1137→  border-bottom-color: var(--gold2);
+  1138→}
+  1139→
+  1140→/* ============================================
+  1141→   Storefront Hero
+  1142→   ============================================ */
+  1143→#store-hero {
+  1144→  text-align: center;
+  1145→  padding: 44px 20px 28px;
+  1146→  background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+  1147→}
+  1148→
+  1149→.hero-title {
+  1150→  font-family: var(--font-head);
+  1151→  font-size: 3rem;
+  1152→  font-weight: 700;
+  1153→  color: var(--gold2);
+  1154→  letter-spacing: .12em;
+  1155→}
+  1156→
+  1157→.hero-sub {
+  1158→  font-size: .88rem;
+  1159→  color: var(--muted);
+  1160→  letter-spacing: .1em;
+  1161→  text-transform: uppercase;
+  1162→  margin-top: 4px;
+  1163→}
+  1164→
+  1165→#store-main {
+  1166→  max-width: 1200px;
+  1167→  margin: 0 auto;
+  1168→  padding: 20px 16px 80px;
+  1169→}
+  1170→
+  1171→/* ============================================
+  1172→   Products Grid
+  1173→   ============================================ */
+  1174→.products-grid {
+  1175→  display: grid;
+  1176→  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  1177→  gap: 16px;
+  1178→}
+  1179→
+  1180→.product-card {
+  1181→  background: var(--surface);
+  1182→  border: 1px solid var(--border);
+  1183→  border-radius: var(--radius);
+  1184→  overflow: hidden;
+  1185→  transition: border-color .2s;
+  1186→}
+  1187→
+  1188→.product-card:hover {
+  1189→  border-color: var(--gold-dim);
+  1190→}
+  1191→
+  1192→.product-card-type {
+  1193→  font-size: .68rem;
+  1194→  color: var(--gold-dim);
+  1195→  text-transform: uppercase;
+  1196→  letter-spacing: .06em;
+  1197→  padding: 12px 14px 0;
+  1198→}
+  1199→
+  1200→.product-card-name {
+  1201→  font-size: 1rem;
+  1202→  font-weight: 700;
+  1203→  padding: 4px 14px;
+  1204→}
+  1205→
+  1206→.product-card-desc {
+  1207→  font-size: .78rem;
+  1208→  color: var(--muted);
+  1209→  padding: 0 14px 10px;
+  1210→  line-height: 1.4;
+  1211→}
+  1212→
+  1213→.product-card-footer {
+  1214→  display: flex;
+  1215→  justify-content: space-between;
+  1216→  align-items: flex-end;
+  1217→  padding: 10px 14px 14px;
+  1218→  border-top: 1px solid var(--border);
+  1219→}
+  1220→
+  1221→.product-card-price {
+  1222→  font-size: 1.1rem;
+  1223→  font-weight: 800;
+  1224→  color: var(--gold2);
+  1225→}
+  1226→
+  1227→.product-card-stock {
+  1228→  font-size: .7rem;
+  1229→  color: var(--muted);
+  1230→}
+  1231→
+  1232→.btn-add-cart {
+  1233→  padding: 8px 14px;
+  1234→  background: var(--gold);
+  1235→  color: #1a0e00;
+  1236→  border: none;
+  1237→  border-radius: 8px;
+  1238→  font-weight: 700;
+  1239→  font-size: .8rem;
+  1240→  cursor: pointer;
+  1241→  font-family: var(--font-body);
+  1242→  transition: background .2s;
+  1243→}
+  1244→
+  1245→.btn-add-cart:hover {
+  1246→  background: var(--gold2);
+  1247→}
+  1248→
+  1249→/* ============================================
+  1250→   Cart
+  1251→   ============================================ */
+  1252→.cart-overlay {
+  1253→  position: fixed;
+  1254→  inset: 0;
+  1255→  background: rgba(0, 0, 0, .6);
+  1256→  z-index: 500;
+  1257→  display: none;
+  1258→}
+  1259→
+  1260→.cart-overlay.open {
+  1261→  display: block;
+  1262→}
+  1263→
+  1264→.cart-drawer {
+  1265→  position: fixed;
+  1266→  top: 0;
+  1267→  right: 0;
+  1268→  width: 100%;
+  1269→  max-width: 360px;
+  1270→  height: 100vh;
+  1271→  background: var(--bg2);
+  1272→  z-index: 501;
+  1273→  transform: translateX(100%);
+  1274→  transition: transform .3s ease;
+  1275→  display: flex;
+  1276→  flex-direction: column;
+  1277→}
+  1278→
+  1279→.cart-drawer.open {
+  1280→  transform: translateX(0);
+  1281→}
+  1282→
+  1283→.cart-header {
+  1284→  display: flex;
+  1285→  justify-content: space-between;
+  1286→  align-items: center;
+  1287→  padding: 16px;
+  1288→  border-bottom: 1px solid var(--border);
+  1289→}
+  1290→
+  1291→.cart-header h3 {
+  1292→  font-size: 1rem;
+  1293→  font-weight: 700;
+  1294→}
+  1295→
+  1296→.cart-items {
+  1297→  flex: 1;
+  1298→  overflow-y: auto;
+  1299→  padding: 8px 0;
+  1300→}
+  1301→
+  1302→.cart-empty {
+  1303→  text-align: center;
+  1304→  padding: 40px;
+  1305→  color: var(--muted);
+  1306→}
+  1307→
+  1308→.cart-item {
+  1309→  display: flex;
+  1310→  justify-content: space-between;
+  1311→  align-items: center;
+  1312→  padding: 12px 16px;
+  1313→  border-bottom: 1px solid var(--border);
+  1314→}
+  1315→
+  1316→.cart-item-name {
+  1317→  font-size: .88rem;
+  1318→  font-weight: 600;
+  1319→}
+  1320→
+  1321→.cart-item-price {
+  1322→  font-size: .75rem;
+  1323→  color: var(--muted);
+  1324→}
+  1325→
+  1326→.cart-item-qty {
+  1327→  display: flex;
+  1328→  align-items: center;
+  1329→  gap: 10px;
+  1330→}
+  1331→
+  1332→.cart-item-qty button {
+  1333→  width: 28px;
+  1334→  height: 28px;
+  1335→  border-radius: 50%;
+  1336→  border: 1px solid var(--border);
+  1337→  background: var(--surface);
+  1338→  color: var(--cream);
+  1339→  cursor: pointer;
+  1340→  font-size: 1rem;
+  1341→  display: flex;
+  1342→  align-items: center;
+  1343→  justify-content: center;
+  1344→  font-family: var(--font-body);
+  1345→  transition: background .15s, border-color .15s;
+  1346→}
+  1347→
+  1348→.cart-item-qty button:hover {
+  1349→  background: var(--surface2);
+  1350→  border-color: var(--gold-dim);
+  1351→}
+  1352→
+  1353→.cart-footer {
+  1354→  padding: 16px;
+  1355→  border-top: 1px solid var(--border);
+  1356→}
+  1357→
+  1358→.cart-total {
+  1359→  font-size: 1rem;
+  1360→  font-weight: 700;
+  1361→  margin-bottom: 12px;
+  1362→}
+  1363→
+  1364→.cart-toggle {
+  1365→  position: relative;
+  1366→}
+  1367→
+  1368→.cart-count {
+  1369→  position: absolute;
+  1370→  top: -6px;
+  1371→  right: -6px;
+  1372→  background: var(--burgundy);
+  1373→  color: #fff;
+  1374→  font-size: .6rem;
+  1375→  font-weight: 800;
+  1376→  width: 18px;
+  1377→  height: 18px;
+  1378→  border-radius: 50%;
+  1379→  display: flex;
+  1380→  align-items: center;
+  1381→  justify-content: center;
+  1382→  line-height: 1;
+  1383→}
+  1384→
+  1385→/* ============================================
+  1386→   Checkbox Label (override global label)
+  1387→   ============================================ */
+  1388→.chk-label {
+  1389→  display: flex;
+  1390→  align-items: center;
+  1391→  gap: 6px;
+  1392→  font-size: .85rem;
+  1393→  color: var(--cream);
+  1394→  text-transform: none;
+  1395→  letter-spacing: 0;
+  1396→  font-weight: 400;
+  1397→  cursor: pointer;
+  1398→}
+  1399→
+  1400→.chk-label input {
+  1401→  width: auto;
+  1402→}
+  1403→
+  1404→/* ============================================
+  1405→   PWA Install Banner
+  1406→   ============================================ */
+  1407→#pwa-banner {
+  1408→  position: fixed;
+  1409→  bottom: 0;
+  1410→  left: 0;
+  1411→  right: 0;
+  1412→  background: var(--surface2);
+  1413→  border-top: 1px solid var(--border);
+  1414→  padding: 12px 16px;
+  1415→  z-index: 600;
+  1416→  display: none;
+  1417→}
+  1418→
+  1419→.pwa-banner-inner {
+  1420→  max-width: 500px;
+  1421→  margin: 0 auto;
+  1422→  display: flex;
+  1423→  align-items: center;
+  1424→  gap: 12px;
+  1425→}
+  1426→
+  1427→.pwa-banner-text {
+  1428→  flex: 1;
+  1429→}
+  1430→
+  1431→/* ============================================
+  1432→   Icon Button
+  1433→   ============================================ */
+  1434→.btn-icon {
+  1435→  display: inline-flex;
+  1436→  align-items: center;
+  1437→  justify-content: center;
+  1438→  width: 32px;
+  1439→  height: 32px;
+  1440→  border-radius: 8px;
+  1441→  border: 1px solid var(--border);
+  1442→  background: var(--surface);
+  1443→  color: var(--cream);
+  1444→  font-size: 1.1rem;
+  1445→  cursor: pointer;
+  1446→  font-family: var(--font-body);
+  1447→  transition: background .15s, border-color .15s;
+  1448→  flex-shrink: 0;
+  1449→  line-height: 1;
+  1450→}
+  1451→
+  1452→.btn-icon:hover {
+  1453→  background: var(--surface2);
+  1454→  border-color: var(--gold-dim);
+  1455→}
+  1456→
+  1457→/* ============================================
+  1458→   Page Header
+  1459→   ============================================ */
+  1460→.page-header {
+  1461→  display: flex;
+  1462→  align-items: center;
+  1463→  justify-content: space-between;
+  1464→  margin-bottom: 16px;
+  1465→}
+  1466→
+  1467→.page-header h2 {
+  1468→  font-family: var(--font-head);
+  1469→  font-size: 1.6rem;
+  1470→  font-weight: 700;
+  1471→  color: var(--cream);
+  1472→  letter-spacing: .02em;
+  1473→}
+  1474→
+  1475→/* ============================================
+  1476→   Button Variants
+  1477→   ============================================ */
+  1478→.btn-link {
+  1479→  background: none;
+  1480→  border: none;
+  1481→  color: var(--muted);
+  1482→  font-size: .85rem;
+  1483→  cursor: pointer;
+  1484→  font-family: var(--font-body);
+  1485→  text-decoration: underline;
+  1486→  padding: 4px 0;
+  1487→}
+  1488→
+  1489→.btn-link:hover {
+  1490→  color: var(--gold2);
+  1491→}
+  1492→
+  1493→.btn-outline {
+  1494→  background: transparent;
+  1495→  border: 1px solid var(--border);
+  1496→  color: var(--muted);
+  1497→}
+  1498→
+  1499→.btn-outline:hover {
+  1500→  border-color: var(--gold-dim);
+  1501→  color: var(--cream);
+  1502→  opacity: 1;
+  1503→}
+  1504→
+  1505→.btn-block {
+  1506→  display: flex;
+  1507→  width: 100%;
+  1508→  justify-content: center;
+  1509→}
+  1510→
+  1511→.btn-warn {
+  1512→  background: var(--yellow);
+  1513→  color: #1a0e00;
+  1514→  border-color: var(--yellow);
+  1515→}
+  1516→
+  1517→/* ============================================
+  1518→   Table Wrap (alias for .tw)
+  1519→   ============================================ */
+  1520→.table-wrap {
+  1521→  overflow-x: auto;
+  1522→  -webkit-overflow-scrolling: touch;
+  1523→}
+  1524→
+  1525→.table-wrap table {
+  1526→  width: 100%;
+  1527→  border-collapse: collapse;
+  1528→}
+  1529→
+  1530→.table-wrap th {
+  1531→  font-size: .72rem;
+  1532→  text-transform: uppercase;
+  1533→  color: var(--muted);
+  1534→  text-align: left;
+  1535→  padding: 8px 10px;
+  1536→  border-bottom: 1px solid var(--border);
+  1537→  font-weight: 600;
+  1538→  white-space: nowrap;
+  1539→}
+  1540→
+  1541→.table-wrap td {
+  1542→  padding: 8px 10px;
+  1543→  border-bottom: 1px solid rgba(61, 42, 24, .4);
+  1544→  font-size: .85rem;
+  1545→  vertical-align: middle;
+  1546→}
+  1547→
+  1548→.table-wrap tr:hover td {
+  1549→  background: rgba(201, 150, 58, .04);
+  1550→}
+  1551→
+  1552→/* ============================================
+  1553→   Tab Buttons (alias for .tab)
+  1554→   ============================================ */
+  1555→.tab-btn {
+  1556→  padding: 8px 16px;
+  1557→  background: transparent;
+  1558→  border: none;
+  1559→  color: var(--muted);
+  1560→  font-size: .82rem;
+  1561→  font-weight: 600;
+  1562→  cursor: pointer;
+  1563→  border-bottom: 2px solid transparent;
+  1564→  font-family: var(--font-body);
+  1565→  white-space: nowrap;
+  1566→  transition: color .2s, border-color .2s;
+  1567→}
+  1568→
+  1569→.tab-btn:hover {
+  1570→  color: var(--cream);
+  1571→}
+  1572→
+  1573→.tab-btn.active {
+  1574→  color: var(--gold2);
+  1575→  border-bottom-color: var(--gold2);
+  1576→}
+  1577→
+  1578→/* ============================================
+  1579→   Forms
+  1580→   ============================================ */
+  1581→.form-stack {
+  1582→  display: flex;
+  1583→  flex-direction: column;
+  1584→  gap: 14px;
+  1585→}
+  1586→
+  1587→.form-group {
+  1588→  margin-bottom: 2px;
+  1589→}
+  1590→
+  1591→.form-group label {
+  1592→  margin-bottom: 4px;
+  1593→}
+  1594→
+  1595→/* ============================================
+  1596→   Alerts
+  1597→   ============================================ */
+  1598→.alert-card {
+  1599→  display: flex;
+  1600→  align-items: center;
+  1601→  justify-content: space-between;
+  1602→  background: var(--surface);
+  1603→  border: 1px solid var(--border);
+  1604→  border-radius: var(--radius);
+  1605→  padding: 12px 16px;
+  1606→  margin-bottom: 8px;
+  1607→  font-size: .85rem;
+  1608→}
+  1609→
+  1610→.alert-warn {
+  1611→  border-color: var(--yellow);
+  1612→  background: rgba(200, 160, 48, .08);
+  1613→}
+  1614→
+  1615→.alert-msg {
+  1616→  padding: 8px 12px;
+  1617→  border-radius: 8px;
+  1618→  font-size: .82rem;
+  1619→  background: rgba(192, 64, 64, .15);
+  1620→  color: var(--red);
+  1621→  border: 1px solid rgba(192, 64, 64, .3);
+  1622→  display: none;
+  1623→}
+  1624→
+  1625→.alert-msg[style*="block"],
+  1626→.alert-msg.show {
+  1627→  display: block;
+  1628→}
+  1629→
+  1630→/* ============================================
+  1631→   Movement List (Products page etc)
+  1632→   ============================================ */
+  1633→.mov-list {
+  1634→  display: flex;
+  1635→  flex-direction: column;
+  1636→}
+  1637→
+  1638→.mov-info {
+  1639→  flex: 1;
+  1640→  min-width: 0;
+  1641→}
+  1642→
+  1643→.mov-info strong {
+  1644→  display: block;
+  1645→  font-size: .88rem;
+  1646→  margin-bottom: 2px;
+  1647→}
+  1648→
+  1649→.mov-info br {
+  1650→  display: block;
+  1651→  content: "";
+  1652→  margin-top: 2px;
+  1653→}
+  1654→
+  1655→.mov-actions {
+  1656→  display: flex;
+  1657→  gap: 6px;
+  1658→  flex-shrink: 0;
+  1659→}
+  1660→
+  1661→/* ============================================
+  1662→   Compra Item Row
+  1663→   ============================================ */
+  1664→.compra-item-row {
+  1665→  display: flex;
+  1666→  gap: 8px;
+  1667→  align-items: center;
+  1668→  margin-bottom: 8px;
+  1669→  flex-wrap: wrap;
+  1670→}
+  1671→
+  1672→.compra-item-row select {
+  1673→  flex: 2;
+  1674→  min-width: 120px;
+  1675→}
+  1676→
+  1677→.compra-item-row input {
+  1678→  flex: 1;
+  1679→  min-width: 80px;
+  1680→}
+  1681→
+  1682→.compra-item-row input[type="text"].cmp-nuevo-nombre {
+  1683→  flex: 2;
+  1684→  min-width: 120px;
+  1685→}
+  1686→
+  1687→.subtotal-display {
+  1688→  min-width: 70px;
+  1689→  text-align: right;
+  1690→  font-size: .82rem;
+  1691→  color: var(--gold);
+  1692→}
+  1693→
+  1694→/* ============================================
+  1695→   Frasco Selector
+  1696→   ============================================ */
+  1697→.frasco-list {
+  1698→  display: flex;
+  1699→  flex-direction: column;
+  1700→  gap: 8px;
+  1701→  margin-top: 10px;
+  1702→}
+  1703→
+  1704→.frasco-option {
+  1705→  display: flex;
+  1706→  align-items: center;
+  1707→  justify-content: space-between;
+  1708→  padding: 10px 12px;
+  1709→  background: var(--bg);
+  1710→  border: 1px solid var(--border);
+  1711→  border-radius: 8px;
+  1712→  gap: 12px;
+  1713→}
+  1714→
+  1715→.frasco-option:hover {
+  1716→  border-color: var(--gold-dim);
+  1717→}
+  1718→
+  1719→/* ============================================
+  1720→   Cart Detail (modal)
+  1721→   ============================================ */
+  1722→.cart-detail {
+  1723→  padding: 4px 0;
+  1724→}
+  1725→
+  1726→.total-line {
+  1727→  display: flex;
+  1728→  justify-content: space-between;
+  1729→  font-size: 1rem;
+  1730→  font-weight: 700;
+  1731→  padding-top: 12px;
+  1732→  margin-top: 8px;
+  1733→  border-top: 1px solid var(--border);
+  1734→}
+  1735→
+  1736→/* ============================================
+  1737→   PIN Screen — User Selection & Numpad
+  1738→   ============================================ */
+  1739→.pin-users {
+  1740→  display: flex;
+  1741→  flex-direction: column;
+  1742→  gap: 8px;
+  1743→  margin-bottom: 16px;
+  1744→}
+  1745→
+  1746→.pin-user-btn {
+  1747→  display: flex;
+  1748→  align-items: center;
+  1749→  gap: 12px;
+  1750→  padding: 14px 16px;
+  1751→  background: var(--surface);
+  1752→  border: 1px solid var(--border);
+  1753→  border-radius: var(--radius);
+  1754→  cursor: pointer;
+  1755→  text-align: left;
+  1756→  color: var(--cream);
+  1757→  font-family: var(--font-body);
+  1758→  font-size: .9rem;
+  1759→  transition: all .15s;
+  1760→  width: 100%;
+  1761→}
+  1762→
+  1763→.pin-user-btn:hover {
+  1764→  border-color: var(--gold-dim);
+  1765→  background: var(--surface2);
+  1766→}
+  1767→
+  1768→.avatar {
+  1769→  width: 40px;
+  1770→  height: 40px;
+  1771→  border-radius: 50%;
+  1772→  background: var(--gold-dim);
+  1773→  color: var(--cream);
+  1774→  display: flex;
+  1775→  align-items: center;
+  1776→  justify-content: center;
+  1777→  font-size: 1.1rem;
+  1778→  font-weight: 700;
+  1779→  flex-shrink: 0;
+  1780→}
+  1781→
+  1782→.pin-label {
+  1783→  font-size: .9rem;
+  1784→  color: var(--muted);
+  1785→  margin-bottom: 16px;
+  1786→}
+  1787→
+  1788→.pin-dots {
+  1789→  display: flex;
+  1790→  justify-content: center;
+  1791→  gap: 14px;
+  1792→  margin-bottom: 20px;
+  1793→}
+  1794→
+  1795→.dot {
+  1796→  width: 16px;
+  1797→  height: 16px;
+  1798→  border-radius: 50%;
+  1799→  border: 2px solid var(--gold-dim);
+  1800→  transition: all .15s;
+  1801→}
+  1802→
+  1803→.dot.filled {
+  1804→  background: var(--gold2);
+  1805→  border-color: var(--gold2);
+  1806→  transform: scale(1.1);
+  1807→}
+  1808→
+  1809→.pin-error {
+  1810→  color: var(--red);
+  1811→  font-size: .82rem;
+  1812→  min-height: 1.2em;
+  1813→  margin-bottom: 8px;
+  1814→}
+  1815→
+  1816→.numpad {
+  1817→  display: grid;
+  1818→  grid-template-columns: repeat(3, 1fr);
+  1819→  gap: 8px;
+  1820→  max-width: 240px;
+  1821→  margin: 0 auto;
+  1822→}
+  1823→
+  1824→.numpad-btn {
+  1825→  width: 60px;
+  1826→  height: 60px;
+  1827→  border-radius: 50%;
+  1828→  border: 1px solid var(--border);
+  1829→  background: var(--surface);
+  1830→  color: var(--cream);
+  1831→  font-size: 1.3rem;
+  1832→  font-weight: 600;
+  1833→  cursor: pointer;
+  1834→  display: flex;
+  1835→  align-items: center;
+  1836→  justify-content: center;
+  1837→  font-family: var(--font-body);
+  1838→  transition: all .15s;
+  1839→  margin: 0 auto;
+  1840→}
+  1841→
+  1842→.numpad-btn:hover {
+  1843→  background: var(--surface2);
+  1844→  border-color: var(--gold-dim);
+  1845→}
+  1846→
+  1847→.numpad-btn:active {
+  1848→  transform: scale(.95);
+  1849→}
+  1850→
+  1851→.numpad-blank {
+  1852→  background: transparent;
+  1853→  border-color: transparent;
+  1854→  font-size: 1.3rem;
+  1855→  color: var(--muted);
+  1856→}
+  1857→
+  1858→.numpad-blank:hover {
+  1859→  background: transparent;
+  1860→  border-color: transparent;
+  1861→}
+  1862→
+  1863→.numpad-cancel {
+  1864→  background: rgba(192, 64, 64, .2);
+  1865→  border-color: rgba(192, 64, 64, .4);
+  1866→  color: var(--red);
+  1867→  font-weight: 800;
+  1868→  font-size: 1.1rem;
+  1869→}
+  1870→
+  1871→.numpad-cancel:hover {
+  1872→  background: rgba(192, 64, 64, .35);
+  1873→  border-color: var(--red);
+  1874→}
+  1875→
+  1876→/* ============================================
+  1877→   Misc Spacing
+  1878→   ============================================ */
+  1879→.mt-2 {
+  1880→  margin-top: 8px;
+  1881→}
+  1882→
+  1883→/* ============================================
+  1884→   Responsive
+  1885→   ============================================ */
+  1886→@media (max-width: 600px) {
+  1887→  .g4 {
+  1888→    grid-template-columns: repeat(2, 1fr);
+  1889→  }
+  1890→
+  1891→  .g3 {
+  1892→    grid-template-columns: repeat(2, 1fr);
+  1893→  }
+  1894→
+  1895→  .fr {
+  1896→    flex-direction: column;
+  1897→  }
+  1898→
+  1899→  .hero-title {
+  1900→    font-size: 2.2rem;
+  1901→  }
+  1902→
+  1903→  .pin-digit {
+  1904→    width: 52px;
+  1905→    height: 52px;
+  1906→    font-size: 1.1rem;
+  1907→  }
+  1908→
+  1909→  #app-nav {
+  1910→    padding: 0 8px;
+  1911→  }
+  1912→
+  1913→  .nav-btn {
+  1914→    padding: 10px 12px;
+  1915→    font-size: .78rem;
+  1916→  }
+  1917→
+  1918→  .modal {
+  1919→    max-width: 100%;
+  1920→    border-radius: 14px 14px 0 0;
+  1921→    max-height: 90vh;
+  1922→  }
+  1923→
+  1924→  .cart-drawer {
+  1925→    max-width: 100%;
+  1926→  }
+  1927→
+  1928→  .store-header-inner {
+  1929→    padding: 0 12px;
+  1930→  }
+  1931→
+  1932→  #store-main {
+  1933→    padding: 16px 12px 80px;
+  1934→  }
+  1935→
+  1936→  .products-grid {
+  1937→    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  1938→    gap: 12px;
+  1939→  }
+  1940→
+  1941→  .numpad-btn {
+  1942→    width: 52px;
+  1943→    height: 52px;
+  1944→    font-size: 1.1rem;
+  1945→  }
+  1946→
+  1947→  .compra-item-row {
+  1948→    flex-direction: column;
+  1949→    align-items: stretch;
+  1950→  }
+  1951→
+  1952→  .compra-item-row select,
+  1953→  .compra-item-row input {
+  1954→    width: 100%;
+  1955→    min-width: 0;
+  1956→  }
+  1957→
+  1958→  .frasco-option {
+  1959→    flex-direction: column;
+  1960→    align-items: stretch;
+  1961→    gap: 8px;
+  1962→  }
+  1963→}

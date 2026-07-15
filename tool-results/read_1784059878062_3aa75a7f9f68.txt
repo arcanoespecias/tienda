@@ -1,0 +1,1748 @@
+     1→// ===================== PAGES MODULE =====================
+     2→// All page renderers: Dashboard, Compras, Productos, Blends, Ventas, Tienda, Usuarios, Ajustes.
+     3→
+     4→// =====================================================
+     5→//  STOREFRONT (Public)
+     6→// =====================================================
+     7→var storeCategory = 'todos';
+     8→
+     9→function renderStorefront() {
+    10→  renderStoreProducts();
+    11→  setupStoreNav();
+    12→  updateCartUI();
+    13→}
+    14→
+    15→function setupStoreNav() {
+    16→  document.querySelectorAll('#store-nav .store-nav-btn').forEach(function(btn) {
+    17→    btn.addEventListener('click', function() {
+    18→      document.querySelectorAll('#store-nav .store-nav-btn').forEach(function(b) { b.classList.remove('active'); });
+    19→      btn.classList.add('active');
+    20→      storeCategory = btn.getAttribute('data-cat');
+    21→      renderStoreProducts();
+    22→    });
+    23→  });
+    24→}
+    25→
+    26→function renderStoreProducts() {
+    27→  var db = getDB();
+    28→  var products = [];
+    29→  var container = document.getElementById('store-products');
+    30→  var empty = document.getElementById('store-empty');
+    31→
+    32→  // Get sellable especias (with precioVenta > 0 and stock > 0)
+    33→  var especias = (db.productos || []).filter(function(p) {
+    34→    return p.tipo === 'especia' && p.precioVenta > 0 && p.stock > 0;
+    35→  });
+    36→  especias.forEach(function(p) {
+    37→    // Filter by storeCategory
+    38→    if (storeCategory !== 'todos' && storeCategory !== 'blends') {
+    39→      if ((p.categoria || '') !== storeCategory) return;
+    40→    }
+    41→    products.push({
+    42→      id: p.id, nombre: p.nombre, tipo: p.categoria || 'Especia',
+    43→      desc: (p.usoPrincipal || p.notas || ''), precio: p.precioVenta,
+    44→      stock: p.stock, unidad: p.unidad, blend: false,
+    45→      origen: p.origen || '', perfil: p.perfil || ''
+    46→    });
+    47→  });
+    48→
+    49→  // Get blends with stock > 0 (only when "todos" or "blends" selected)
+    50→  if (storeCategory === 'todos' || storeCategory === 'blends') {
+    51→    var blends = (db.blends || []).filter(function(b) {
+    52→      return b.stock > 0 && b.precioVenta > 0;
+    53→    });
+    54→    blends.forEach(function(b) {
+    55→      products.push({
+    56→        id: b.id, nombre: b.nombre, tipo: 'Blend',
+    57→        desc: b.descripcion || '', precio: b.precioVenta,
+    58→        stock: b.stock, unidad: 'unidad', blend: true,
+    59→        origen: '', perfil: ''
+    60→      });
+    61→    });
+    62→  }
+    63→
+    64→  if (products.length === 0) {
+    65→    container.innerHTML = '';
+    66→    empty.style.display = 'block';
+    67→    return;
+    68→  }
+    69→  empty.style.display = 'none';
+    70→
+    71→  var html = '';
+    72→  products.forEach(function(p) {
+    73→    html += '<div class="product-card">' +
+    74→      '<div class="product-card-type">' + esc(p.tipo) + (p.origen ? ' &mdash; ' + esc(p.origen) : '') + '</div>' +
+    75→      '<div class="product-card-name">' + esc(p.nombre) + '</div>' +
+    76→      (p.perfil ? '<div class="product-card-meta">' + esc(p.perfil) + '</div>' : '') +
+    77→      (p.desc ? '<div class="product-card-desc">' + esc(p.desc) + '</div>' : '<div class="product-card-desc" style="opacity:.3">Sin descripción</div>') +
+    78→      '<div class="product-card-footer">' +
+    79→        '<div><div class="product-card-price">' + fmt(p.precio) + '</div>' +
+    80→        '<div class="product-card-stock">' + p.stock + ' ' + esc(p.unidad) + ' disponibles</div></div>' +
+    81→        '<button class="btn-add-cart" onclick="addToCart(' + (p.blend ? 'true' : 'false') + ',' + p.id + ',\'' + esc(p.nombre).replace(/'/g,"\\'") + '\',' + p.precio + ',\'' + esc(p.unidad) + '\',' + p.stock + ')">+ Agregar</button>' +
+    82→      '</div></div>';
+    83→  });
+    84→  container.innerHTML = html;
+    85→}
+    86→
+    87→function addToCart(isBlend, id, nombre, precio, unidad, stock) {
+    88→  var existing = cart.find(function(c) { return c.isBlend === isBlend && c.id === id; });
+    89→  if (existing) {
+    90→    if (existing.qty >= stock) { toast('No hay más stock disponible', 'err'); return; }
+    91→    existing.qty++;
+    92→  } else {
+    93→    cart.push({ isBlend: isBlend, id: id, nombre: nombre, precio: precio, unidad: unidad, qty: 1, maxStock: stock });
+    94→  }
+    95→  updateCartUI();
+    96→  toast(nombre + ' agregado al carrito');
+    97→}
+    98→
+    99→function updateCartUI() {
+   100→  var countEl = document.getElementById('cart-count');
+   101→  var total = 0;
+   102→  var count = 0;
+   103→  cart.forEach(function(c) { total += c.precio * c.qty; count += c.qty; });
+   104→
+   105→  if (count > 0) {
+   106→    countEl.style.display = 'flex';
+   107→    countEl.textContent = count;
+   108→  } else {
+   109→    countEl.style.display = 'none';
+   110→  }
+   111→
+   112→  var itemsEl = document.getElementById('cart-items');
+   113→  var footerEl = document.getElementById('cart-footer');
+   114→
+   115→  if (cart.length === 0) {
+   116→    itemsEl.innerHTML = '<div class="cart-empty">Tu carrito está vacío</div>';
+   117→    footerEl.style.display = 'none';
+   118→    return;
+   119→  }
+   120→
+   121→  footerEl.style.display = 'block';
+   122→  document.getElementById('cart-total-val').textContent = fmt(total);
+   123→
+   124→  var html = '';
+   125→  cart.forEach(function(c, i) {
+   126→    html += '<div class="cart-item">' +
+   127→      '<div class="cart-item-info"><div class="cart-item-name">' + esc(c.nombre) + '</div>' +
+   128→      '<div class="cart-item-price">' + fmt(c.precio) + ' / ' + esc(c.unidad) + '</div></div>' +
+   129→      '<div class="cart-item-qty">' +
+   130→        '<button onclick="cartQty(' + i + ',-1)">-</button>' +
+   131→        '<span>' + c.qty + '</span>' +
+   132→        '<button onclick="cartQty(' + i + ',1)">+</button>' +
+   133→      '</div></div>';
+   134→  });
+   135→  itemsEl.innerHTML = html;
+   136→}
+   137→
+   138→function cartQty(idx, delta) {
+   139→  if (!cart[idx]) return;
+   140→  cart[idx].qty += delta;
+   141→  if (cart[idx].qty <= 0) cart.splice(idx, 1);
+   142→  else if (cart[idx].qty > cart[idx].maxStock) { cart[idx].qty = cart[idx].maxStock; toast('Stock máximo alcanzado', 'err'); }
+   143→  updateCartUI();
+   144→}
+   145→
+   146→function toggleCart() {
+   147→  document.getElementById('cart-overlay').classList.toggle('open');
+   148→  document.getElementById('cart-drawer').classList.toggle('open');
+   149→}
+   150→
+   151→function showCheckout() {
+   152→  if (cart.length === 0) return;
+   153→
+   154→  var total = 0;
+   155→  cart.forEach(function(c) { total += c.precio * c.qty; });
+   156→
+   157→  var itemsHtml = '';
+   158→  cart.forEach(function(c) {
+   159→    itemsHtml += '<div class="mov-row"><span>' + esc(c.nombre) + ' x' + c.qty + '</span><span class="text-gold">' + fmt(c.precio * c.qty) + '</span></div>';
+   160→  });
+   161→
+   162→  var body = itemsHtml +
+   163→    '<hr class="divider">' +
+   164→    '<div class="cost-row total"><span>Total</span><span>' + fmt(total) + '</span></div>' +
+   165→    '<hr class="divider">' +
+   166→    '<div class="fr">' +
+   167→      '<div><label>Nombre</label><input id="chk-nombre" placeholder="Tu nombre" required></div>' +
+   168→      '<div><label>Teléfono</label><input id="chk-tel" placeholder="300 123 4567"></div>' +
+   169→    '</div>' +
+   170→    '<div class="fr1" style="display:grid;gap:12px;margin-bottom:12px">' +
+   171→      '<div><label>Dirección de envío</label><textarea id="chk-dir" placeholder="Dirección de entrega" rows="2"></textarea></div>' +
+   172→      '<div><label>Notas</label><input id="chk-notas" placeholder="Instrucciones especiales"></div>' +
+   173→    '</div>' +
+   174→    '<div id="checkout-alert" class="alert alert-err"></div>' +
+   175→    '<button class="btn btn-gold btn-full" onclick="submitOrder()">Confirmar Pedido</button>';
+   176→
+   177→  openModal('Finalizar Compra', body);
+   178→  toggleCart();
+   179→}
+   180→
+   181→function submitOrder() {
+   182→  var nombre = document.getElementById('chk-nombre').value.trim();
+   183→  var tel = document.getElementById('chk-tel').value.trim();
+   184→  var dir = document.getElementById('chk-dir').value.trim();
+   185→  var notas = document.getElementById('chk-notas').value.trim();
+   186→  var alertEl = document.getElementById('checkout-alert');
+   187→
+   188→  if (!nombre) {
+   189→    alertEl.textContent = 'Ingresa tu nombre';
+   190→    alertEl.className = 'alert alert-err show';
+   191→    return;
+   192→  }
+   193→
+   194→  var db = getDB();
+   195→  var items = [];
+   196→  var total = 0;
+   197→
+   198→  cart.forEach(function(c) {
+   199→    var sub = c.precio * c.qty;
+   200→    total += sub;
+   201→    items.push({
+   202→      tipo: c.isBlend ? 'blend' : 'especia',
+   203→      id: c.id,
+   204→      nombre: c.nombre,
+   205→      cantidad: c.qty,
+   206→      unidad: c.unidad,
+   207→      precioUnitario: c.precio,
+   208→      subtotal: sub
+   209→    });
+   210→  });
+   211→
+   212→  var venta = {
+   213→    id: nextId(),
+   214→    fecha: new Date().toISOString(),
+   215→    clienteNombre: nombre,
+   216→    clienteTelefono: tel,
+   217→    clienteDireccion: dir,
+   218→    items: items,
+   219→    total: total,
+   220→    estado: 'pendiente',
+   221→    tipo: 'tienda', // marks as storefront order
+   222→    creadoPor: null,
+   223→    creadoEn: new Date().toISOString()
+   224→  };
+   225→
+   226→  db.ventas.push(venta);
+   227→
+   228→  // Update stock
+   229→  items.forEach(function(it) {
+   230→    if (it.tipo === 'especia') {
+   231→      var prod = db.productos.find(function(p) { return p.id === it.id; });
+   232→      if (prod) {
+   233→        prod.stock = Math.max(0, prod.stock - it.cantidad);
+   234→        prod.actualizadoEn = new Date().toISOString();
+   235→        addMovimiento('venta', 'ventas', venta.id, it.nombre, -it.cantidad, 'Pedido de tienda');
+   236→      }
+   237→    } else if (it.tipo === 'blend') {
+   238→      var blend = db.blends.find(function(b) { return b.id === it.id; });
+   239→      if (blend) {
+   240→        blend.stock = Math.max(0, blend.stock - it.cantidad);
+   241→        blend.actualizadoEn = new Date().toISOString();
+   242→        addMovimiento('venta', 'ventas', venta.id, it.nombre, -it.cantidad, 'Pedido de tienda');
+   243→      }
+   244→    }
+   245→  });
+   246→
+   247→  saveDB();
+   248→  cart = [];
+   249→  closeModal();
+   250→  renderStoreProducts();
+   251→  updateCartUI();
+   252→  toast('Pedido realizado con éxito');
+   253→}
+   254→
+   255→// =====================================================
+   256→//  DASHBOARD
+   257→// =====================================================
+   258→function renderDashboard() {
+   259→  if (!currentUser || currentUser.rol !== 'admin') return;
+   260→  var db = getDB();
+   261→  var el = document.getElementById('page-dashboard');
+   262→  var productos = db.productos || [];
+   263→  var compras = db.compras || [];
+   264→  var blends = db.blends || [];
+   265→  var ventas = db.ventas || [];
+   266→  var movimientos = db.movimientos || [];
+   267→
+   268→  // Stats
+   269→  var especias = productos.filter(function(p) { return p.tipo === 'especia'; });
+   270→  var totalVentas = ventas.filter(function(v) { return v.estado !== 'cancelada'; }).reduce(function(s, v) { return s + (v.total || 0); }, 0);
+   271→  var totalCompras = compras.filter(function(c) { return c.estado === 'recibida'; }).reduce(function(s, c) { return s + (c.total || 0); }, 0);
+   272→  var ventasPendientes = ventas.filter(function(v) { return v.estado === 'pendiente'; }).length;
+   273→  var lowStock = especias.filter(function(p) { return p.stock <= p.stockMin; });
+   274→
+   275→  var html = '<h1 class="page-title">Dashboard</h1>';
+   276→
+   277→  // KPI cards
+   278→  html += '<div class="g4 mb-20">';
+   279→  html += statCard('Ventas Totales', fmt(totalVentas), ventas.length + ' transacciones');
+   280→  html += statCard('Compras', fmt(totalCompras), compras.length + ' órdenes');
+   281→  html += statCard('Productos', especias.length + ' especias', productos.length + ' total items');
+   282→  html += statCard('Blends', blends.length + ' mezclas', 'Activos');
+   283→  html += '</div>';
+   284→
+   285→  // Alerts
+   286→  if (lowStock.length > 0 || ventasPendientes > 0) {
+   287→    html += '<div class="section-title mb-12">Alertas</div>';
+   288→    if (ventasPendientes > 0) {
+   289→      html += '<div class="card mb-12" style="border-color:var(--yellow)">' +
+   290→        '<div class="flex items-center gap-8"><span style="font-size:1.2rem">\u26A0</span>' +
+   291→        '<div><div class="fw7 text-gold">' + ventasPendientes + ' ventas pendientes</div>' +
+   292→        '<div class="text-xs text-muted">Requieren atención</div></div>' +
+   293→        '<button class="btn btn-gold btn-sm" style="margin-left:auto" onclick="navigateTo(\'ventas\')">Ver Ventas</button></div></div>';
+   294→    }
+   295→    if (lowStock.length > 0) {
+   296→      html += '<div class="card mb-20" style="border-color:var(--red)">' +
+   297→        '<div class="flex items-center gap-8"><span style="font-size:1.2rem">\u26A0</span>' +
+   298→        '<div><div class="fw7 text-red">' + lowStock.length + ' productos con stock bajo</div>' +
+   299→        '<div class="text-xs text-muted">' + lowStock.slice(0, 3).map(function(p) { return p.nombre; }).join(', ') + (lowStock.length > 3 ? '...' : '') + '</div></div>' +
+   300→        '<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="navigateTo(\'productos\')">Ver Productos</button></div></div>';
+   301→    }
+   302→  }
+   303→
+   304→  // Recent sales
+   305→  html += '<div class="section-title mb-12">Ventas Recientes</div>';
+   306→  var recentVentas = ventas.slice().sort(function(a, b) { return new Date(b.creadoEn) - new Date(a.creadoEn); }).slice(0, 5);
+   307→  if (recentVentas.length === 0) {
+   308→    html += '<div class="card"><div class="empty"><div class="empty-icon">\u2193</div><p>No hay ventas registradas</p></div></div>';
+   309→  } else {
+   310→    html += '<div class="card"><div class="tw"><table><tr><th>Fecha</th><th>Cliente</th><th>Total</th><th>Estado</th></tr>';
+   311→    recentVentas.forEach(function(v) {
+   312→      var estadoBadge = v.estado === 'completada' ? 'bg' : (v.estado === 'pendiente' ? 'by' : 'br');
+   313→      html += '<tr><td>' + fmtDateTime(v.fecha || v.creadoEn) + '</td>' +
+   314→        '<td>' + esc(v.clienteNombre || (v.tipo === 'tienda' ? 'Tienda' : 'Mostrador')) + '</td>' +
+   315→        '<td class="text-gold fw7">' + fmt(v.total) + '</td>' +
+   316→        '<td><span class="badge ' + estadoBadge + '">' + esc(v.estado) + '</span></td></tr>';
+   317→    });
+   318→    html += '</table></div></div>';
+   319→  }
+   320→
+   321→  // Recent movements
+   322→  html += '<div class="section-title mt-16 mb-12">Movimientos Recientes</div>';
+   323→  var recentMovs = movimientos.slice().sort(function(a, b) { return new Date(b.fecha) - new Date(a.fecha); }).slice(0, 8);
+   324→  if (recentMovs.length === 0) {
+   325→    html += '<div class="card"><div class="empty"><div class="empty-icon">\u21C4</div><p>No hay movimientos</p></div></div>';
+   326→  } else {
+   327→    html += '<div class="card">';
+   328→    recentMovs.forEach(function(m) {
+   329→      var cls = m.cantidad >= 0 ? 'mov-in' : 'mov-out';
+   330→      var sign = m.cantidad >= 0 ? '+' : '';
+   331→      html += '<div class="mov-row"><span class="' + cls + '">' + sign + m.cantidad + '</span>' +
+   332→        '<span>' + esc(m.producto) + '</span><span class="text-xs text-muted">' + esc(m.detalle) + '</span>' +
+   333→        '<span class="mov-date">' + fmtDateTime(m.fecha) + '</span></div>';
+   334→    });
+   335→    html += '</div>';
+   336→  }
+   337→
+   338→  el.innerHTML = html;
+   339→}
+   340→
+   341→function statCard(label, value, sub) {
+   342→  return '<div class="stat"><div class="stat-label">' + esc(label) + '</div><div class="stat-value">' + esc(value) + '</div>' +
+   343→    (sub ? '<div class="stat-sub">' + esc(sub) + '</div>' : '') + '</div>';
+   344→}
+   345→
+   346→// =====================================================
+   347→//  COMPRAS
+   348→// =====================================================
+   349→var comprasFilter = 'todos';
+   350→
+   351→function renderCompras() {
+   352→  var db = getDB();
+   353→  var el = document.getElementById('page-compras');
+   354→  var compras = db.compras || [];
+   355→
+   356→  var html = '<h1 class="page-title">Compras</h1>';
+   357→  html += '<div class="actions-row"><button class="btn btn-gold" onclick="modalNuevaCompra()">+ Nueva Compra</button></div>';
+   358→
+   359→  // Tabs
+   360→  html += '<div class="tabs mb-16">';
+   361→  ['todos', 'pendiente', 'recibida', 'cancelada'].forEach(function(f) {
+   362→    html += '<button class="tab' + (comprasFilter === f ? ' active' : '') + '" onclick="comprasFilter=\'' + f + '\';renderCompras()">' +
+   363→      (f === 'todos' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)) + '</button>';
+   364→  });
+   365→  html += '</div>';
+   366→
+   367→  var filtered = comprasFilter === 'todos' ? compras : compras.filter(function(c) { return c.estado === comprasFilter; });
+   368→  filtered = filtered.slice().sort(function(a, b) { return new Date(b.fecha || b.creadoEn) - new Date(a.fecha || a.creadoEn); });
+   369→
+   370→  if (filtered.length === 0) {
+   371→    html += '<div class="empty"><div class="empty-icon">\u2191</div><p>No hay compras registradas</p></div>';
+   372→  } else {
+   373→    html += '<div class="card"><div class="tw"><table>' +
+   374→      '<tr><th>Fecha</th><th>Proveedor</th><th>Items</th><th>Total</th><th>Estado</th><th></th></tr>';
+   375→    filtered.forEach(function(c) {
+   376→      var estadoBadge = c.estado === 'recibida' ? 'bg' : (c.estado === 'pendiente' ? 'by' : 'br');
+   377→      html += '<tr><td>' + fmtDate(c.fecha) + '</td>' +
+   378→        '<td>' + esc(c.proveedor) + '</td>' +
+   379→        '<td>' + (c.items || []).length + '</td>' +
+   380→        '<td class="text-gold fw7">' + fmt(c.total) + '</td>' +
+   381→        '<td><span class="badge ' + estadoBadge + '">' + esc(c.estado) + '</span></td>' +
+   382→        '<td class="tr"><button class="btn btn-ghost btn-sm" onclick="modalVerCompra(' + c.id + ')">Ver</button></td></tr>';
+   383→    });
+   384→    html += '</table></div></div>';
+   385→  }
+   386→
+   387→  el.innerHTML = html;
+   388→}
+   389→
+   390→function modalNuevaCompra() {
+   391→  var body =
+   392→    '<div class="fr"><div><label>Fecha</label><input type="date" id="cmp-fecha" value="' + new Date().toISOString().split('T')[0] + '"></div>' +
+   393→    '<div><label>Proveedor</label><input id="cmp-proveedor" placeholder="Nombre del proveedor"></div></div>' +
+   394→    '<div class="fr1" style="margin-bottom:12px"><label>Notas</label><input id="cmp-notas" placeholder="Notas opcionales"></div>' +
+   395→    '<h3>Items</h3>' +
+   396→    '<div id="cmp-items-container"></div>' +
+   397→    '<button class="btn btn-ghost btn-sm mb-12" onclick="addCompraItemRow()">+ Agregar Item</button>' +
+   398→    '<hr class="divider">' +
+   399→    '<div class="cost-box mb-16"><div class="cost-row total"><span>Total</span><span id="cmp-total">$0</span></div></div>' +
+   400→    '<div id="cmp-alert" class="alert alert-err"></div>' +
+   401→    '<button class="btn btn-gold btn-full" onclick="guardarCompra()">Guardar Compra</button>';
+   402→
+   403→  openModal('Nueva Compra', body);
+   404→  addCompraItemRow();
+   405→}
+   406→
+   407→function addCompraItemRow() {
+   408→  var container = document.getElementById('cmp-items-container');
+   409→  if (!container) return;
+   410→  var row = document.createElement('div');
+   411→  row.className = 'ing-row';
+   412→  row.innerHTML =
+   413→    '<select onchange="cmpItemChanged(this)" style="font-size:.82rem">' +
+   414→      '<option value="">Seleccionar producto</option>' +
+   415→      (getDB().productos || []).map(function(p) {
+   416→        return '<option value="' + p.id + '">' + esc(p.nombre) + ' (' + esc(p.tipo) + ')</option>';
+   417→      }).join('') +
+   418→    '</select>' +
+   419→    '<input type="number" placeholder="Cant" min="0.01" step="any" onchange="cmpItemChanged(this)" style="font-size:.82rem">' +
+   420→    '<input type="number" placeholder="Precio unit" min="0" step="any" onchange="cmpItemChanged(this)" style="font-size:.82rem">' +
+   421→    '<div class="ing-cost" style="min-width:70px">$0</div>' +
+   422→    '<button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove();calcCompraTotal()" style="padding:5px 8px;font-size:.9rem">x</button>';
+   423→  container.appendChild(row);
+   424→}
+   425→
+   426→function cmpItemChanged(el) {
+   427→  var row = el.closest('.ing-row');
+   428→  var select = row.querySelector('select');
+   429→  var qtyInput = row.querySelectorAll('input')[0];
+   430→  var priceInput = row.querySelectorAll('input')[1];
+   431→  var costEl = row.querySelector('.ing-cost');
+   432→  var qty = parseFloat(qtyInput.value) || 0;
+   433→  var price = parseFloat(priceInput.value) || 0;
+   434→  costEl.textContent = fmt(qty * price);
+   435→  calcCompraTotal();
+   436→}
+   437→
+   438→function calcCompraTotal() {
+   439→  var rows = document.querySelectorAll('#cmp-items-container .ing-row');
+   440→  var total = 0;
+   441→  rows.forEach(function(row) {
+   442→    var qty = parseFloat(row.querySelectorAll('input')[0].value) || 0;
+   443→    var price = parseFloat(row.querySelectorAll('input')[1].value) || 0;
+   444→    total += qty * price;
+   445→  });
+   446→  var el = document.getElementById('cmp-total');
+   447→  if (el) el.textContent = fmt(total);
+   448→}
+   449→
+   450→function guardarCompra() {
+   451→  var fecha = document.getElementById('cmp-fecha').value;
+   452→  var proveedor = document.getElementById('cmp-proveedor').value.trim();
+   453→  var notas = document.getElementById('cmp-notas').value.trim();
+   454→  var alertEl = document.getElementById('cmp-alert');
+   455→
+   456→  if (!fecha || !proveedor) {
+   457→    alertEl.textContent = 'Fecha y proveedor son obligatorios';
+   458→    alertEl.className = 'alert alert-err show';
+   459→    return;
+   460→  }
+   461→
+   462→  var rows = document.querySelectorAll('#cmp-items-container .ing-row');
+   463→  var items = [];
+   464→  var total = 0;
+   465→
+   466→  rows.forEach(function(row) {
+   467→    var select = row.querySelector('select');
+   468→    var productId = parseInt(select.value);
+   469→    var qty = parseFloat(row.querySelectorAll('input')[0].value) || 0;
+   470→    var price = parseFloat(row.querySelectorAll('input')[1].value) || 0;
+   471→    if (productId && qty > 0) {
+   472→      var prod = (getDB().productos || []).find(function(p) { return p.id === productId; });
+   473→      var sub = qty * price;
+   474→      total += sub;
+   475→      items.push({ productoId: productId, nombre: prod ? prod.nombre : 'Desconocido', cantidad: qty, unidad: prod ? prod.unidad : 'unidad', precioUnitario: price, subtotal: sub });
+   476→    }
+   477→  });
+   478→
+   479→  if (items.length === 0) {
+   480→    alertEl.textContent = 'Agrega al menos un item';
+   481→    alertEl.className = 'alert alert-err show';
+   482→    return;
+   483→  }
+   484→
+   485→  var db = getDB();
+   486→  var compra = {
+   487→    id: nextId(),
+   488→    fecha: fecha,
+   489→    proveedor: proveedor,
+   490→    items: items,
+   491→    total: total,
+   492→    notas: notas,
+   493→    estado: 'pendiente',
+   494→    creadoPor: currentUser ? currentUser.id : null,
+   495→    creadoEn: new Date().toISOString()
+   496→  };
+   497→  db.compras.push(compra);
+   498→  saveDB();
+   499→  closeModal();
+   500→  renderCompras();
+   501→  toast('Compra registrada');
+   502→}
+   503→
+   504→function modalVerCompra(id) {
+   505→  var db = getDB();
+   506→  var c = (db.compras || []).find(function(x) { return x.id === id; });
+   507→  if (!c) return;
+   508→
+   509→  var estadoBadge = c.estado === 'recibida' ? 'bg' : (c.estado === 'pendiente' ? 'by' : 'br');
+   510→  var itemsHtml = (c.items || []).map(function(it) {
+   511→    return '<div class="mov-row"><span>' + esc(it.nombre) + ' x' + it.cantidad + ' ' + esc(it.unidad) + '</span><span class="text-gold">' + fmt(it.subtotal) + '</span></div>';
+   512→  }).join('');
+   513→
+   514→  var body =
+   515→    '<div class="fr"><div><label>Fecha</label><div style="padding:9px 0">' + fmtDate(c.fecha) + '</div></div>' +
+   516→    '<div><label>Proveedor</label><div style="padding:9px 0">' + esc(c.proveedor) + '</div></div></div>' +
+   517→    '<div class="fr"><div><label>Estado</label><div style="padding:9px 0"><span class="badge ' + estadoBadge + '">' + esc(c.estado) + '</span></div></div>' +
+   518→    '<div><label>Total</label><div style="padding:9px 0" class="text-gold fw7">' + fmt(c.total) + '</div></div></div>' +
+   519→    (c.notas ? '<div class="mb-12"><label>Notas</label><div style="padding:9px 0">' + esc(c.notas) + '</div></div>' : '') +
+   520→    '<hr class="divider"><h3>Items</h3>' + itemsHtml +
+   521→    '<hr class="divider"><div class="cost-box mb-16"><div class="cost-row total"><span>Total</span><span>' + fmt(c.total) + '</span></div></div>';
+   522→
+   523→  if (c.estado === 'pendiente') {
+   524→    body += '<div class="flex gap-8">' +
+   525→      '<button class="btn btn-green" onclick="cambiarEstadoCompra(' + c.id + ',\'recibida\')">Marcar Recibida</button>' +
+   526→      '<button class="btn btn-red" onclick="cambiarEstadoCompra(' + c.id + ',\'cancelada\')">Cancelar</button></div>';
+   527→  }
+   528→
+   529→  openModal('Compra #' + c.id, body);
+   530→}
+   531→
+   532→function cambiarEstadoCompra(id, nuevoEstado) {
+   533→  var db = getDB();
+   534→  var compra = db.compras.find(function(c) { return c.id === id; });
+   535→  if (!compra) return;
+   536→
+   537→  compra.estado = nuevoEstado;
+   538→
+   539→  // If received, update stock
+   540→  if (nuevoEstado === 'recibida') {
+   541→    (compra.items || []).forEach(function(it) {
+   542→      var prod = db.productos.find(function(p) { return p.id === it.productoId; });
+   543→      if (prod) {
+   544→        prod.stock += it.cantidad;
+   545→        prod.actualizadoEn = new Date().toISOString();
+   546→        addMovimiento('compra', 'compras', compra.id, it.nombre, it.cantidad, 'Compra de ' + compra.proveedor);
+   547→      }
+   548→    });
+   549→  }
+   550→
+   551→  saveDB();
+   552→  closeModal();
+   553→  renderCompras();
+   554→  toast('Compra actualizada');
+   555→}
+   556→
+   557→// =====================================================
+   558→//  PRODUCTOS
+   559→// =====================================================
+   560→var productosFilter = 'todos';
+   561→var productosSearch = '';
+   562→
+   563→function renderProductos() {
+   564→  var db = getDB();
+   565→  var el = document.getElementById('page-productos');
+   566→  var productos = db.productos || [];
+   567→
+   568→  var html = '<h1 class="page-title">Productos</h1>';
+   569→  html += '<div class="actions-row"><button class="btn btn-gold" onclick="modalNuevoProducto()">+ Nuevo Producto</button>' +
+   570→    '<div class="search-wrap"><input id="prod-search" placeholder="Buscar..." value="' + esc(productosSearch) + '" oninput="productosSearch=this.value;renderProductos()"></div></div>';
+   571→
+   572→  // Tabs
+   573→  html += '<div class="tabs mb-16">';
+   574→  var types = [{ val: 'todos', label: 'Todos' }].concat(PRODUCT_TYPES);
+   575→  types.forEach(function(t) {
+   576→    html += '<button class="tab' + (productosFilter === t.val ? ' active' : '') + '" onclick="productosFilter=\'' + t.val + '\';renderProductos()">' + esc(t.label) + '</button>';
+   577→  });
+   578→  html += '</div>';
+   579→
+   580→  // Filter
+   581→  var filtered = productos;
+   582→  if (productosFilter !== 'todos') filtered = filtered.filter(function(p) { return p.tipo === productosFilter; });
+   583→  if (productosSearch) {
+   584→    var q = productosSearch.toLowerCase();
+   585→    filtered = filtered.filter(function(p) { return p.nombre.toLowerCase().indexOf(q) !== -1 || (p.proveedor || '').toLowerCase().indexOf(q) !== -1; });
+   586→  }
+   587→
+   588→  if (filtered.length === 0) {
+   589→    html += '<div class="empty"><div class="empty-icon">\u25CF</div><p>No hay productos</p></div>';
+   590→  } else {
+   591→    html += '<div class="card"><div class="tw"><table>' +
+   592→      '<tr><th>Nombre</th><th>Tipo</th><th>Categoría</th><th>Stock</th><th>Costo</th><th>Venta</th><th>Proveedor</th><th></th></tr>';
+   593→    filtered.forEach(function(p) {
+   594→      var stockClass = p.stock <= p.stockMin ? 'stock-low' : 'stock-ok';
+   595→      html += '<tr><td class="fw7">' + esc(p.nombre) + '</td>' +
+   596→        '<td><span class="badge ba">' + esc(p.tipo) + '</span></td>' +
+   597→        '<td class="text-sm text-muted">' + esc(p.categoria || '-') + '</td>' +
+   598→        '<td class="' + stockClass + '">' + p.stock + ' ' + esc(p.unidad) + '</td>' +
+   599→        '<td>' + fmt(p.precioCosto) + '</td>' +
+   600→        '<td class="text-gold">' + (p.precioVenta ? fmt(p.precioVenta) : '-') + '</td>' +
+   601→        '<td class="text-muted text-sm">' + esc(p.proveedor || '-') + '</td>' +
+   602→        '<td class="tr"><button class="btn btn-ghost btn-sm" onclick="modalEditarProducto(' + p.id + ')">Editar</button></td></tr>';
+   603→    });
+   604→    html += '</table></div></div>';
+   605→  }
+   606→
+   607→  el.innerHTML = html;
+   608→}
+   609→
+   610→function productoFormHTML(p) {
+   611→  var isEdit = !!p;
+   612→  p = p || {};
+   613→  return '<div class="fr">' +
+   614→    '<div><label>Nombre</label><input id="prod-nombre" value="' + esc(p.nombre || '') + '" placeholder="Nombre del producto"></div>' +
+   615→    '<div><label>Tipo</label><select id="prod-tipo">' + optHtml(PRODUCT_TYPES, p.tipo || 'especia') + '</select></div></div>' +
+   616→    '<div class="fr3">' +
+   617→      '<div><label>Unidad</label><select id="prod-unidad">' + unitOptions(p.unidad || 'gr') + '</select></div>' +
+   618→      '<div><label>Precio Costo</label><input type="number" id="prod-costo" value="' + (p.precioCosto || '') + '" min="0" step="any" placeholder="0"></div>' +
+   619→      '<div><label>Precio Venta</label><input type="number" id="prod-venta" value="' + (p.precioVenta || '') + '" min="0" step="any" placeholder="0 (solo especias)"></div></div>' +
+   620→    '<div class="fr">' +
+   621→      '<div><label>Stock Actual</label><input type="number" id="prod-stock" value="' + (p.stock || 0) + '" min="0" step="any"></div>' +
+   622→      '<div><label>Stock Mínimo</label><input type="number" id="prod-stockmin" value="' + (p.stockMin || 0) + '" min="0" step="any"></div></div>' +
+   623→    '<div class="fr1" style="margin-bottom:12px"><label>Proveedor</label><input id="prod-proveedor" value="' + esc(p.proveedor || '') + '" placeholder="Nombre del proveedor"></div>' +
+   624→    '<div class="fr1" style="margin-bottom:12px"><label>Notas</label><textarea id="prod-notas" rows="2">' + esc(p.notas || '') + '</textarea></div>' +
+   625→    '<div id="prod-alert" class="alert alert-err"></div>' +
+   626→    '<button class="btn btn-gold btn-full" onclick="guardarProducto(' + (p.id || 0) + ')">' + (isEdit ? 'Actualizar' : 'Crear') + ' Producto</button>';
+   627→}
+   628→
+   629→function modalNuevoProducto() {
+   630→  openModal('Nuevo Producto', productoFormHTML(null));
+   631→}
+   632→
+   633→function modalEditarProducto(id) {
+   634→  var db = getDB();
+   635→  var p = db.productos.find(function(x) { return x.id === id; });
+   636→  if (!p) return;
+   637→  openModal('Editar Producto', productoFormHTML(p));
+   638→}
+   639→
+   640→function guardarProducto(existingId) {
+   641→  var nombre = document.getElementById('prod-nombre').value.trim();
+   642→  var tipo = document.getElementById('prod-tipo').value;
+   643→  var unidad = document.getElementById('prod-unidad').value;
+   644→  var costo = parseFloat(document.getElementById('prod-costo').value) || 0;
+   645→  var venta = parseFloat(document.getElementById('prod-venta').value) || 0;
+   646→  var stock = parseFloat(document.getElementById('prod-stock').value) || 0;
+   647→  var stockMin = parseFloat(document.getElementById('prod-stockmin').value) || 0;
+   648→  var proveedor = document.getElementById('prod-proveedor').value.trim();
+   649→  var notas = document.getElementById('prod-notas').value.trim();
+   650→  var alertEl = document.getElementById('prod-alert');
+   651→
+   652→  if (!nombre) {
+   653→    alertEl.textContent = 'El nombre es obligatorio';
+   654→    alertEl.className = 'alert alert-err show';
+   655→    return;
+   656→  }
+   657→
+   658→  var db = getDB();
+   659→  var now = new Date().toISOString();
+   660→
+   661→  if (existingId) {
+   662→    var prod = db.productos.find(function(p) { return p.id === existingId; });
+   663→    if (prod) {
+   664→      var oldStock = prod.stock;
+   665→      prod.nombre = nombre; prod.tipo = tipo; prod.unidad = unidad;
+   666→      prod.precioCosto = costo; prod.precioVenta = venta;
+   667→      prod.stock = stock; prod.stockMin = stockMin;
+   668→      prod.proveedor = proveedor; prod.notas = notas;
+   669→      prod.actualizadoEn = now;
+   670→      if (stock !== oldStock) {
+   671→        addMovimiento('ajuste', 'productos', prod.id, nombre, stock - oldStock, 'Ajuste manual de stock');
+   672→      }
+   673→    }
+   674→  } else {
+   675→    db.productos.push({
+   676→      id: nextId(), nombre: nombre, tipo: tipo, unidad: unidad,
+   677→      precioCosto: costo, precioVenta: venta, stock: stock, stockMin: stockMin,
+   678→      proveedor: proveedor, notas: notas,
+   679→      creadoEn: now, actualizadoEn: now
+   680→    });
+   681→  }
+   682→
+   683→  saveDB();
+   684→  closeModal();
+   685→  renderProductos();
+   686→  toast(existingId ? 'Producto actualizado' : 'Producto creado');
+   687→}
+   688→
+   689→// =====================================================
+   690→//  BLENDS
+   691→// =====================================================
+   692→function renderBlends() {
+   693→  var db = getDB();
+   694→  var el = document.getElementById('page-blends');
+   695→  var blends = db.blends || [];
+   696→
+   697→  var html = '<h1 class="page-title">Blends</h1>';
+   698→  html += '<div class="actions-row"><button class="btn btn-gold" onclick="modalNuevoBlend()">+ Nuevo Blend</button></div>';
+   699→
+   700→  if (blends.length === 0) {
+   701→    html += '<div class="empty"><div class="empty-icon">\u2726</div><p>No hay blends creados</p><p class="text-xs mt-12">Los blends son mezclas de especias con una receta definida</p></div>';
+   702→  } else {
+   703→    blends.forEach(function(b) {
+   704→      // Calculate cost from recipe
+   705→      var costo = calcBlendCost(b);
+   706→      b.costoUnitario = costo;
+   707→      var profit = b.precioVenta - costo;
+   708→      var profitClass = profit >= 0 ? 'profit' : 'loss';
+   709→      var estadoBadge = b.stock > 0 ? 'bg' : 'by';
+   710→
+   711→      html += '<div class="blend-card"><div class="blend-header" onclick="this.nextElementSibling.classList.toggle(\'open\')">' +
+   712→        '<div><div class="blend-name">' + esc(b.nombre) + '</div>' +
+   713→        '<div class="text-xs text-muted mt-12">' + esc(b.descripcion || 'Sin descripción') + '</div></div>' +
+   714→        '<div class="flex items-center gap-12">' +
+   715→          '<span class="badge ' + estadoBadge + '">' + b.stock + ' und</span>' +
+   716→          '<span class="text-gold fw7">' + fmt(b.precioVenta) + '</span></div></div>' +
+   717→        '<div class="blend-body"><div class="blend-inner">' +
+   718→          '<h3>Receta (' + (b.receta || []).length + ' ingredientes)</h3>';
+   719→
+   720→      if (b.receta && b.receta.length > 0) {
+   721→        html += '<div class="card mb-16">';
+   722→        b.receta.forEach(function(r) {
+   723→          var prod = (db.productos || []).find(function(p) { return p.id === r.productoId; });
+   724→          var stockInfo = prod ? (prod.stock + ' ' + prod.unidad) : '?';
+   725→          html += '<div class="mov-row"><span class="text-gold">' + r.cantidad + ' ' + esc(r.unidad) + '</span>' +
+   726→            '<span>' + esc(r.nombre) + '</span>' +
+   727→            '<span class="text-xs text-muted">(disponible: ' + stockInfo + ')</span></div>';
+   728→        });
+   729→        html += '</div>';
+   730→      }
+   731→
+   732→      html += '<div class="cost-box mb-16">' +
+   733→        '<div class="cost-row"><span>Costo unitario</span><span>' + fmt(costo) + '</span></div>' +
+   734→        '<div class="cost-row"><span>Precio venta</span><span>' + fmt(b.precioVenta) + '</span></div>' +
+   735→        '<div class="cost-row ' + profitClass + '"><span>Ganancia</span><span>' + fmt(profit) + '</span></div></div>' +
+   736→        '<div class="flex gap-8">' +
+   737→          '<button class="btn btn-gold btn-sm" onclick="modalEditarBlend(' + b.id + ')">Editar</button>' +
+   738→          '<button class="btn btn-green btn-sm" onclick="modalProducirBlend(' + b.id + ')">Producir</button>' +
+   739→          '<button class="btn btn-red btn-sm" onclick="eliminarBlend(' + b.id + ')">Eliminar</button></div>' +
+   740→        '</div></div></div>';
+   741→    });
+   742→  }
+   743→
+   744→  el.innerHTML = html;
+   745→}
+   746→
+   747→function calcBlendCost(blend) {
+   748→  if (!blend || !blend.receta) return 0;
+   749→  var db = getDB();
+   750→  var costo = 0;
+   751→  blend.receta.forEach(function(r) {
+   752→    var prod = (db.productos || []).find(function(p) { return p.id === r.productoId; });
+   753→    if (prod) {
+   754→      // Convert to same unit for cost calc (simplified: assumes recipe unit matches product unit)
+   755→      var unitCost = prod.precioCosto / 1; // cost per base unit
+   756→      // If product is in kg and recipe in gr, convert
+   757→      var factor = 1;
+   758→      if (prod.unidad === 'kg' && r.unidad === 'gr') factor = 0.001;
+   759→      else if (prod.unidad === 'L' && r.unidad === 'ml') factor = 0.001;
+   760→      costo += r.cantidad * unitCost * factor;
+   761→    }
+   762→  });
+   763→  return Math.round(costo);
+   764→}
+   765→
+   766→function modalNuevoBlend() {
+   767→  var body = blendFormHTML(null);
+   768→  openModal('Nuevo Blend', body);
+   769→  addBlendRecetaRow();
+   770→}
+   771→
+   772→function modalEditarBlend(id) {
+   773→  var db = getDB();
+   774→  var b = db.blends.find(function(x) { return x.id === id; });
+   775→  if (!b) return;
+   776→  var body = blendFormHTML(b);
+   777→  openModal('Editar Blend', body);
+   778→  // Load existing recipe
+   779→  (b.receta || []).forEach(function(r) {
+   780→    addBlendRecetaRow(r);
+   781→  });
+   782→}
+   783→
+   784→function blendFormHTML(b) {
+   785→  b = b || {};
+   786→  return '<div class="fr1" style="margin-bottom:12px"><label>Nombre</label><input id="bl-nombre" value="' + esc(b.nombre || '') + '" placeholder="Nombre del blend"></div>' +
+   787→    '<div class="fr1" style="margin-bottom:12px"><label>Descripción</label><textarea id="bl-desc" rows="2">' + esc(b.descripcion || '') + '</textarea></div>' +
+   788→    '<h3>Receta</h3><div id="bl-receta-container"></div>' +
+   789→    '<button class="btn btn-ghost btn-sm mb-12" onclick="addBlendRecetaRow()">+ Ingrediente</button>' +
+   790→    '<hr class="divider">' +
+   791→    '<div class="fr"><div><label>Precio Venta</label><input type="number" id="bl-precio" value="' + (b.precioVenta || '') + '" min="0" step="any"></div>' +
+   792→    '<div style="display:flex;align-items:flex-end;padding-bottom:2px"><div class="cost-box" style="width:100%"><div class="cost-row"><span>Costo estimado</span><span id="bl-costo-est">$0</span></div></div></div></div>' +
+   793→    '<div id="bl-alert" class="alert alert-err"></div>' +
+   794→    '<button class="btn btn-gold btn-full" onclick="guardarBlend(' + (b.id || 0) + ')">' + (b.id ? 'Actualizar' : 'Crear') + ' Blend</button>';
+   795→}
+   796→
+   797→function addBlendRecetaRow(data) {
+   798→  var container = document.getElementById('bl-receta-container');
+   799→  if (!container) return;
+   800→  data = data || {};
+   801→  var row = document.createElement('div');
+   802→  row.className = 'ing-row';
+   803→  row.innerHTML =
+   804→    '<select onchange="calcBlendCostEst()" style="font-size:.82rem">' +
+   805→      '<option value="">Especia</option>' +
+   806→      (getDB().productos || []).filter(function(p) { return p.tipo === 'especia'; }).map(function(p) {
+   807→        return '<option value="' + p.id + '"' + (data.productoId === p.id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>';
+   808→      }).join('') +
+   809→    '</select>' +
+   810→    '<input type="number" placeholder="Cant" min="0.01" step="any" value="' + (data.cantidad || '') + '" onchange="calcBlendCostEst()" style="font-size:.82rem">' +
+   811→    '<select onchange="calcBlendCostEst()" style="font-size:.82rem">' + unitOptions(data.unidad || 'gr') + '</select>' +
+   812→    '<button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove();calcBlendCostEst()" style="padding:5px 8px;font-size:.9rem">x</button>';
+   813→  container.appendChild(row);
+   814→}
+   815→
+   816→function calcBlendCostEst() {
+   817→  var rows = document.querySelectorAll('#bl-receta-container .ing-row');
+   818→  var costo = 0;
+   819→  var db = getDB();
+   820→  rows.forEach(function(row) {
+   821→    var select = row.querySelector('select');
+   822→    var qtyInput = row.querySelectorAll('input')[0];
+   823→    var unitSelect = row.querySelectorAll('select')[1];
+   824→    var productId = parseInt(select.value);
+   825→    var qty = parseFloat(qtyInput.value) || 0;
+   826→    var unit = unitSelect ? unitSelect.value : 'gr';
+   827→
+   828→    var prod = db.productos.find(function(p) { return p.id === productId; });
+   829→    if (prod) {
+   830→      var factor = 1;
+   831→      if (prod.unidad === 'kg' && unit === 'gr') factor = 0.001;
+   832→      else if (prod.unidad === 'L' && unit === 'ml') factor = 0.001;
+   833→      costo += qty * prod.precioCosto * factor;
+   834→    }
+   835→  });
+   836→  var el = document.getElementById('bl-costo-est');
+   837→  if (el) el.textContent = fmt(Math.round(costo));
+   838→}
+   839→
+   840→function guardarBlend(existingId) {
+   841→  var nombre = document.getElementById('bl-nombre').value.trim();
+   842→  var desc = document.getElementById('bl-desc').value.trim();
+   843→  var precio = parseFloat(document.getElementById('bl-precio').value) || 0;
+   844→  var alertEl = document.getElementById('bl-alert');
+   845→
+   846→  if (!nombre) {
+   847→    alertEl.textContent = 'El nombre es obligatorio';
+   848→    alertEl.className = 'alert alert-err show';
+   849→    return;
+   850→  }
+   851→
+   852→  var db = getDB();
+   853→  var rows = document.querySelectorAll('#bl-receta-container .ing-row');
+   854→  var receta = [];
+   855→  rows.forEach(function(row) {
+   856→    var select = row.querySelector('select');
+   857→    var qtyInput = row.querySelectorAll('input')[0];
+   858→    var unitSelect = row.querySelectorAll('select')[1];
+   859→    var productId = parseInt(select.value);
+   860→    var qty = parseFloat(qtyInput.value) || 0;
+   861→    var unit = unitSelect ? unitSelect.value : 'gr';
+   862→    if (productId && qty > 0) {
+   863→      var prod = db.productos.find(function(p) { return p.id === productId; });
+   864→      receta.push({ productoId: productId, nombre: prod ? prod.nombre : '?', cantidad: qty, unidad: unit });
+   865→    }
+   866→  });
+   867→
+   868→  var now = new Date().toISOString();
+   869→
+   870→  if (existingId) {
+   871→    var blend = db.blends.find(function(b) { return b.id === existingId; });
+   872→    if (blend) {
+   873→      blend.nombre = nombre; blend.descripcion = desc; blend.receta = receta;
+   874→      blend.precioVenta = precio; blend.costoUnitario = calcBlendCost({ receta: receta });
+   875→      blend.actualizadoEn = now;
+   876→    }
+   877→  } else {
+   878→    db.blends.push({
+   879→      id: nextId(), nombre: nombre, descripcion: desc, receta: receta,
+   880→      costoUnitario: calcBlendCost({ receta: receta }), precioVenta: precio,
+   881→      stock: 0, creadoEn: now, actualizadoEn: now
+   882→    });
+   883→  }
+   884→
+   885→  saveDB();
+   886→  closeModal();
+   887→  renderBlends();
+   888→  toast(existingId ? 'Blend actualizado' : 'Blend creado');
+   889→}
+   890→
+   891→function modalProducirBlend(id) {
+   892→  var db = getDB();
+   893→  var b = db.blends.find(function(x) { return x.id === id; });
+   894→  if (!b) return;
+   895→
+   896→  // Check if there's enough stock for all ingredients
+   897→  var canProduce = true;
+   898→  var stockInfo = '';
+   899→  (b.receta || []).forEach(function(r) {
+   900→    var prod = db.productos.find(function(p) { return p.id === r.productoId; });
+   901→    if (!prod || prod.stock < r.cantidad) {
+   902→      canProduce = false;
+   903→      stockInfo += '<div class="mov-row"><span class="text-red">' + esc(r.nombre) + ': necesita ' + r.cantidad + ', disponible ' + (prod ? prod.stock : 0) + '</span></div>';
+   904→    }
+   905→  });
+   906→
+   907→  var body = '<div class="mb-12"><label>Blend</label><div style="padding:9px 0" class="fw7 text-gold">' + esc(b.nombre) + '</div></div>';
+   908→
+   909→  if (!canProduce) {
+   910→    body += '<div class="alert alert-err show mb-12">Stock insuficiente para producir</div>' + stockInfo;
+   911→    body += '<hr class="divider"><button class="btn btn-ghost btn-full" onclick="closeModal()">Cerrar</button>';
+   912→  } else {
+   913→    body += '<div class="card mb-16"><h3>Ingredientes necesarios</h3>';
+   914→    (b.receta || []).forEach(function(r) {
+   915→      var prod = db.productos.find(function(p) { return p.id === r.productoId; });
+   916→      body += '<div class="mov-row"><span>' + r.cantidad + ' ' + esc(r.unidad) + '</span><span>' + esc(r.nombre) + '</span>' +
+   917→        '<span class="text-xs text-muted">(stock: ' + (prod ? prod.stock : 0) + ')</span></div>';
+   918→    });
+   919→    body += '</div>';
+   920→    body += '<div class="fr" style="margin-bottom:12px"><div><label>Cantidad a producir</label><input type="number" id="bl-prod-cant" value="1" min="1"></div></div>';
+   921→    body += '<button class="btn btn-gold btn-full" onclick="ejecutarProduccion(' + b.id + ')">Producir</button>';
+   922→  }
+   923→
+   924→  openModal('Producir Blend', body);
+   925→}
+   926→
+   927→function ejecutarProduccion(blendId) {
+   928→  var cant = parseInt(document.getElementById('bl-prod-cant').value) || 1;
+   929→  if (cant < 1) return;
+   930→
+   931→  var db = getDB();
+   932→  var b = db.blends.find(function(x) { return x.id === blendId; });
+   933→  if (!b) return;
+   934→
+   935→  // Check stock for multiplied recipe
+   936→  (b.receta || []).forEach(function(r) {
+   937→    var needed = r.cantidad * cant;
+   938→    var prod = db.productos.find(function(p) { return p.id === r.productoId; });
+   939→    if (!prod || prod.stock < needed) {
+   940→      toast('Stock insuficiente de ' + r.nombre, 'err');
+   941→      return;
+   942→    }
+   943→  });
+   944→
+   945→  // Deduct stock from ingredients
+   946→  (b.receta || []).forEach(function(r) {
+   947→    var needed = r.cantidad * cant;
+   948→    var prod = db.productos.find(function(p) { return p.id === r.productoId; });
+   949→    if (prod) {
+   950→      prod.stock -= needed;
+   951→      prod.actualizadoEn = new Date().toISOString();
+   952→      addMovimiento('blend', 'blends', b.id, r.nombre, -needed, 'Producción: ' + b.nombre + ' x' + cant);
+   953→    }
+   954→  });
+   955→
+   956→  b.stock += cant;
+   957→  b.actualizadoEn = new Date().toISOString();
+   958→  saveDB();
+   959→  closeModal();
+   960→  renderBlends();
+   961→  toast(cant + ' unidad(es) de ' + b.nombre + ' producida(s)');
+   962→}
+   963→
+   964→function eliminarBlend(id) {
+   965→  if (!confirm('Eliminar este blend?')) return;
+   966→  var db = getDB();
+   967→  db.blends = db.blends.filter(function(b) { return b.id !== id; });
+   968→  saveDB();
+   969→  renderBlends();
+   970→  toast('Blend eliminado');
+   971→}
+   972→
+   973→// =====================================================
+   974→//  VENTAS (Admin/Operator POS)
+   975→// =====================================================
+   976→var ventasFilter = 'todos';
+   977→var ventaActual = null; // Current sale being built
+   978→
+   979→function renderVentas() {
+   980→  var db = getDB();
+   981→  var el = document.getElementById('page-ventas');
+   982→  var ventas = db.ventas || [];
+   983→
+   984→  var html = '<h1 class="page-title">Ventas</h1>';
+   985→  html += '<div class="actions-row">' +
+   986→    '<button class="btn btn-gold" onclick="iniciarNuevaVenta()">+ Nueva Venta</button>' +
+   987→    '<button class="btn btn-ghost" onclick="toggleTiendaOrders()" id="btn-tienda-ordenes">Pedidos de Tienda</button></div>';
+   988→
+   989→  // Show active sale if exists
+   990→  if (ventaActual) {
+   991→    html += renderVentaActiva();
+   992→  }
+   993→
+   994→  // Tabs
+   995→  html += '<div class="tabs mb-16">';
+   996→  ['todos', 'pendiente', 'completada', 'cancelada'].forEach(function(f) {
+   997→    html += '<button class="tab' + (ventasFilter === f ? ' active' : '') + '" onclick="ventasFilter=\'' + f + '\';renderVentas()">' +
+   998→      (f === 'todos' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)) + '</button>';
+   999→  });
+  1000→  html += '</div>';
+  1001→
+  1002→  // Filter: admin sees all, operator sees their own
+  1003→  var filtered = ventas;
+  1004→  if (currentUser && currentUser.rol !== 'admin') {
+  1005→    filtered = filtered.filter(function(v) { return v.creadoPor === currentUser.id; });
+  1006→  }
+  1007→  if (ventasFilter !== 'todos') filtered = filtered.filter(function(v) { return v.estado === ventasFilter; });
+  1008→  filtered = filtered.slice().sort(function(a, b) { return new Date(b.creadoEn) - new Date(a.creadoEn); });
+  1009→
+  1010→  if (filtered.length === 0) {
+  1011→    html += '<div class="empty"><div class="empty-icon">\u2193</div><p>No hay ventas</p></div>';
+  1012→  } else {
+  1013→    html += '<div class="card"><div class="tw"><table>' +
+  1014→      '<tr><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th><th>Estado</th><th>Tipo</th><th></th></tr>';
+  1015→    filtered.forEach(function(v) {
+  1016→      var estadoBadge = v.estado === 'completada' ? 'bg' : (v.estado === 'pendiente' ? 'by' : 'br');
+  1017→      var tipo = v.tipo === 'tienda' ? '<span class="badge bb">Tienda</span>' : '<span class="badge ba">Mostrador</span>';
+  1018→      html += '<tr><td>' + fmtDateTime(v.fecha || v.creadoEn) + '</td>' +
+  1019→        '<td>' + esc(v.clienteNombre || '-') + '</td>' +
+  1020→        '<td>' + (v.items || []).length + '</td>' +
+  1021→        '<td class="text-gold fw7">' + fmt(v.total) + '</td>' +
+  1022→        '<td><span class="badge ' + estadoBadge + '">' + esc(v.estado) + '</span></td>' +
+  1023→        '<td>' + tipo + '</td>' +
+  1024→        '<td class="tr"><button class="btn btn-ghost btn-sm" onclick="modalVerVenta(' + v.id + ')">Ver</button></td></tr>';
+  1025→    });
+  1026→    html += '</table></div></div>';
+  1027→  }
+  1028→
+  1029→  el.innerHTML = html;
+  1030→}
+  1031→
+  1032→function renderVentaActiva() {
+  1033→  var items = ventaActual.items || [];
+  1034→  var total = items.reduce(function(s, i) { return s + i.subtotal; }, 0);
+  1035→
+  1036→  var html = '<div class="card card-gold mb-20">' +
+  1037→    '<div class="flex justify-between items-center mb-12"><div class="section-title" style="margin:0">Venta en Curso</div>' +
+  1038→    '<button class="btn btn-ghost btn-sm" onclick="cancelarVentaActual()">Cancelar</button></div>';
+  1039→
+  1040→  if (items.length === 0) {
+  1041→    html += '<p class="text-muted text-sm">Agrega productos al lado derecho</p>';
+  1042→  } else {
+  1043→    html += '<div class="tw"><table><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Sub</th><th></th></tr>';
+  1044→    items.forEach(function(it, i) {
+  1045→      html += '<tr><td>' + esc(it.nombre) + '</td><td>' + it.cantidad + '</td>' +
+  1046→        '<td>' + fmt(it.precioUnitario) + '</td><td class="text-gold">' + fmt(it.subtotal) + '</td>' +
+  1047→        '<td><button class="btn btn-ghost btn-sm" onclick="removeVentaItem(' + i + ')" style="padding:3px 6px;font-size:.8rem">x</button></td></tr>';
+  1048→    });
+  1049→    html += '</table></div>';
+  1050→  }
+  1051→
+  1052→  html += '<hr class="divider"><div class="cost-box">' +
+  1053→    '<div class="cost-row total"><span>Total</span><span>' + fmt(total) + '</span></div></div>';
+  1054→
+  1055→  html += '<div class="fr mt-12">' +
+  1056→    '<div><label>Cliente</label><input id="va-cliente" value="' + esc(ventaActual.clienteNombre || '') + '" placeholder="Nombre (opcional)"></div>' +
+  1057→    '<div><label>Teléfono</label><input id="va-tel" value="' + esc(ventaActual.clienteTelefono || '') + '" placeholder="Teléfono (opcional)"></div></div>';
+  1058→
+  1059→  html += '<div class="flex gap-8 mt-12">' +
+  1060→    '<button class="btn btn-gold" onclick="completarVenta()" style="flex:1">Completar Venta</button></div>';
+  1061→
+  1062→  html += '</div>';
+  1063→  return html;
+  1064→}
+  1065→
+  1066→function iniciarNuevaVenta() {
+  1067→  var db = getDB();
+  1068→  // Build modal with product picker
+  1069→  var especias = db.productos.filter(function(p) { return p.tipo === 'especia' && p.precioVenta > 0 && p.stock > 0; });
+  1070→  var blends = db.blends.filter(function(b) { return b.stock > 0 && b.precioVenta > 0; });
+  1071→
+  1072→  var body = '<h3>Especias</h3><div class="mb-16">';
+  1073→  if (especias.length === 0) {
+  1074→    body += '<p class="text-muted text-sm">No hay especias disponibles para venta</p>';
+  1075→  } else {
+  1076→    especias.forEach(function(p) {
+  1077→      body += '<div class="mov-row" style="cursor:pointer" onclick="agregarAVenta(\'especia\',' + p.id + ')">' +
+  1078→        '<span class="fw7">' + esc(p.nombre) + '</span>' +
+  1079→        '<span class="text-xs text-muted">' + p.stock + ' ' + esc(p.unidad) + '</span>' +
+  1080→        '<span class="text-gold">' + fmt(p.precioVenta) + '</span></div>';
+  1081→    });
+  1082→  }
+  1083→  body += '</div><h3>Blends</h3>';
+  1084→  if (blends.length === 0) {
+  1085→    body += '<p class="text-muted text-sm">No hay blends disponibles</p>';
+  1086→  } else {
+  1087→    blends.forEach(function(b) {
+  1088→      body += '<div class="mov-row" style="cursor:pointer" onclick="agregarAVenta(\'blend\',' + b.id + ')">' +
+  1089→        '<span class="fw7">' + esc(b.nombre) + '</span>' +
+  1090→        '<span class="text-xs text-muted">' + b.stock + ' und</span>' +
+  1091→        '<span class="text-gold">' + fmt(b.precioVenta) + '</span></div>';
+  1092→    });
+  1093→  }
+  1094→
+  1095→  openModal('Agregar a Venta', body);
+  1096→}
+  1097→
+  1098→function agregarAVenta(tipo, id) {
+  1099→  var db = getDB();
+  1100→  var item;
+  1101→
+  1102→  if (tipo === 'especia') {
+  1103→    var prod = db.productos.find(function(p) { return p.id === id; });
+  1104→    if (!prod) return;
+  1105→    item = { tipo: 'especia', id: prod.id, nombre: prod.nombre, cantidad: 1, unidad: prod.unidad, precioUnitario: prod.precioVenta, subtotal: prod.precioVenta, maxStock: prod.stock };
+  1106→  } else {
+  1107→    var blend = db.blends.find(function(b) { return b.id === id; });
+  1108→    if (!blend) return;
+  1109→    item = { tipo: 'blend', id: blend.id, nombre: blend.nombre, cantidad: 1, unidad: 'unidad', precioUnitario: blend.precioVenta, subtotal: blend.precioVenta, maxStock: blend.stock };
+  1110→  }
+  1111→
+  1112→  if (!ventaActual) {
+  1113→    ventaActual = { items: [], clienteNombre: '', clienteTelefono: '' };
+  1114→  }
+  1115→
+  1116→  // Check if already in cart
+  1117→  var existing = ventaActual.items.find(function(i) { return i.tipo === tipo && i.id === id; });
+  1118→  if (existing) {
+  1119→    if (existing.cantidad >= existing.maxStock) { toast('Stock máximo', 'err'); return; }
+  1120→    existing.cantidad++;
+  1121→    existing.subtotal = existing.cantidad * existing.precioUnitario;
+  1122→  } else {
+  1123→    ventaActual.items.push(item);
+  1124→  }
+  1125→
+  1126→  closeModal();
+  1127→  renderVentas();
+  1128→}
+  1129→
+  1130→function removeVentaItem(idx) {
+  1131→  if (!ventaActual) return;
+  1132→  ventaActual.items.splice(idx, 1);
+  1133→  if (ventaActual.items.length === 0) ventaActual = null;
+  1134→  renderVentas();
+  1135→}
+  1136→
+  1137→function cancelarVentaActual() {
+  1138→  if (ventaActual && ventaActual.items.length > 0 && !confirm('Cancelar venta en curso?')) return;
+  1139→  ventaActual = null;
+  1140→  renderVentas();
+  1141→}
+  1142→
+  1143→function completarVenta() {
+  1144→  if (!ventaActual || ventaActual.items.length === 0) { toast('No hay items en la venta', 'err'); return; }
+  1145→
+  1146→  // Read client info from DOM
+  1147→  var clienteEl = document.getElementById('va-cliente');
+  1148→  var telEl = document.getElementById('va-tel');
+  1149→  if (clienteEl) ventaActual.clienteNombre = clienteEl.value.trim();
+  1150→  if (telEl) ventaActual.clienteTelefono = telEl.value.trim();
+  1151→
+  1152→  var db = getDB();
+  1153→  var total = ventaActual.items.reduce(function(s, i) { return s + i.subtotal; }, 0);
+  1154→
+  1155→  var venta = {
+  1156→    id: nextId(),
+  1157→    fecha: new Date().toISOString(),
+  1158→    clienteNombre: ventaActual.clienteNombre || 'Mostrador',
+  1159→    clienteTelefono: ventaActual.clienteTelefono || '',
+  1160→    items: ventaActual.items,
+  1161→    total: total,
+  1162→    estado: 'completada',
+  1163→    tipo: 'mostrador',
+  1164→    creadoPor: currentUser ? currentUser.id : null,
+  1165→    creadoEn: new Date().toISOString()
+  1166→  };
+  1167→
+  1168→  db.ventas.push(venta);
+  1169→
+  1170→  // Update stock
+  1171→  ventaActual.items.forEach(function(it) {
+  1172→    if (it.tipo === 'especia') {
+  1173→      var prod = db.productos.find(function(p) { return p.id === it.id; });
+  1174→      if (prod) {
+  1175→        prod.stock = Math.max(0, prod.stock - it.cantidad);
+  1176→        prod.actualizadoEn = new Date().toISOString();
+  1177→        addMovimiento('venta', 'ventas', venta.id, it.nombre, -it.cantidad, 'Venta mostrador');
+  1178→      }
+  1179→    } else if (it.tipo === 'blend') {
+  1180→      var blend = db.blends.find(function(b) { return b.id === it.id; });
+  1181→      if (blend) {
+  1182→        blend.stock = Math.max(0, blend.stock - it.cantidad);
+  1183→        blend.actualizadoEn = new Date().toISOString();
+  1184→        addMovimiento('venta', 'ventas', venta.id, it.nombre, -it.cantidad, 'Venta mostrador');
+  1185→      }
+  1186→    }
+  1187→  });
+  1188→
+  1189→  saveDB();
+  1190→  ventaActual = null;
+  1191→  renderVentas();
+  1192→  toast('Venta completada');
+  1193→}
+  1194→
+  1195→function modalVerVenta(id) {
+  1196→  var db = getDB();
+  1197→  var v = db.ventas.find(function(x) { return x.id === id; });
+  1198→  if (!v) return;
+  1199→
+  1200→  var estadoBadge = v.estado === 'completada' ? 'bg' : (v.estado === 'pendiente' ? 'by' : 'br');
+  1201→  var tipo = v.tipo === 'tienda' ? 'Pedido de Tienda' : 'Venta de Mostrador';
+  1202→
+  1203→  var body =
+  1204→    '<div class="fr"><div><label>Fecha</label><div style="padding:9px 0">' + fmtDateTime(v.fecha || v.creadoEn) + '</div></div>' +
+  1205→    '<div><label>Tipo</label><div style="padding:9px 0"><span class="badge ba">' + esc(tipo) + '</span></div></div></div>' +
+  1206→    '<div class="fr"><div><label>Cliente</label><div style="padding:9px 0">' + esc(v.clienteNombre || '-') + '</div></div>' +
+  1207→    '<div><label>Teléfono</label><div style="padding:9px 0">' + esc(v.clienteTelefono || '-') + '</div></div></div>' +
+  1208→    '<div class="fr"><div><label>Estado</label><div style="padding:9px 0"><span class="badge ' + estadoBadge + '">' + esc(v.estado) + '</span></div></div>' +
+  1209→    '<div><label>Total</label><div style="padding:9px 0" class="text-gold fw7">' + fmt(v.total) + '</div></div></div>' +
+  1210→    (v.clienteDireccion ? '<div class="mb-12"><label>Dirección</label><div style="padding:9px 0">' + esc(v.clienteDireccion) + '</div></div>' : '') +
+  1211→    '<hr class="divider"><h3>Items</h3>';
+  1212→
+  1213→  (v.items || []).forEach(function(it) {
+  1214→    body += '<div class="mov-row"><span>' + esc(it.nombre) + ' x' + it.cantidad + '</span><span class="text-gold">' + fmt(it.subtotal) + '</span></div>';
+  1215→  });
+  1216→
+  1217→  body += '<hr class="divider"><div class="cost-box mb-16"><div class="cost-row total"><span>Total</span><span>' + fmt(v.total) + '</span></div></div>';
+  1218→
+  1219→  if (v.estado === 'pendiente') {
+  1220→    body += '<div class="flex gap-8">' +
+  1221→      '<button class="btn btn-green" onclick="cambiarEstadoVenta(' + v.id + ',\'completada\')">Completar</button>' +
+  1222→      '<button class="btn btn-red" onclick="cambiarEstadoVenta(' + v.id + ',\'cancelada\')">Cancelar</button></div>';
+  1223→  }
+  1224→
+  1225→  openModal('Venta #' + v.id, body);
+  1226→}
+  1227→
+  1228→function cambiarEstadoVenta(id, nuevoEstado) {
+  1229→  var db = getDB();
+  1230→  var venta = db.ventas.find(function(v) { return v.id === id; });
+  1231→  if (!venta) return;
+  1232→
+  1233→  var estadoAnterior = venta.estado;
+  1234→  venta.estado = nuevoEstado;
+  1235→
+  1236→  // If cancelled and was completed/tienda, restore stock
+  1237→  if (nuevoEstado === 'cancelada' && (estadoAnterior === 'completada' || estadoAnterior === 'pendiente')) {
+  1238→    (venta.items || []).forEach(function(it) {
+  1239→      if (it.tipo === 'especia') {
+  1240→        var prod = db.productos.find(function(p) { return p.id === it.id; });
+  1241→        if (prod) { prod.stock += it.cantidad; prod.actualizadoEn = new Date().toISOString(); }
+  1242→      } else if (it.tipo === 'blend') {
+  1243→        var blend = db.blends.find(function(b) { return b.id === it.id; });
+  1244→        if (blend) { blend.stock += it.cantidad; blend.actualizadoEn = new Date().toISOString(); }
+  1245→      }
+  1246→    });
+  1247→    addMovimiento('ajuste', 'ventas', venta.id, 'Devolución', 0, 'Venta #' + id + ' cancelada - stock restaurado');
+  1248→  }
+  1249→
+  1250→  saveDB();
+  1251→  closeModal();
+  1252→  renderVentas();
+  1253→  toast('Venta actualizada');
+  1254→}
+  1255→
+  1256→function toggleTiendaOrders() {
+  1257→  ventasFilter = 'pendiente';
+  1258→  renderVentas();
+  1259→}
+  1260→
+  1261→// =====================================================
+  1262→//  USUARIOS (Admin only)
+  1263→// =====================================================
+  1264→function renderUsuarios() {
+  1265→  if (!currentUser || currentUser.rol !== 'admin') return;
+  1266→  var db = getDB();
+  1267→  var el = document.getElementById('page-usuarios');
+  1268→  var usuarios = db.usuarios || [];
+  1269→
+  1270→  var html = '<h1 class="page-title">Usuarios</h1>';
+  1271→  html += '<div class="actions-row"><button class="btn btn-gold" onclick="modalNuevoUsuario()">+ Nuevo Usuario</button></div>';
+  1272→
+  1273→  html += '<div class="g3">';
+  1274→  usuarios.forEach(function(u) {
+  1275→    var roleLabel = u.rol === 'admin' ? 'Admin' : (u.rol === 'operador' ? 'Operador' : 'Vendedor');
+  1276→    var roleBadge = u.rol === 'admin' ? 'ba' : (u.rol === 'operador' ? 'bg' : 'by');
+  1277→    html += '<div class="card">' +
+  1278→      '<div class="flex justify-between items-center mb-12"><div class="user-avatar" style="width:42px;height:42px;font-size:1.2rem">' + esc(u.nombre.charAt(0)) + '</div>' +
+  1279→      '<span class="badge ' + roleBadge + '">' + roleLabel + '</span></div>' +
+  1280→      '<div class="fw7 mb-8" style="font-size:1rem">' + esc(u.nombre) + '</div>' +
+  1281→      '<div class="text-xs text-muted mb-12">PIN: ' + esc(u.pin) + ' &bull; ' + (u.activo ? '<span class="text-green">Activo</span>' : '<span class="text-red">Inactivo</span>') + '</div>' +
+  1282→      '<div class="flex gap-8">' +
+  1283→        '<button class="btn btn-ghost btn-sm" onclick="modalEditarUsuario(' + u.id + ')">Editar</button>' +
+  1284→        (u.rol !== 'admin' ? '<button class="btn btn-red btn-sm" onclick="toggleUsuarioActivo(' + u.id + ')">' + (u.activo ? 'Desactivar' : 'Activar') + '</button>' : '') +
+  1285→      '</div></div>';
+  1286→  });
+  1287→  html += '</div>';
+  1288→
+  1289→  el.innerHTML = html;
+  1290→}
+  1291→
+  1292→function usuarioFormHTML(u) {
+  1293→  u = u || {};
+  1294→  return '<div class="fr">' +
+  1295→    '<div><label>Nombre</label><input id="usr-nombre" value="' + esc(u.nombre || '') + '" placeholder="Nombre"></div>' +
+  1296→    '<div><label>PIN (4 dígitos)</label><input id="usr-pin" value="' + esc(u.pin || '') + '" maxlength="4" placeholder="1234"></div></div>' +
+  1297→    '<div class="fr1" style="margin-bottom:12px"><label>Rol</label><select id="usr-rol">' + optHtml(ROLES, u.rol || 'operador') + '</select></div>' +
+  1298→    (u.id ? '<div class="fr1" style="margin-bottom:12px"><label>Estado</label><select id="usr-activo"><option value="1"' + (u.activo !== false ? ' selected' : '') + '>Activo</option><option value="0"' + (u.activo === false ? ' selected' : '') + '>Inactivo</option></select></div>' : '') +
+  1299→    '<div id="usr-alert" class="alert alert-err"></div>' +
+  1300→    '<button class="btn btn-gold btn-full" onclick="guardarUsuario(' + (u.id || 0) + ')">' + (u.id ? 'Actualizar' : 'Crear') + ' Usuario</button>';
+  1301→}
+  1302→
+  1303→function modalNuevoUsuario() {
+  1304→  openModal('Nuevo Usuario', usuarioFormHTML(null));
+  1305→}
+  1306→
+  1307→function modalEditarUsuario(id) {
+  1308→  var db = getDB();
+  1309→  var u = db.usuarios.find(function(x) { return x.id === id; });
+  1310→  if (!u) return;
+  1311→  openModal('Editar Usuario', usuarioFormHTML(u));
+  1312→}
+  1313→
+  1314→function guardarUsuario(existingId) {
+  1315→  var nombre = document.getElementById('usr-nombre').value.trim();
+  1316→  var pin = document.getElementById('usr-pin').value.trim();
+  1317→  var rol = document.getElementById('usr-rol').value;
+  1318→  var alertEl = document.getElementById('usr-alert');
+  1319→
+  1320→  if (!nombre || !pin) {
+  1321→    alertEl.textContent = 'Nombre y PIN son obligatorios';
+  1322→    alertEl.className = 'alert alert-err show';
+  1323→    return;
+  1324→  }
+  1325→  if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+  1326→    alertEl.textContent = 'El PIN debe ser exactamente 4 dígitos';
+  1327→    alertEl.className = 'alert alert-err show';
+  1328→    return;
+  1329→  }
+  1330→
+  1331→  var db = getDB();
+  1332→
+  1333→  if (existingId) {
+  1334→    var usr = db.usuarios.find(function(u) { return u.id === existingId; });
+  1335→    if (usr) {
+  1336→      usr.nombre = nombre; usr.pin = pin; usr.rol = rol;
+  1337→      var activoEl = document.getElementById('usr-activo');
+  1338→      if (activoEl) usr.activo = activoEl.value === '1';
+  1339→    }
+  1340→  } else {
+  1341→    db.usuarios.push({
+  1342→      id: nextId(), nombre: nombre, pin: pin, rol: rol,
+  1343→      activo: true, creadoEn: new Date().toISOString()
+  1344→    });
+  1345→  }
+  1346→
+  1347→  saveDB();
+  1348→  closeModal();
+  1349→  renderUsuarios();
+  1350→  toast(existingId ? 'Usuario actualizado' : 'Usuario creado');
+  1351→}
+  1352→
+  1353→function toggleUsuarioActivo(id) {
+  1354→  var db = getDB();
+  1355→  var usr = db.usuarios.find(function(u) { return u.id === id; });
+  1356→  if (!usr) return;
+  1357→  usr.activo = !usr.activo;
+  1358→  saveDB();
+  1359→  renderUsuarios();
+  1360→  toast(usr.nombre + (usr.activo ? ' activado' : ' desactivado'));
+  1361→}
+  1362→
+  1363→// =====================================================
+  1364→//  AJUSTES
+  1365→// =====================================================
+  1366→function renderAjustes() {
+  1367→  var el = document.getElementById('page-ajustes');
+  1368→  var db = getDB();
+  1369→
+  1370→  var html = '<h1 class="page-title">Ajustes</h1>';
+  1371→
+  1372→  // Sync status
+  1373→  html += '<div class="section-title mb-12">Sincronización Firebase</div>';
+  1374→  html += '<div class="card mb-20">' +
+  1375→    '<div class="flex items-center gap-12 mb-12"><span id="ajustes-conn-badge" class="badge ' + (fbIsConnected() ? 'bg' : 'br') + '">' + (fbIsConnected() ? 'Conectado' : 'Desconectado') + '</span>' +
+  1376→    '<span class="text-sm text-muted">Firebase Realtime Database</span></div>' +
+  1377→    '<div class="flex gap-8">' +
+  1378→      '<button class="btn btn-ghost btn-sm" onclick="fbForceReload()">Forzar Sincronización</button>' +
+  1379→      '<button class="btn btn-red btn-sm" onclick="fbClearRemote()">Borrar Datos Remotos</button></div></div>';
+  1380→
+  1381→  // Import / Export
+  1382→  html += '<div class="section-title mb-12">Importar / Exportar Excel</div>';
+  1383→  html += '<div class="card mb-20">';
+  1384→  html += '<div class="mb-12"><label style="margin-bottom:8px">Importar catálogo desde Excel</label>' +
+  1385→    '<div class="text-xs text-muted mb-8">Columnas esperadas: Blend (nombre), Categoría, Origen, Uso Principal, Perfil. Los productos se crean como tipo "especia" con precio $0. Luego editás los precios y stock.</div>' +
+  1386→    '<input type="file" id="import-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelImport(this)">' +
+  1387→    '<button class="btn btn-gold btn-sm" onclick="document.getElementById(\'import-excel-input\').click()">Seleccionar Archivo Excel</button></div>';
+  1388→  html += '<hr class="divider">';
+  1389→  html += '<div class="flex gap-8" style="flex-wrap:wrap">';
+  1390→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'productos\')">Exportar Productos</button>';
+  1391→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'blends\')">Exportar Blends</button>';
+  1392→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'ventas\')">Exportar Ventas</button>';
+  1393→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'stock\')">Exportar Stock</button>';
+  1394→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'todo\')">Exportar Todo</button>';
+  1395→  html += '</div></div>';
+  1396→
+  1397→  // Data summary
+  1398→  html += '<div class="section-title mb-12">Resumen de Datos</div>';
+  1399→  html += '<div class="card mb-20">';
+  1400→  var collections = [
+  1401→    { name: 'Productos', count: (db.productos || []).length },
+  1402→    { name: 'Compras', count: (db.compras || []).length },
+  1403→    { name: 'Blends', count: (db.blends || []).length },
+  1404→    { name: 'Ventas', count: (db.ventas || []).length },
+  1405→    { name: 'Usuarios', count: (db.usuarios || []).length },
+  1406→    { name: 'Movimientos', count: (db.movimientos || []).length }
+  1407→  ];
+  1408→  collections.forEach(function(c) {
+  1409→    html += '<div class="mov-row"><span>' + esc(c.name) + '</span><span class="text-gold fw7">' + c.count + ' registros</span></div>';
+  1410→  });
+  1411→  html += '</div>';
+  1412→
+  1413→  // Danger zone
+  1414→  if (currentUser && currentUser.rol === 'admin') {
+  1415→    html += '<div class="section-title mb-12">Zona de Peligro</div>';
+  1416→    html += '<div class="card" style="border-color:var(--red)">' +
+  1417→      '<div class="text-sm mb-12">Estas acciones no se pueden deshacer</div>' +
+  1418→      '<div class="flex gap-8">' +
+  1419→        '<button class="btn btn-red btn-sm" onclick="resetearMovimientos()">Limpiar Movimientos</button>' +
+  1420→        '<button class="btn btn-red btn-sm" onclick="resetearTodo()">Resetear Todo</button></div></div>';
+  1421→  }
+  1422→
+  1423→  el.innerHTML = html;
+  1424→}
+  1425→
+  1426→// =====================================================
+  1427→//  EXCEL IMPORT
+  1428→// =====================================================
+  1429→function handleExcelImport(input) {
+  1430→  var file = input.files[0];
+  1431→  if (!file) return;
+  1432→
+  1433→  var reader = new FileReader();
+  1434→  reader.onload = function(e) {
+  1435→    try {
+  1436→      var data = new Uint8Array(e.target.result);
+  1437→      var workbook = XLSX.read(data, { type: 'array' });
+  1438→      var firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+  1439→      var rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+  1440→
+  1441→      if (rows.length === 0) {
+  1442→        toast('El archivo está vacío', 'err');
+  1443→        return;
+  1444→      }
+  1445→
+  1446→      // Detect column mapping
+  1447→      var headers = Object.keys(rows[0]);
+  1448→      var colMap = detectColumnMap(headers);
+  1449→
+  1450→      if (!colMap.nombre) {
+  1451→        toast('No se encontró columna de nombre (Blend/Nombre/Producto)', 'err');
+  1452→        return;
+  1453→      }
+  1454→
+  1455→      // Show preview before importing
+  1456→      showImportPreview(rows, colMap);
+  1457→
+  1458→    } catch(err) {
+  1459→      toast('Error al leer el archivo: ' + err.message, 'err');
+  1460→      console.error('[Import]', err);
+  1461→    }
+  1462→  };
+  1463→  reader.readAsArrayBuffer(file);
+  1464→  input.value = ''; // Reset so same file can be re-selected
+  1465→}
+  1466→
+  1467→function detectColumnMap(headers) {
+  1468→  var map = { nombre: null, categoria: null, origen: null, uso: null, perfil: null, precioCosto: null, precioVenta: null, stock: null, unidad: null };
+  1469→
+  1470→  headers.forEach(function(h) {
+  1471→    var hl = h.toLowerCase().trim();
+  1472→    if (['blend', 'nombre', 'producto', 'name', 'especia', 'item'].indexOf(hl) !== -1) map.nombre = h;
+  1473→    else if (['categoría', 'categoria', 'category', 'tipo', 'type'].indexOf(hl) !== -1) map.categoria = h;
+  1474→    else if (['origen', 'origin', 'país', 'pais', 'procedencia'].indexOf(hl) !== -1) map.origen = h;
+  1475→    else if (['uso principal', 'uso', 'use', 'aplicación', 'aplicacion'].indexOf(hl) !== -1) map.uso = h;
+  1476→    else if (['perfil', 'profile', 'sabor', 'flavor'].indexOf(hl) !== -1) map.perfil = h;
+  1477→    else if (['precio costo', 'costo', 'precio_compra', 'cost', 'precio de costo'].indexOf(hl) !== -1) map.precioCosto = h;
+  1478→    else if (['precio venta', 'venta', 'precio', 'price', 'precio de venta'].indexOf(hl) !== -1) map.precioVenta = h;
+  1479→    else if (['stock', 'cantidad', 'inventario', 'inventory', 'existencia'].indexOf(hl) !== -1) map.stock = h;
+  1480→    else if (['unidad', 'unit', 'medida', 'um'].indexOf(hl) !== -1) map.unidad = h;
+  1481→  });
+  1482→
+  1483→  return map;
+  1484→}
+  1485→
+  1486→function showImportPreview(rows, colMap) {
+  1487→  var previewRows = rows.slice(0, 8);
+  1488→  var html = '<p class="text-sm text-muted mb-12">Se encontraron <strong class="text-gold">' + rows.length + '</strong> filas. Columnas detectadas:' +
+  1489→    '<br>Nombre: <strong>' + esc(colMap.nombre || '-') + '</strong>' +
+  1490→    (colMap.categoria ? ' | Categoría: <strong>' + esc(colMap.categoria) + '</strong>' : '') +
+  1491→    (colMap.origen ? ' | Origen: <strong>' + esc(colMap.origen) + '</strong>' : '') +
+  1492→    (colMap.uso ? ' | Uso: <strong>' + esc(colMap.uso) + '</strong>' : '') +
+  1493→    (colMap.perfil ? ' | Perfil: <strong>' + esc(colMap.perfil) + '</strong>' : '') +
+  1494→    (colMap.precioCosto ? ' | Costo: <strong>' + esc(colMap.precioCosto) + '</strong>' : '') +
+  1495→    (colMap.precioVenta ? ' | Venta: <strong>' + esc(colMap.precioVenta) + '</strong>' : '') +
+  1496→    (colMap.stock ? ' | Stock: <strong>' + esc(colMap.stock) + '</strong>' : '') +
+  1497→    '</p>';
+  1498→
+  1499→  html += '<div class="tw mb-16"><table><tr><th>Nombre</th><th>Categoría</th><th>Origen</th><th>Uso</th><th>Perfil</th></tr>';
+  1500→  previewRows.forEach(function(r) {
+  1501→    html += '<tr><td>' + esc(r[colMap.nombre] || '') + '</td>' +
+  1502→      '<td>' + esc(r[colMap.categoria] || '') + '</td>' +
+  1503→      '<td>' + esc(r[colMap.origen] || '') + '</td>' +
+  1504→      '<td>' + esc(r[colMap.uso] || '') + '</td>' +
+  1505→      '<td>' + esc(r[colMap.perfil] || '') + '</td></tr>';
+  1506→  });
+  1507→  if (rows.length > 8) html += '<tr><td colspan="5" class="text-muted text-center">... y ' + (rows.length - 8) + ' más</td></tr>';
+  1508→  html += '</table></div>';
+  1509→
+  1510→  html += '<div class="fr1" style="margin-bottom:12px"><label>Tipo de producto</label>' +
+  1511→    '<select id="import-tipo">' + optHtml(PRODUCT_TYPES, 'especia') + '</select></div>';
+  1512→
+  1513→  html += '<div class="fr"><label>Si el producto ya existe (por nombre):</label></div>';
+  1514→  html += '<div class="fr mb-12"><label></label>' +
+  1515→    '<select id="import-dupes"><option value="skip">Ignorar duplicados</option>' +
+  1516→    '<option value="update">Actualizar existentes</option>' +
+  1517→    '<option value="overwrite">Reemplazar todo</option></select></div>';
+  1518→
+  1519→  html += '<div id="import-alert" class="alert alert-err"></div>';
+  1520→  html += '<button class="btn btn-gold btn-full" onclick="executeImport()">Importar ' + rows.length + ' Productos</button>';
+  1521→
+  1522→  // Store for later use
+  1523→  window._importRows = rows;
+  1524→  window._importColMap = colMap;
+  1525→
+  1526→  openModal('Vista Previa de Importación', html);
+  1527→}
+  1528→
+  1529→function executeImport() {
+  1530→  var rows = window._importRows;
+  1531→  var colMap = window._importColMap;
+  1532→  var tipo = document.getElementById('import-tipo').value;
+  1533→  var dupeAction = document.getElementById('import-dupes').value;
+  1534→  var alertEl = document.getElementById('import-alert');
+  1535→
+  1536→  if (!rows || rows.length === 0) return;
+  1537→
+  1538→  var db = getDB();
+  1539→  var now = new Date().toISOString();
+  1540→  var imported = 0, updated = 0, skipped = 0;
+  1541→
+  1542→  // If overwrite, clear existing products of this type
+  1543→  if (dupeAction === 'overwrite') {
+  1544→    var before = db.productos.length;
+  1545→    db.productos = db.productos.filter(function(p) { return p.tipo !== tipo; });
+  1546→    toast('Eliminados ' + (before - db.productos.length) + ' productos de tipo ' + tipo);
+  1547→  }
+  1548→
+  1549→  rows.forEach(function(r) {
+  1550→    var nombre = String(r[colMap.nombre] || '').trim();
+  1551→    if (!nombre) return;
+  1552→
+  1553→    var existing = db.productos.find(function(p) {
+  1554→      return p.nombre.toLowerCase() === nombre.toLowerCase() && p.tipo === tipo;
+  1555→    });
+  1556→
+  1557→    if (existing) {
+  1558→      if (dupeAction === 'skip') { skipped++; return; }
+  1559→      // Update existing
+  1560→      if (colMap.categoria) existing.categoria = String(r[colMap.categoria] || '').trim();
+  1561→      if (colMap.origen) existing.origen = String(r[colMap.origen] || '').trim();
+  1562→      if (colMap.uso) existing.usoPrincipal = String(r[colMap.uso] || '').trim();
+  1563→      if (colMap.perfil) existing.perfil = String(r[colMap.perfil] || '').trim();
+  1564→      if (colMap.precioCosto) existing.precioCosto = parseFloat(r[colMap.precioCosto]) || existing.precioCosto;
+  1565→      if (colMap.precioVenta) existing.precioVenta = parseFloat(r[colMap.precioVenta]) || existing.precioVenta;
+  1566→      if (colMap.stock) existing.stock = parseFloat(r[colMap.stock]) || existing.stock;
+  1567→      if (colMap.unidad) existing.unidad = String(r[colMap.unidad] || '').trim();
+  1568→      existing.actualizadoEn = now;
+  1569→      updated++;
+  1570→    } else {
+  1571→      var notas = [];
+  1572→      if (colMap.uso) notas.push('Uso: ' + String(r[colMap.uso] || '').trim());
+  1573→      if (colMap.perfil) notas.push('Perfil: ' + String(r[colMap.perfil] || '').trim());
+  1574→
+  1575→      var prod = {
+  1576→        id: nextId(),
+  1577→        nombre: nombre,
+  1578→        tipo: tipo,
+  1579→        unidad: colMap.unidad ? String(r[colMap.unidad] || 'gr').trim() : 'gr',
+  1580→        precioCosto: colMap.precioCosto ? (parseFloat(r[colMap.precioCosto]) || 0) : 0,
+  1581→        precioVenta: colMap.precioVenta ? (parseFloat(r[colMap.precioVenta]) || 0) : 0,
+  1582→        stock: colMap.stock ? (parseFloat(r[colMap.stock]) || 0) : 0,
+  1583→        stockMin: 0,
+  1584→        proveedor: '',
+  1585→        notas: notas.join(' | '),
+  1586→        categoria: colMap.categoria ? String(r[colMap.categoria] || '').trim() : '',
+  1587→        origen: colMap.origen ? String(r[colMap.origen] || '').trim() : '',
+  1588→        usoPrincipal: colMap.uso ? String(r[colMap.uso] || '').trim() : '',
+  1589→        perfil: colMap.perfil ? String(r[colMap.perfil] || '').trim() : '',
+  1590→        creadoEn: now,
+  1591→        actualizadoEn: now
+  1592→      };
+  1593→      db.productos.push(prod);
+  1594→      imported++;
+  1595→    }
+  1596→  });
+  1597→
+  1598→  saveDB();
+  1599→  closeModal();
+  1600→  renderAjustes();
+  1601→  toast('Importados: ' + imported + ' | Actualizados: ' + updated + ' | Ignorados: ' + skipped);
+  1602→}
+  1603→
+  1604→// =====================================================
+  1605→//  EXCEL EXPORT
+  1606→// =====================================================
+  1607→function exportarExcel(tipo) {
+  1608→  var db = getDB();
+  1609→  var wb = XLSX.utils.book_new();
+  1610→  var fecha = new Date().toISOString().split('T')[0];
+  1611→
+  1612→  if (tipo === 'productos' || tipo === 'todo') {
+  1613→    var prods = (db.productos || []).map(function(p) {
+  1614→      return {
+  1615→        'ID': p.id,
+  1616→        'Nombre': p.nombre,
+  1617→        'Tipo': p.tipo,
+  1618→        'Categoría': p.categoria || '',
+  1619→        'Origen': p.origen || '',
+  1620→        'Uso Principal': p.usoPrincipal || '',
+  1621→        'Perfil': p.perfil || '',
+  1622→        'Unidad': p.unidad,
+  1623→        'Precio Costo': p.precioCosto || 0,
+  1624→        'Precio Venta': p.precioVenta || 0,
+  1625→        'Stock': p.stock || 0,
+  1626→        'Stock Mínimo': p.stockMin || 0,
+  1627→        'Proveedor': p.proveedor || '',
+  1628→        'Notas': p.notas || ''
+  1629→      };
+  1630→    });
+  1631→    var wsProd = XLSX.utils.json_to_sheet(prods);
+  1632→    wsProd['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 24 }, { wch: 18 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 30 }];
+  1633→    XLSX.utils.book_append_sheet(wb, wsProd, 'Productos');
+  1634→  }
+  1635→
+  1636→  if (tipo === 'blends' || tipo === 'todo') {
+  1637→    var blends = (db.blends || []).map(function(b) {
+  1638→      var recetaStr = (b.receta || []).map(function(r) { return r.nombre + ' (' + r.cantidad + r.unidad + ')'; }).join(', ');
+  1639→      return {
+  1640→        'ID': b.id,
+  1641→        'Nombre': b.nombre,
+  1642→        'Descripción': b.descripcion || '',
+  1643→        'Receta': recetaStr,
+  1644→        'Costo Unitario': b.costoUnitario || calcBlendCost(b),
+  1645→        'Precio Venta': b.precioVenta || 0,
+  1646→        'Stock': b.stock || 0
+  1647→      };
+  1648→    });
+  1649→    var wsBlend = XLSX.utils.json_to_sheet(blends);
+  1650→    wsBlend['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 30 }, { wch: 60 }, { wch: 16 }, { wch: 14 }, { wch: 10 }];
+  1651→    XLSX.utils.book_append_sheet(wb, wsBlend, 'Blends');
+  1652→  }
+  1653→
+  1654→  if (tipo === 'ventas' || tipo === 'todo') {
+  1655→    var ventas = (db.ventas || []).map(function(v) {
+  1656→      var itemsStr = (v.items || []).map(function(i) { return i.nombre + ' x' + i.cantidad + ' (' + fmt(i.subtotal) + ')'; }).join(', ');
+  1657→      return {
+  1658→        'ID': v.id,
+  1659→        'Fecha': fmtDateTime(v.fecha || v.creadoEn),
+  1660→        'Tipo': v.tipo === 'tienda' ? 'Tienda' : 'Mostrador',
+  1661→        'Cliente': v.clienteNombre || '',
+  1662→        'Teléfono': v.clienteTelefono || '',
+  1663→        'Dirección': v.clienteDireccion || '',
+  1664→        'Items': itemsStr,
+  1665→        'Total': v.total || 0,
+  1666→        'Estado': v.estado || '',
+  1667→        'Creado Por': v.creadoPor || ''
+  1668→      };
+  1669→    });
+  1670→    var wsVentas = XLSX.utils.json_to_sheet(ventas);
+  1671→    wsVentas['!cols'] = [{ wch: 6 }, { wch: 18 }, { wch: 12 }, { wch: 20 }, { wch: 16 }, { wch: 24 }, { wch: 60 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+  1672→    XLSX.utils.book_append_sheet(wb, wsVentas, 'Ventas');
+  1673→  }
+  1674→
+  1675→  if (tipo === 'stock' || tipo === 'todo') {
+  1676→    var stockRows = [];
+  1677→    (db.productos || []).forEach(function(p) {
+  1678→      var estado = p.stock <= (p.stockMin || 0) ? 'BAJO' : 'OK';
+  1679→      stockRows.push({
+  1680→        'Nombre': p.nombre,
+  1681→        'Tipo': p.tipo,
+  1682→        'Categoría': p.categoria || '',
+  1683→        'Stock Actual': p.stock || 0,
+  1684→        'Unidad': p.unidad,
+  1685→        'Stock Mínimo': p.stockMin || 0,
+  1686→        'Estado': estado,
+  1687→        'Precio Venta': p.precioVenta || 0,
+  1688→        'Valor en Stock': (p.stock || 0) * (p.precioCosto || 0)
+  1689→      });
+  1690→    });
+  1691→    (db.blends || []).forEach(function(b) {
+  1692→      stockRows.push({
+  1693→        'Nombre': b.nombre,
+  1694→        'Tipo': 'Blend',
+  1695→        'Categoría': '',
+  1696→        'Stock Actual': b.stock || 0,
+  1697→        'Unidad': 'unidad',
+  1698→        'Stock Mínimo': 0,
+  1699→        'Estado': b.stock > 0 ? 'OK' : 'SIN STOCK',
+  1700→        'Precio Venta': b.precioVenta || 0,
+  1701→        'Valor en Stock': (b.stock || 0) * (b.costoUnitario || 0)
+  1702→      });
+  1703→    });
+  1704→    var wsStock = XLSX.utils.json_to_sheet(stockRows);
+  1705→    wsStock['!cols'] = [{ wch: 30 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }];
+  1706→    XLSX.utils.book_append_sheet(wb, wsStock, 'Stock');
+  1707→  }
+  1708→
+  1709→  if (tipo === 'todo') {
+  1710→    // Also add a summary sheet
+  1711→    var totalVentas = (db.ventas || []).filter(function(v) { return v.estado !== 'cancelada'; }).reduce(function(s, v) { return s + (v.total || 0); }, 0);
+  1712→    var totalCompras = (db.compras || []).filter(function(c) { return c.estado === 'recibida'; }).reduce(function(s, c) { return s + (c.total || 0); }, 0);
+  1713→    var summary = [
+  1714→      { 'Métrica': 'Total Productos', 'Valor': (db.productos || []).length },
+  1715→      { 'Métrica': 'Total Blends', 'Valor': (db.blends || []).length },
+  1716→      { 'Métrica': 'Total Ventas', 'Valor': (db.ventas || []).length },
+  1717→      { 'Métrica': 'Total Compras', 'Valor': (db.compras || []).length },
+  1718→      { 'Métrica': 'Ventas ($)', 'Valor': totalVentas },
+  1719→      { 'Métrica': 'Compras ($)', 'Valor': totalCompras },
+  1720→      { 'Métrica': 'Fecha Exportación', 'Valor': fecha }
+  1721→    ];
+  1722→    var wsSum = XLSX.utils.json_to_sheet(summary);
+  1723→    wsSum['!cols'] = [{ wch: 24 }, { wch: 18 }];
+  1724→    XLSX.utils.book_append_sheet(wb, wsSum, 'Resumen');
+  1725→  }
+  1726→
+  1727→  var fileName = 'Arcano_' + tipo + '_' + fecha + '.xlsx';
+  1728→  XLSX.writeFile(wb, fileName);
+  1729→  toast('Excel descargado: ' + fileName);
+  1730→}
+  1731→
+  1732→function resetearMovimientos() {
+  1733→  if (!confirm('Borrar todos los movimientos?')) return;
+  1734→  var db = getDB();
+  1735→  db.movimientos = [];
+  1736→  saveDB();
+  1737→  renderAjustes();
+  1738→  toast('Movimientos eliminados');
+  1739→}
+  1740→
+  1741→function resetearTodo() {
+  1742→  if (!confirm('ATENCIÓN: Esto borrará TODOS los datos y reiniciará el sistema. Continuar?')) return;
+  1743→  localStorage.removeItem(DB_KEY);
+  1744→  _idC = 0;
+  1745→  currentUser = null;
+  1746→  sessionStorage.removeItem('arcano_user');
+  1747→  location.reload();
+  1748→}

@@ -1,0 +1,891 @@
+  1600→    var spice = null;
+  1601→    db.productos.forEach(function(p) { if (p.id == ing.productoId) spice = p; });
+  1602→    if (!spice) { allOk = false; return; }
+  1603→    var needed = (ing.gramos || 0) * cantidad;
+  1604→    if ((spice.stock || 0) < needed) allOk = false;
+  1605→  });
+  1606→
+  1607→  if (!allOk) {
+  1608→    var alertEl = document.getElementById('prod-alert');
+  1609→    if (alertEl) { alertEl.textContent = 'Stock insuficiente para producir ' + cantidad + ' unidades'; alertEl.classList.add('show'); }
+  1610→    return;
+  1611→  }
+  1612→
+  1613→  receta.forEach(function(ing) {
+  1614→    var spice = null;
+  1615→    db.productos.forEach(function(p) { if (p.id == ing.productoId) spice = p; });
+  1616→    if (!spice) return;
+  1617→    var needed = (ing.gramos || 0) * cantidad;
+  1618→    spice.stock = Math.round(((spice.stock || 0) - needed) * 100) / 100;
+  1619→    addMovimiento('produccion', spice.id, spice.nombre, -needed,
+  1620→      'Produccion: ' + blend.nombre + ' x' + cantidad + ' (' + needed.toFixed(1) + 'gr)');
+  1621→  });
+  1622→
+  1623→  blend.stock = (blend.stock || 0) + cantidad;
+  1624→
+  1625→  saveDB();
+  1626→  closeModal();
+  1627→  refreshPage();
+  1628→  toast('Producidas ' + cantidad + ' unidades de ' + blend.nombre);
+  1629→}
+  1630→
+  1631→// ==================== 7. VENTAS (POS) ====================
+  1632→
+  1633→var ventasFilter = 'todos';
+  1634→var ventaActual = null;
+  1635→
+  1636→function dbFindProduct(id) {
+  1637→  var found = null;
+  1638→  (getDB().productos || []).forEach(function(p) { if (p.id == id) found = p; });
+  1639→  return found;
+  1640→}
+  1641→
+  1642→function dbFindBlend(id) {
+  1643→  var found = null;
+  1644→  (getDB().blends || []).forEach(function(b) { if (b.id === id) found = b; });
+  1645→  return found;
+  1646→}
+  1647→
+  1648→function renderVentas() {
+  1649→  var el = document.getElementById('page-ventas');
+  1650→  if (!el) return;
+  1651→  var db = getDB();
+  1652→  var ventas = (db.ventas || []).slice().reverse();
+  1653→
+  1654→  var html = '<h2 class="page-title">Ventas</h2>' +
+  1655→    '<div class="actions-row">' +
+  1656→      '<button class="btn btn-gold btn-sm" onclick="iniciarNuevaVenta()">+ Nueva Venta</button>' +
+  1657→      '<button class="btn btn-sm" onclick="toggleTiendaOrders()">Pedidos de Tienda</button>' +
+  1658→    '</div>';
+  1659→
+  1660→  if (ventaActual) {
+  1661→    html += renderVentaActiva();
+  1662→  }
+  1663→
+  1664→  var tabs = [
+  1665→    { val: 'todos', label: 'Todas' },
+  1666→    { val: 'pendiente', label: 'Pendiente' },
+  1667→    { val: 'completada', label: 'Completada' },
+  1668→    { val: 'cancelada', label: 'Cancelada' }
+  1669→  ];
+  1670→
+  1671→  html += '<div class="tabs mb-12">';
+  1672→  tabs.forEach(function(t) {
+  1673→    var cls = (ventasFilter === t.val) ? 'tab-btn active' : 'tab-btn';
+  1674→    html += '<button class="' + cls + '" onclick="ventasFilter=\'' + t.val + '\';refreshPage()">' + esc(t.label) + '</button>';
+  1675→  });
+  1676→  html += '</div>';
+  1677→
+  1678→  var filtered = ventas;
+  1679→  if (ventasFilter !== 'todos') {
+  1680→    filtered = ventas.filter(function(v) { return v.estado === ventasFilter; });
+  1681→  }
+  1682→
+  1683→  if (!filtered.length) {
+  1684→    html += '<div class="empty"><p>No hay ventas ' + (ventasFilter === 'todos' ? '' : ventasFilter + 's') + '</p></div>';
+  1685→    el.innerHTML = html;
+  1686→    return;
+  1687→  }
+  1688→
+  1689→  html += '<div class="table-wrap"><table>' +
+  1690→    '<thead><tr>' +
+  1691→      '<th>Fecha</th><th>Items</th><th>Total</th><th>Estado</th><th>Acciones</th>' +
+  1692→    '</tr></thead><tbody>';
+  1693→
+  1694→  filtered.forEach(function(v) {
+  1695→    var estadoClass = 'ba';
+  1696→    if (v.estado === 'completada') estadoClass = 'bg';
+  1697→    if (v.estado === 'cancelada') estadoClass = 'br';
+  1698→    if (v.estado === 'pendiente') estadoClass = 'by';
+  1699→
+  1700→    html += '<tr>' +
+  1701→      '<td class="text-xs">' + fmtDateTime(v.fecha) + '</td>' +
+  1702→      '<td>' + (v.items || []).length + '</td>' +
+  1703→      '<td class="fw7">' + fmt(v.total) + '</td>' +
+  1704→      '<td><span class="badge ' + estadoClass + '">' + esc(v.estado || '') + '</span></td>' +
+  1705→      '<td><button class="btn btn-sm" onclick="modalVerVenta(' + v.id + ')">Ver</button></td>' +
+  1706→      '</tr>';
+  1707→  });
+  1708→
+  1709→  html += '</tbody></table></div>';
+  1710→  el.innerHTML = html;
+  1711→}
+  1712→
+  1713→function renderVentaActiva() {
+  1714→  if (!ventaActual) return '';
+  1715→
+  1716→  var total = 0;
+  1717→  var itemsHtml = '';
+  1718→  (ventaActual.items || []).forEach(function(item, idx) {
+  1719→    total += item.subtotal || 0;
+  1720→    itemsHtml += '<div class="mov-row">' +
+  1721→      '<div style="flex:1">' +
+  1722→        '<strong>' + esc(item.nombre) + '</strong>' +
+  1723→        '<span class="text-muted text-xs" style="margin-left:6px">' + fmt(item.precio) + ' x ' + item.cantidad + '</span>' +
+  1724→      '</div>' +
+  1725→      '<span class="fw7">' + fmt(item.subtotal) + '</span>' +
+  1726→      '<button class="btn-icon" onclick="removeVentaItem(' + idx + ')" title="Quitar">&times;</button>' +
+  1727→      '</div>';
+  1728→  });
+  1729→
+  1730→  return '<div class="card-gold mb-16">' +
+  1731→    '<div class="flex justify-between items-center mb-8">' +
+  1732→      '<span class="section-title mb-0">Venta activa</span>' +
+  1733→      '<button class="btn btn-sm btn-ghost" onclick="cancelarVentaActual()">Cancelar</button>' +
+  1734→    '</div>' +
+  1735→    itemsHtml +
+  1736→    '<hr class="divider">' +
+  1737→    '<div class="flex justify-between items-center">' +
+  1738→      '<span class="fw7">Total: ' + fmt(total) + '</span>' +
+  1739→      '<button class="btn btn-gold btn-sm" onclick="completarVenta()">Completar</button>' +
+  1740→    '</div>' +
+  1741→    '</div>';
+  1742→}
+  1743→
+  1744→function iniciarNuevaVenta() {
+  1745→  ventaActual = { items: [] };
+  1746→
+  1747→  var db = getDB();
+  1748→  var especias = [];
+  1749→  db.productos.forEach(function(p) {
+  1750→    if (p.tipo === 'especia' && p.precioVenta > 0 && (p.stock || 0) > 0) especias.push(p);
+  1751→  });
+  1752→  var blends = [];
+  1753→  db.blends.forEach(function(b) {
+  1754→    if ((b.stock || 0) > 0) blends.push(b);
+  1755→  });
+  1756→
+  1757→  var html = '<div class="section-title mb-12">Especias</div>';
+  1758→  if (!especias.length) {
+  1759→    html += '<p class="text-muted mb-12">No hay especias disponibles</p>';
+  1760→  } else {
+  1761→    especias.forEach(function(sp) {
+  1762→      html += '<button class="btn btn-ghost btn-sm mb-8" style="width:100%;text-align:left" onclick="agregarAVenta(\'especia\',' + sp.id + ')">' +
+  1763→        esc(sp.nombre) + ' <span class="text-muted text-xs">' + fmt(sp.precioVenta) + '/gr | Stock: ' + Number(sp.stock || 0) + ' gr</span></button>';
+  1764→    });
+  1765→  }
+  1766→
+  1767→  html += '<hr class="divider"><div class="section-title mb-12">Blends</div>';
+  1768→  if (!blends.length) {
+  1769→    html += '<p class="text-muted mb-12">No hay blends con stock</p>';
+  1770→  } else {
+  1771→    blends.forEach(function(bl) {
+  1772→      html += '<button class="btn btn-ghost btn-sm mb-8" style="width:100%;text-align:left" onclick="agregarAVenta(\'blend\',' + bl.id + ')">' +
+  1773→        esc(bl.nombre) + ' <span class="text-muted text-xs">' + fmt(bl.precioVenta) + ' | Stock: ' + Number(bl.stock || 0) + ' uds</span></button>';
+  1774→    });
+  1775→  }
+  1776→
+  1777→  html += '<hr class="divider">' +
+  1778→    '<button class="btn btn-ghost btn-full mt-12" onclick="closeModal()">Cerrar (Venta en curso)</button>';
+  1779→
+  1780→  openModal('Agregar productos', html);
+  1781→  refreshPage();
+  1782→}
+  1783→
+  1784→function agregarAVenta(tipo, id) {
+  1785→  if (!ventaActual) ventaActual = { items: [] };
+  1786→
+  1787→  if (tipo === 'especia') {
+  1788→    var product = dbFindProduct(id);
+  1789→    if (!product) return;
+  1790→
+  1791→    var existing = null;
+  1792→    ventaActual.items.forEach(function(item) {
+  1793→      if (item.tipo === 'especia' && item.productoId === id) existing = item;
+  1794→    });
+  1795→    if (existing) {
+  1796→      existing.cantidad += 1;
+  1797→      existing.subtotal = existing.cantidad * existing.precio;
+  1798→    } else {
+  1799→      ventaActual.items.push({
+  1800→        tipo: 'especia',
+  1801→        productoId: id,
+  1802→        nombre: product.nombre,
+  1803→        precio: product.precioVenta || 0,
+  1804→        cantidad: 1,
+  1805→        subtotal: product.precioVenta || 0
+  1806→      });
+  1807→    }
+  1808→    toast(product.nombre + ' agregado');
+  1809→    closeModal();
+  1810→    iniciarNuevaVenta();
+  1811→    refreshPage();
+  1812→  } else if (tipo === 'blend') {
+  1813→    if (typeof mostrarSelectorFrasco === 'function') {
+  1814→      mostrarSelectorFrasco(id, 'venta');
+  1815→    } else {
+  1816→      var bl = dbFindBlend(id);
+  1817→      if (!bl) return;
+  1818→      agregarBlendAVenta(id, null, bl.nombre, bl.precioVenta, bl.stock);
+  1819→    }
+  1820→  }
+  1821→}
+  1822→
+  1823→function agregarBlendAVenta(blendId, frascoId, nombre, precio, disponible) {
+  1824→  if (!ventaActual) ventaActual = { items: [] };
+  1825→
+  1826→  var existing = null;
+  1827→  ventaActual.items.forEach(function(item) {
+  1828→    if (item.tipo === 'blend' && item.blendId === blendId && item.frascoId === frascoId) existing = item;
+  1829→  });
+  1830→  if (existing) {
+  1831→    existing.cantidad += 1;
+  1832→    existing.subtotal = existing.cantidad * existing.precio;
+  1833→  } else {
+  1834→    var frascoCost = 0;
+  1835→    var frascoNombre = '';
+  1836→    if (frascoId) {
+  1837→      var frasco = dbFindProduct(frascoId);
+  1838→      if (frasco) {
+  1839→        frascoCost = frasco.precioCosto || 0;
+  1840→        frascoNombre = frasco.nombre;
+  1841→      }
+  1842→    }
+  1843→    ventaActual.items.push({
+  1844→      tipo: 'blend',
+  1845→      blendId: blendId,
+  1846→      frascoId: frascoId,
+  1847→      nombre: nombre,
+  1848→      precio: precio,
+  1849→      frascoCost: frascoCost,
+  1850→      frascoNombre: frascoNombre,
+  1851→      cantidad: 1,
+  1852→      subtotal: precio
+  1853→    });
+  1854→  }
+  1855→  toast(nombre + ' agregado');
+  1856→  closeModal();
+  1857→  iniciarNuevaVenta();
+  1858→  refreshPage();
+  1859→}
+  1860→
+  1861→function removeVentaItem(idx) {
+  1862→  if (!ventaActual || !ventaActual.items) return;
+  1863→  ventaActual.items.splice(idx, 1);
+  1864→  if (ventaActual.items.length === 0) {
+  1865→    ventaActual = null;
+  1866→  }
+  1867→  refreshPage();
+  1868→}
+  1869→
+  1870→function cancelarVentaActual() {
+  1871→  if (!ventaActual) return;
+  1872→  if (!confirm('Cancelar venta actual?')) return;
+  1873→  ventaActual = null;
+  1874→  refreshPage();
+  1875→}
+  1876→
+  1877→function completarVenta() {
+  1878→  if (!ventaActual || !ventaActual.items || !ventaActual.items.length) {
+  1879→    toast('No hay items en la venta', 'err');
+  1880→    return;
+  1881→  }
+  1882→
+  1883→  var db = getDB();
+  1884→  var total = 0;
+  1885→  ventaActual.items.forEach(function(item) { total += item.subtotal || 0; });
+  1886→
+  1887→  var venta = {
+  1888→    id: nextId(),
+  1889→    items: ventaActual.items,
+  1890→    total: total,
+  1891→    estado: 'completada',
+  1892→    tipo: 'mostrador',
+  1893→    creadoPor: currentUser ? currentUser.id : null,
+  1894→    creadoPorNombre: currentUser ? currentUser.nombre : 'Sistema',
+  1895→    fecha: new Date().toISOString()
+  1896→  };
+  1897→
+  1898→  ventaActual.items.forEach(function(item) {
+  1899→    if (item.tipo === 'especia') {
+  1900→      var product = dbFindProduct(item.productoId);
+  1901→      if (product) {
+  1902→        product.stock = Math.round(((product.stock || 0) - item.cantidad) * 100) / 100;
+  1903→        addMovimiento('venta', product.id, product.nombre, -item.cantidad,
+  1904→          'Venta mostrador #' + venta.id);
+  1905→      }
+  1906→    } else if (item.tipo === 'blend') {
+  1907→      var blend = dbFindBlend(item.blendId);
+  1908→      if (blend) {
+  1909→        blend.stock = (blend.stock || 0) - item.cantidad;
+  1910→        addMovimiento('venta', blend.id, blend.nombre, -item.cantidad,
+  1911→          'Venta mostrador #' + venta.id);
+  1912→      }
+  1913→      if (item.frascoId) {
+  1914→        var frasco = dbFindProduct(item.frascoId);
+  1915→        if (frasco) {
+  1916→          frasco.stock = (frasco.stock || 0) - item.cantidad;
+  1917→          addMovimiento('venta', frasco.id, frasco.nombre, -item.cantidad,
+  1918→            'Frasco para venta #' + venta.id);
+  1919→        }
+  1920→      }
+  1921→      if (blend && blend.etiquetaId) {
+  1922→        var etiqueta = dbFindProduct(blend.etiquetaId);
+  1923→        if (etiqueta) {
+  1924→          etiqueta.stock = (etiqueta.stock || 0) - item.cantidad;
+  1925→          addMovimiento('venta', etiqueta.id, etiqueta.nombre, -item.cantidad,
+  1926→            'Etiqueta para venta #' + venta.id);
+  1927→        }
+  1928→      }
+  1929→    }
+  1930→  });
+  1931→
+  1932→  db.ventas.push(venta);
+  1933→  saveDB();
+  1934→  ventaActual = null;
+  1935→  refreshPage();
+  1936→  toast('Venta completada: ' + fmt(total));
+  1937→}
+  1938→
+  1939→function modalVerVenta(id) {
+  1940→  var db = getDB();
+  1941→  var venta = null;
+  1942→  db.ventas.forEach(function(v) { if (v.id === id) venta = v; });
+  1943→  if (!venta) return;
+  1944→
+  1945→  var estadoClass = 'ba';
+  1946→  if (venta.estado === 'completada') estadoClass = 'bg';
+  1947→  if (venta.estado === 'cancelada') estadoClass = 'br';
+  1948→  if (venta.estado === 'pendiente') estadoClass = 'by';
+  1949→
+  1950→  var itemsHtml = '';
+  1951→  (venta.items || []).forEach(function(item) {
+  1952→    itemsHtml += '<div class="mov-row">' +
+  1953→      '<div style="flex:1">' +
+  1954→        '<strong>' + esc(item.nombre) + '</strong>' +
+  1955→        '<span class="text-muted text-xs" style="margin-left:6px">' +
+  1956→          fmt(item.precio) + ' x ' + (item.cantidad || item.qty || 0) +
+  1957→          (item.frascoNombre ? ' (' + esc(item.frascoNombre) + ')' : '') +
+  1958→        '</span>' +
+  1959→      '</div>' +
+  1960→      '<span class="fw7">' + fmt(item.subtotal) + '</span>' +
+  1961→    '</div>';
+  1962→  });
+  1963→
+  1964→  var tipoLabel = venta.tipo === 'tienda' ? 'Tienda' : 'Mostrador';
+  1965→
+  1966→  var buttonsHtml = '';
+  1967→  if (venta.estado === 'pendiente') {
+  1968→    buttonsHtml += '<button class="btn btn-sm" onclick="cambiarEstadoVenta(' + id + ',\'completada\')">Completar</button>' +
+  1969→      '<button class="btn btn-sm btn-danger" onclick="cambiarEstadoVenta(' + id + ',\'cancelada\')">Cancelar</button>';
+  1970→  }
+  1971→
+  1972→  var bodyHtml = '<div class="mb-12">' +
+  1973→    '<span class="badge ' + estadoClass + '">' + esc(venta.estado) + '</span>' +
+  1974→    '<span class="badge ba" style="margin-left:4px">' + esc(tipoLabel) + '</span>' +
+  1975→    '<span class="text-muted text-xs" style="margin-left:8px">' + fmtDateTime(venta.fecha) + '</span>' +
+  1976→    '</div>' +
+  1977→    (venta.creadoPorNombre ? '<div class="text-xs text-muted mb-8">Por: ' + esc(venta.creadoPorNombre) + '</div>' : '') +
+  1978→    itemsHtml +
+  1979→    '<hr class="divider">' +
+  1980→    '<div class="flex justify-between items-center mb-12">' +
+  1981→      '<span class="fw7">Total: ' + fmt(venta.total || 0) + '</span>' +
+  1982→    '</div>' +
+  1983→    '<div class="actions-row">' + buttonsHtml + '</div>';
+  1984→
+  1985→  openModal('Venta #' + id, bodyHtml);
+  1986→}
+  1987→
+  1988→function cambiarEstadoVenta(id, nuevoEstado) {
+  1989→  var db = getDB();
+  1990→  var venta = null;
+  1991→  db.ventas.forEach(function(v) { if (v.id === id) venta = v; });
+  1992→  if (!venta) return;
+  1993→
+  1994→  if (nuevoEstado === 'completada' && venta.estado === 'pendiente' && venta.tipo === 'tienda') {
+  1995→    (venta.items || []).forEach(function(item) {
+  1996→      if (item.tipo === 'especia' || (!item.tipo && !item.isBlend)) {
+  1997→        var productId = item.productoId || item.id;
+  1998→        var product = dbFindProduct(productId);
+  1999→        if (product) {
+  2000→          var qty = item.cantidad || item.qty || 0;
+  2001→          product.stock = Math.round(((product.stock || 0) - qty) * 100) / 100;
+  2002→          addMovimiento('venta', product.id, product.nombre, -qty,
+  2003→            'Venta tienda #' + venta.id);
+  2004→        }
+  2005→      } else if (item.tipo === 'blend' || item.isBlend) {
+  2006→        var blendId = item.blendId || item.id;
+  2007→        var blend = dbFindBlend(blendId);
+  2008→        if (blend) {
+  2009→          var qty = item.cantidad || item.qty || 0;
+  2010→          blend.stock = (blend.stock || 0) - qty;
+  2011→          addMovimiento('venta', blend.id, blend.nombre, -qty,
+  2012→            'Venta tienda #' + venta.id);
+  2013→        }
+  2014→        if (item.frascoId) {
+  2015→          var frasco = dbFindProduct(item.frascoId);
+  2016→          if (frasco) {
+  2017→            var qty = item.cantidad || item.qty || 0;
+  2018→            frasco.stock = (frasco.stock || 0) - qty;
+  2019→            addMovimiento('venta', frasco.id, frasco.nombre, -qty,
+  2020→              'Frasco para venta tienda #' + venta.id);
+  2021→          }
+  2022→        }
+  2023→        if (blend && blend.etiquetaId) {
+  2024→          var etiqueta = dbFindProduct(blend.etiquetaId);
+  2025→          if (etiqueta) {
+  2026→            var qty = item.cantidad || item.qty || 0;
+  2027→            etiqueta.stock = (etiqueta.stock || 0) - qty;
+  2028→            addMovimiento('venta', etiqueta.id, etiqueta.nombre, -qty,
+  2029→              'Etiqueta para venta tienda #' + venta.id);
+  2030→          }
+  2031→        }
+  2032→      }
+  2033→    });
+  2034→  }
+  2035→
+  2036→  if (nuevoEstado === 'cancelada' && venta.estado === 'completada') {
+  2037→    (venta.items || []).forEach(function(item) {
+  2038→      if (item.tipo === 'especia' || (!item.tipo && !item.isBlend)) {
+  2039→        var productId = item.productoId || item.id;
+  2040→        var product = dbFindProduct(productId);
+  2041→        if (product) {
+  2042→          var qty = item.cantidad || item.qty || 0;
+  2043→          product.stock = Math.round(((product.stock || 0) + qty) * 100) / 100;
+  2044→          addMovimiento('devolucion', product.id, product.nombre, qty,
+  2045→            'Cancelacion venta #' + venta.id);
+  2046→        }
+  2047→      } else if (item.tipo === 'blend' || item.isBlend) {
+  2048→        var blendId = item.blendId || item.id;
+  2049→        var blend = dbFindBlend(blendId);
+  2050→        if (blend) {
+  2051→          var qty = item.cantidad || item.qty || 0;
+  2052→          blend.stock = (blend.stock || 0) + qty;
+  2053→          addMovimiento('devolucion', blend.id, blend.nombre, qty,
+  2054→            'Cancelacion venta #' + venta.id);
+  2055→        }
+  2056→        if (item.frascoId) {
+  2057→          var frasco = dbFindProduct(item.frascoId);
+  2058→          if (frasco) {
+  2059→            var qty = item.cantidad || item.qty || 0;
+  2060→            frasco.stock = (frasco.stock || 0) + qty;
+  2061→            addMovimiento('devolucion', frasco.id, frasco.nombre, qty,
+  2062→              'Cancelacion venta #' + venta.id);
+  2063→          }
+  2064→        }
+  2065→        if (blend && blend.etiquetaId) {
+  2066→          var etiqueta = dbFindProduct(blend.etiquetaId);
+  2067→          if (etiqueta) {
+  2068→            var qty = item.cantidad || item.qty || 0;
+  2069→            etiqueta.stock = (etiqueta.stock || 0) + qty;
+  2070→            addMovimiento('devolucion', etiqueta.id, etiqueta.nombre, qty,
+  2071→              'Cancelacion venta #' + venta.id);
+  2072→          }
+  2073→        }
+  2074→      }
+  2075→    });
+  2076→  }
+  2077→
+  2078→  venta.estado = nuevoEstado;
+  2079→  saveDB();
+  2080→  closeModal();
+  2081→  refreshPage();
+  2082→  toast('Venta ' + nuevoEstado);
+  2083→}
+  2084→
+  2085→function toggleTiendaOrders() {
+  2086→  var db = getDB();
+  2087→  var tiendaOrders = [];
+  2088→  db.ventas.forEach(function(v) { if (v.tipo === 'tienda') tiendaOrders.push(v); });
+  2089→
+  2090→  var html = '<div class="section-title mb-12">Pedidos de Tienda</div>';
+  2091→
+  2092→  if (!tiendaOrders.length) {
+  2093→    html += '<div class="empty"><p>No hay pedidos de tienda</p></div>';
+  2094→  } else {
+  2095→    tiendaOrders.slice().reverse().forEach(function(v) {
+  2096→      var estadoClass = 'ba';
+  2097→      if (v.estado === 'completada') estadoClass = 'bg';
+  2098→      if (v.estado === 'cancelada') estadoClass = 'br';
+  2099→      if (v.estado === 'pendiente') estadoClass = 'by';
+  2100→
+  2101→      var itemsPreview = '';
+  2102→      (v.items || []).forEach(function(item) {
+  2103→        itemsPreview += esc(item.nombre) + ' x' + (item.cantidad || item.qty || 1) + ', ';
+  2104→      });
+  2105→      itemsPreview = itemsPreview.replace(/, $/, '');
+  2106→
+  2107→      html += '<div class="card" style="cursor:pointer" onclick="modalVerVenta(' + v.id + ')">' +
+  2108→        '<div class="flex justify-between items-center mb-8">' +
+  2109→          '<span class="text-xs text-muted">' + fmtDateTime(v.fecha) + '</span>' +
+  2110→          '<span class="badge ' + estadoClass + '">' + esc(v.estado) + '</span>' +
+  2111→        '</div>' +
+  2112→        '<div class="text-sm">' + esc(itemsPreview) + '</div>' +
+  2113→        '<div class="fw7 text-gold mt-8">' + fmt(v.total || 0) + '</div>' +
+  2114→      '</div>';
+  2115→    });
+  2116→  }
+  2117→
+  2118→  html += '<hr class="divider mt-12"><button class="btn btn-ghost btn-full mt-12" onclick="refreshPage()">Volver</button>';
+  2119→
+  2120→  openModal('Pedidos de Tienda', html);
+  2121→}
+  2122→
+  2123→// ==================== 8. USUARIOS ====================
+  2124→
+  2125→function renderUsuarios() {
+  2126→  var el = document.getElementById('page-usuarios');
+  2127→  if (!el) return;
+  2128→
+  2129→  if (!currentUser || currentUser.rol !== 'admin') {
+  2130→    el.innerHTML = '<div class="empty"><p>Acceso restringido</p></div>';
+  2131→    return;
+  2132→  }
+  2133→
+  2134→  var db = getDB();
+  2135→  var usuarios = db.usuarios || [];
+  2136→
+  2137→  var html = '<div class="page-header">' +
+  2138→    '<h2>Usuarios</h2>' +
+  2139→    '<button class="btn btn-gold btn-sm" onclick="modalNuevoUsuario(null)">+ Nuevo Usuario</button>' +
+  2140→    '</div>';
+  2141→
+  2142→  if (!usuarios.length) {
+  2143→    html += '<div class="empty"><p>No hay usuarios</p></div>';
+  2144→    el.innerHTML = html;
+  2145→    return;
+  2146→  }
+  2147→
+  2148→  html += '<div class="table-wrap"><table>' +
+  2149→    '<thead><tr>' +
+  2150→      '<th>Nombre</th><th>Rol</th><th>PIN</th><th>Estado</th><th>Acciones</th>' +
+  2151→    '</tr></thead><tbody>';
+  2152→
+  2153→  usuarios.forEach(function(u) {
+  2154→    var rolBadge = 'ba';
+  2155→    if (u.rol === 'admin') rolBadge = 'bg';
+  2156→    if (u.rol === 'vendedor') rolBadge = 'bb';
+  2157→
+  2158→    var estadoBadge = u.activo !== false ? 'bg' : 'br';
+  2159→    var estadoLabel = u.activo !== false ? 'Activo' : 'Inactivo';
+  2160→    var pinMasked = u.pin ? u.pin.charAt(0) + '***' : '-';
+  2161→
+  2162→    html += '<tr>' +
+  2163→      '<td class="fw7">' + esc(u.nombre) + '</td>' +
+  2164→      '<td><span class="badge ' + rolBadge + '">' + esc(u.rol || '') + '</span></td>' +
+  2165→      '<td class="text-muted">' + esc(pinMasked) + '</td>' +
+  2166→      '<td><span class="badge ' + estadoBadge + '">' + esc(estadoLabel) + '</span></td>' +
+  2167→      '<td>' +
+  2168→        '<button class="btn btn-sm" onclick="modalNuevoUsuario(' + u.id + ')">Editar</button> ' +
+  2169→        '<button class="btn btn-sm btn-ghost" onclick="toggleUsuarioActivo(' + u.id + ')">' +
+  2170→          (u.activo !== false ? 'Desactivar' : 'Activar') +
+  2171→        '</button> ' +
+  2172→        '<button class="btn btn-sm btn-danger" onclick="eliminarUsuario(' + u.id + ')">Eliminar</button>' +
+  2173→      '</td>' +
+  2174→      '</tr>';
+  2175→  });
+  2176→
+  2177→  html += '</tbody></table></div>';
+  2178→  el.innerHTML = html;
+  2179→}
+  2180→
+  2181→function modalNuevoUsuario(existingId) {
+  2182→  var user = null;
+  2183→  if (existingId) {
+  2184→    (getDB().usuarios || []).forEach(function(u) { if (u.id === existingId) user = u; });
+  2185→  }
+  2186→
+  2187→  var nombre = user ? esc(user.nombre) : '';
+  2188→  var pin = '';
+  2189→  var rol = user ? (user.rol || 'operador') : 'operador';
+  2190→
+  2191→  var html = '<div class="fr1 mb-12">' +
+  2192→    '<div><label>Nombre</label><input type="text" id="usr-nombre" value="' + nombre + '" placeholder="Nombre del usuario"></div>' +
+  2193→    '<div><label>PIN (4 digitos)</label><input type="password" id="usr-pin" value="' + pin + '" maxlength="4" placeholder="' + (user ? 'Dejar vacio para no cambiar' : '4 digitos') + '"></div>' +
+  2194→    '<div><label>Rol</label><select id="usr-rol">' + optHtml(ROLES, rol) + '</select></div>' +
+  2195→  '</div>' +
+  2196→  '<div class="alert alert-err mb-12" id="usr-alert"></div>' +
+  2197→  '<button class="btn btn-gold btn-full" onclick="guardarUsuario(' + (existingId || 'null') + ')">Guardar</button>';
+  2198→
+  2199→  openModal(existingId ? 'Editar Usuario' : 'Nuevo Usuario', html);
+  2200→}
+  2201→
+  2202→function guardarUsuario(existingId) {
+  2203→  var nombreInput = document.getElementById('usr-nombre');
+  2204→  var pinInput = document.getElementById('usr-pin');
+  2205→  var rolInput = document.getElementById('usr-rol');
+  2206→
+  2207→  var nombre = (nombreInput ? nombreInput.value : '').trim();
+  2208→  var pin = pinInput ? pinInput.value : '';
+  2209→  var rol = rolInput ? rolInput.value : 'operador';
+  2210→
+  2211→  if (!nombre) {
+  2212→    var alertEl = document.getElementById('usr-alert');
+  2213→    if (alertEl) { alertEl.textContent = 'El nombre es obligatorio'; alertEl.classList.add('show'); }
+  2214→    return;
+  2215→  }
+  2216→
+  2217→  if (!existingId && (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin))) {
+  2218→    var alertEl2 = document.getElementById('usr-alert');
+  2219→    if (alertEl2) { alertEl2.textContent = 'El PIN debe ser exactamente 4 digitos'; alertEl2.classList.add('show'); }
+  2220→    return;
+  2221→  }
+  2222→
+  2223→  if (existingId && pin && pin.length > 0 && (!/^\d{4}$/.test(pin))) {
+  2224→    var alertEl3 = document.getElementById('usr-alert');
+  2225→    if (alertEl3) { alertEl3.textContent = 'El PIN debe ser exactamente 4 digitos'; alertEl3.classList.add('show'); }
+  2226→    return;
+  2227→  }
+  2228→
+  2229→  var db = getDB();
+  2230→
+  2231→  if (existingId) {
+  2232→    var user = null;
+  2233→    db.usuarios.forEach(function(u) { if (u.id === existingId) user = u; });
+  2234→    if (user) {
+  2235→      user.nombre = nombre;
+  2236→      user.rol = rol;
+  2237→      if (pin && pin.length === 4) user.pin = pin;
+  2238→    }
+  2239→  } else {
+  2240→    db.usuarios.push({
+  2241→      id: nextId(),
+  2242→      nombre: nombre,
+  2243→      pin: pin,
+  2244→      rol: rol,
+  2245→      activo: true,
+  2246→      creadoEn: new Date().toISOString()
+  2247→    });
+  2248→  }
+  2249→
+  2250→  saveDB();
+  2251→  closeModal();
+  2252→  refreshPage();
+  2253→  toast(existingId ? 'Usuario actualizado' : 'Usuario creado');
+  2254→}
+  2255→
+  2256→function toggleUsuarioActivo(id) {
+  2257→  var db = getDB();
+  2258→  var user = null;
+  2259→  db.usuarios.forEach(function(u) { if (u.id === id) user = u; });
+  2260→  if (!user) return;
+  2261→  if (user.id === (currentUser ? currentUser.id : 0)) {
+  2262→    toast('No puedes desactivarte a ti mismo', 'err');
+  2263→    return;
+  2264→  }
+  2265→  user.activo = !user.activo;
+  2266→  saveDB();
+  2267→  refreshPage();
+  2268→  toast('Usuario ' + (user.activo ? 'activado' : 'desactivado'));
+  2269→}
+  2270→
+  2271→function eliminarUsuario(id) {
+  2272→  if (id === (currentUser ? currentUser.id : 0)) {
+  2273→    toast('No puedes eliminarte a ti mismo', 'err');
+  2274→    return;
+  2275→  }
+  2276→  if (!confirm('Eliminar este usuario?')) return;
+  2277→  var db = getDB();
+  2278→  db.usuarios = db.usuarios.filter(function(u) { return u.id !== id; });
+  2279→  saveDB();
+  2280→  refreshPage();
+  2281→  toast('Usuario eliminado');
+  2282→}
+  2283→
+  2284→// ==================== 9. AJUSTES ====================
+  2285→
+  2286→function renderAjustes() {
+  2287→  var el = document.getElementById('page-ajustes');
+  2288→  if (!el) return;
+  2289→
+  2290→  var isOnline = fbIsOnline();
+  2291→  var onlineBadge = isOnline ? '<span class="badge bg">Online</span>' : '<span class="badge br">Offline</span>';
+  2292→
+  2293→  var html = '<h2 class="page-title">Ajustes</h2>' +
+  2294→    '<div class="card mb-12">' +
+  2295→      '<div class="section-title mb-8">Datos</div>' +
+  2296→      '<div class="fr1">' +
+  2297→        '<button class="btn btn-sm" onclick="exportarExcel()">Exportar a Excel</button>' +
+  2298→        '<button class="btn btn-sm" onclick="importarExcel()">Importar desde Excel</button>' +
+  2299→        '<input type="file" id="import-file-input" accept=".xlsx,.xls" style="display:none">' +
+  2300→      '</div>' +
+  2301→    '</div>' +
+  2302→    '<div class="card mb-12">' +
+  2303→      '<div class="section-title mb-8">Sincronizacion</div>' +
+  2304→      '<div class="flex items-center gap-8 mb-8">' +
+  2305→        '<span class="text-muted text-sm">Estado:</span> ' + onlineBadge +
+  2306→      '</div>' +
+  2307→      '<button class="btn btn-sm" onclick="fbForceReload()">Sincronizar con Firebase</button>' +
+  2308→    '</div>' +
+  2309→    '<div class="card mb-12">' +
+  2310→      '<div class="section-title mb-8 text-red">Zona peligrosa</div>' +
+  2311→      '<div class="fr1">' +
+  2312→        '<button class="btn btn-sm" onclick="limpiarDatos()">Limpiar datos locales</button>' +
+  2313→        '<button class="btn btn-sm btn-danger" onclick="borrarDatosFirebase()">Borrar datos Firebase</button>' +
+  2314→      '</div>' +
+  2315→    '</div>' +
+  2316→    '<div class="card">' +
+  2317→      '<div class="text-xs text-muted">Arcano ERP v2.0.0</div>' +
+  2318→    '</div>';
+  2319→
+  2320→  el.innerHTML = html;
+  2321→}
+  2322→
+  2323→function exportarExcel() {
+  2324→  if (typeof XLSX === 'undefined') {
+  2325→    toast('Libreria XLSX no disponible', 'err');
+  2326→    return;
+  2327→  }
+  2328→
+  2329→  var db = getDB();
+  2330→  var wb = XLSX.utils.book_new();
+  2331→
+  2332→  var productosData = (db.productos || []).map(function(p) {
+  2333→    return {
+  2334→      ID: p.id, Nombre: p.nombre, Tipo: p.tipo, Unidad: p.unidad || '',
+  2335→      Stock: p.stock || 0, StockMin: p.stockMin || 0,
+  2336→      CostoPor1000gr: p.costoPor1000gr || 0, PrecioCosto: p.precioCosto || 0,
+  2337→      PrecioVenta: p.precioVenta || 0, Categoria: p.categoria || '', Proveedor: p.proveedor || ''
+  2338→    };
+  2339→  });
+  2340→  var wsProductos = XLSX.utils.json_to_sheet(productosData);
+  2341→  XLSX.utils.book_append_sheet(wb, wsProductos, 'Productos');
+  2342→
+  2343→  var blendsData = (db.blends || []).map(function(b) {
+  2344→    var recetaStr = '';
+  2345→    if (b.receta && b.receta.length) {
+  2346→      recetaStr = b.receta.map(function(r) {
+  2347→        return (r.nombre || '') + ':' + (r.gramos || r.porcentaje || 0) + (r.gramos ? 'gr' : '%');
+  2348→      }).join('; ');
+  2349→    }
+  2350→    return {
+  2351→      ID: b.id, Nombre: b.nombre, Descripcion: b.descripcion || '',
+  2352→      Formato: b.formato || '', GramosPorUnidad: b.gramosPorUnidad || 100,
+  2353→      PrecioVenta: b.precioVenta || 0, CostoUnitario: b.costoUnitario || 0,
+  2354→      Stock: b.stock || 0, Receta: recetaStr, EtiquetaID: b.etiquetaId || ''
+  2355→    };
+  2356→  });
+  2357→  var wsBlends = XLSX.utils.json_to_sheet(blendsData);
+  2358→  XLSX.utils.book_append_sheet(wb, wsBlends, 'Blends');
+  2359→
+  2360→  var comprasData = (db.compras || []).map(function(c) {
+  2361→    var itemsStr = '';
+  2362→    if (c.items && c.items.length) {
+  2363→      itemsStr = c.items.map(function(i) { return (i.productoNombre || '') + ' x' + i.cantidad; }).join('; ');
+  2364→    }
+  2365→    return {
+  2366→      ID: c.id, Fecha: c.fecha || '', Proveedor: c.proveedor || '',
+  2367→      Items: itemsStr, Total: c.total || 0, Estado: c.estado || '', Notas: c.notas || ''
+  2368→    };
+  2369→  });
+  2370→  var wsCompras = XLSX.utils.json_to_sheet(comprasData);
+  2371→  XLSX.utils.book_append_sheet(wb, wsCompras, 'Compras');
+  2372→
+  2373→  var ventasData = (db.ventas || []).map(function(v) {
+  2374→    var itemsStr = '';
+  2375→    if (v.items && v.items.length) {
+  2376→      itemsStr = v.items.map(function(item) {
+  2377→        return (item.nombre || '') + ' x' + (item.cantidad || item.qty || 0) + ' ' + (item.subtotal || 0);
+  2378→      }).join('; ');
+  2379→    }
+  2380→    return {
+  2381→      ID: v.id, Tipo: v.tipo || 'mostrador', Items: itemsStr,
+  2382→      Total: v.total || 0, Estado: v.estado || '',
+  2383→      CreadoPor: v.creadoPorNombre || '', Fecha: v.fecha || ''
+  2384→    };
+  2385→  });
+  2386→  var wsVentas = XLSX.utils.json_to_sheet(ventasData);
+  2387→  XLSX.utils.book_append_sheet(wb, wsVentas, 'Ventas');
+  2388→
+  2389→  var fileName = 'arcano_erp_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  2390→  XLSX.writeFile(wb, fileName);
+  2391→  toast('Excel exportado');
+  2392→}
+  2393→
+  2394→function importarExcel() {
+  2395→  var input = document.getElementById('import-file-input');
+  2396→  if (!input) return;
+  2397→
+  2398→  input.onchange = function(e) {
+  2399→    var file = e.target.files && e.target.files[0];
+  2400→    if (!file) return;
+  2401→
+  2402→    var reader = new FileReader();
+  2403→    reader.onload = function(ev) {
+  2404→      try {
+  2405→        if (typeof XLSX === 'undefined') {
+  2406→          toast('Libreria XLSX no disponible', 'err');
+  2407→          return;
+  2408→        }
+  2409→
+  2410→        var data = new Uint8Array(ev.target.result);
+  2411→        var workbook = XLSX.read(data, { type: 'array' });
+  2412→
+  2413→        var db = getDB();
+  2414→        var added = 0;
+  2415→        var updated = 0;
+  2416→
+  2417→        var wsProductos = workbook.Sheets['Productos'];
+  2418→        if (wsProductos) {
+  2419→          var rows = XLSX.utils.sheet_to_json(wsProductos);
+  2420→          rows.forEach(function(row) {
+  2421→            var nombre = (row.Nombre || '').trim();
+  2422→            if (!nombre) return;
+  2423→            var existing = null;
+  2424→            db.productos.forEach(function(p) { if (p.nombre === nombre) existing = p; });
+  2425→            if (existing) {
+  2426→              if (row.Tipo) existing.tipo = row.Tipo;
+  2427→              if (row.Unidad) existing.unidad = row.Unidad;
+  2428→              if (row.Stock !== undefined) existing.stock = Number(row.Stock) || 0;
+  2429→              if (row.StockMin !== undefined) existing.stockMin = Number(row.StockMin) || 0;
+  2430→              if (row.CostoPor1000gr !== undefined) existing.costoPor1000gr = Number(row.CostoPor1000gr) || 0;
+  2431→              if (row.PrecioCosto !== undefined) existing.precioCosto = Number(row.PrecioCosto) || 0;
+  2432→              if (row.PrecioVenta !== undefined) existing.precioVenta = Number(row.PrecioVenta) || 0;
+  2433→              if (row.Categoria) existing.categoria = row.Categoria;
+  2434→              if (row.Proveedor) existing.proveedor = row.Proveedor;
+  2435→              updated++;
+  2436→            } else {
+  2437→              db.productos.push({
+  2438→                id: nextId(), nombre: nombre, tipo: row.Tipo || 'especia',
+  2439→                unidad: row.Unidad || 'gr', stock: Number(row.Stock) || 0,
+  2440→                stockMin: Number(row.StockMin) || 0,
+  2441→                costoPor1000gr: Number(row.CostoPor1000gr) || 0,
+  2442→                precioCosto: Number(row.PrecioCosto) || 0,
+  2443→                precioVenta: Number(row.PrecioVenta) || 0,
+  2444→                categoria: row.Categoria || '', proveedor: row.Proveedor || ''
+  2445→              });
+  2446→              added++;
+  2447→            }
+  2448→          });
+  2449→        }
+  2450→
+  2451→        saveDB();
+  2452→        refreshPage();
+  2453→        toast('Importados: ' + added + ' nuevos, ' + updated + ' actualizados');
+  2454→      } catch(err) {
+  2455→        toast('Error al importar: ' + (err.message || ''), 'err');
+  2456→      }
+  2457→    };
+  2458→    reader.readAsArrayBuffer(file);
+  2459→    input.value = '';
+  2460→  };
+  2461→
+  2462→  input.click();
+  2463→}
+  2464→
+  2465→function limpiarDatos() {
+  2466→  if (!confirm('Se borraran todos los datos locales. Esta accion no se puede deshacer. Continuar?')) return;
+  2467→  if (!confirm('Estas SEGURO? Se perderan todos los productos, ventas, blends, etc.')) return;
+  2468→  localStorage.removeItem(DB_KEY);
+  2469→  toast('Datos locales eliminados. Recarga la pagina.');
+  2470→  setTimeout(function() { location.reload(); }, 1000);
+  2471→}
+  2472→
+  2473→function borrarDatosFirebase() {
+  2474→  if (!confirm('Se borraran TODOS los datos de Firebase. Esta accion afectara a todos los dispositivos. Continuar?')) return;
+  2475→  if (!confirm('Ultima confirmacion: BORRAR DATOS FIREBASE?')) return;
+  2476→  try {
+  2477→    if (typeof fbRef !== 'undefined' && fbRef) {
+  2478→      fbRef.set(null).then(function() {
+  2479→        toast('Datos Firebase eliminados');
+  2480→      }).catch(function(err) {
+  2481→        toast('Error: ' + (err.message || ''), 'err');
+  2482→      });
+  2483→    } else {
+  2484→      toast('Firebase no disponible', 'err');
+  2485→    }
+  2486→  } catch(e) {
+  2487→    toast('Error: ' + e.message, 'err');
+  2488→  }
+  2489→}
+  2490→

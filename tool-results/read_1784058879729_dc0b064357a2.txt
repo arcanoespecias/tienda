@@ -1,0 +1,736 @@
+   680→// =====================================================
+   681→function renderBlends() {
+   682→  var db = getDB();
+   683→  var el = document.getElementById('page-blends');
+   684→  var blends = db.blends || [];
+   685→
+   686→  var html = '<h1 class="page-title">Blends</h1>';
+   687→  html += '<div class="actions-row"><button class="btn btn-gold" onclick="modalNuevoBlend()">+ Nuevo Blend</button></div>';
+   688→
+   689→  if (blends.length === 0) {
+   690→    html += '<div class="empty"><div class="empty-icon">\u2726</div><p>No hay blends creados</p><p class="text-xs mt-12">Los blends son mezclas de especias con una receta definida</p></div>';
+   691→  } else {
+   692→    blends.forEach(function(b) {
+   693→      // Calculate cost from recipe
+   694→      var costo = calcBlendCost(b);
+   695→      b.costoUnitario = costo;
+   696→      var profit = b.precioVenta - costo;
+   697→      var profitClass = profit >= 0 ? 'profit' : 'loss';
+   698→      var estadoBadge = b.stock > 0 ? 'bg' : 'by';
+   699→
+   700→      html += '<div class="blend-card"><div class="blend-header" onclick="this.nextElementSibling.classList.toggle(\'open\')">' +
+   701→        '<div><div class="blend-name">' + esc(b.nombre) + '</div>' +
+   702→        '<div class="text-xs text-muted mt-12">' + esc(b.descripcion || 'Sin descripción') + '</div></div>' +
+   703→        '<div class="flex items-center gap-12">' +
+   704→          '<span class="badge ' + estadoBadge + '">' + b.stock + ' und</span>' +
+   705→          '<span class="text-gold fw7">' + fmt(b.precioVenta) + '</span></div></div>' +
+   706→        '<div class="blend-body"><div class="blend-inner">' +
+   707→          '<h3>Receta (' + (b.receta || []).length + ' ingredientes)</h3>';
+   708→
+   709→      if (b.receta && b.receta.length > 0) {
+   710→        html += '<div class="card mb-16">';
+   711→        b.receta.forEach(function(r) {
+   712→          var prod = (db.productos || []).find(function(p) { return p.id === r.productoId; });
+   713→          var stockInfo = prod ? (prod.stock + ' ' + prod.unidad) : '?';
+   714→          html += '<div class="mov-row"><span class="text-gold">' + r.cantidad + ' ' + esc(r.unidad) + '</span>' +
+   715→            '<span>' + esc(r.nombre) + '</span>' +
+   716→            '<span class="text-xs text-muted">(disponible: ' + stockInfo + ')</span></div>';
+   717→        });
+   718→        html += '</div>';
+   719→      }
+   720→
+   721→      html += '<div class="cost-box mb-16">' +
+   722→        '<div class="cost-row"><span>Costo unitario</span><span>' + fmt(costo) + '</span></div>' +
+   723→        '<div class="cost-row"><span>Precio venta</span><span>' + fmt(b.precioVenta) + '</span></div>' +
+   724→        '<div class="cost-row ' + profitClass + '"><span>Ganancia</span><span>' + fmt(profit) + '</span></div></div>' +
+   725→        '<div class="flex gap-8">' +
+   726→          '<button class="btn btn-gold btn-sm" onclick="modalEditarBlend(' + b.id + ')">Editar</button>' +
+   727→          '<button class="btn btn-green btn-sm" onclick="modalProducirBlend(' + b.id + ')">Producir</button>' +
+   728→          '<button class="btn btn-red btn-sm" onclick="eliminarBlend(' + b.id + ')">Eliminar</button></div>' +
+   729→        '</div></div></div>';
+   730→    });
+   731→  }
+   732→
+   733→  el.innerHTML = html;
+   734→}
+   735→
+   736→function calcBlendCost(blend) {
+   737→  if (!blend || !blend.receta) return 0;
+   738→  var db = getDB();
+   739→  var costo = 0;
+   740→  blend.receta.forEach(function(r) {
+   741→    var prod = (db.productos || []).find(function(p) { return p.id === r.productoId; });
+   742→    if (prod) {
+   743→      // Convert to same unit for cost calc (simplified: assumes recipe unit matches product unit)
+   744→      var unitCost = prod.precioCosto / 1; // cost per base unit
+   745→      // If product is in kg and recipe in gr, convert
+   746→      var factor = 1;
+   747→      if (prod.unidad === 'kg' && r.unidad === 'gr') factor = 0.001;
+   748→      else if (prod.unidad === 'L' && r.unidad === 'ml') factor = 0.001;
+   749→      costo += r.cantidad * unitCost * factor;
+   750→    }
+   751→  });
+   752→  return Math.round(costo);
+   753→}
+   754→
+   755→function modalNuevoBlend() {
+   756→  var body = blendFormHTML(null);
+   757→  openModal('Nuevo Blend', body);
+   758→  addBlendRecetaRow();
+   759→}
+   760→
+   761→function modalEditarBlend(id) {
+   762→  var db = getDB();
+   763→  var b = db.blends.find(function(x) { return x.id === id; });
+   764→  if (!b) return;
+   765→  var body = blendFormHTML(b);
+   766→  openModal('Editar Blend', body);
+   767→  // Load existing recipe
+   768→  (b.receta || []).forEach(function(r) {
+   769→    addBlendRecetaRow(r);
+   770→  });
+   771→}
+   772→
+   773→function blendFormHTML(b) {
+   774→  b = b || {};
+   775→  return '<div class="fr1" style="margin-bottom:12px"><label>Nombre</label><input id="bl-nombre" value="' + esc(b.nombre || '') + '" placeholder="Nombre del blend"></div>' +
+   776→    '<div class="fr1" style="margin-bottom:12px"><label>Descripción</label><textarea id="bl-desc" rows="2">' + esc(b.descripcion || '') + '</textarea></div>' +
+   777→    '<h3>Receta</h3><div id="bl-receta-container"></div>' +
+   778→    '<button class="btn btn-ghost btn-sm mb-12" onclick="addBlendRecetaRow()">+ Ingrediente</button>' +
+   779→    '<hr class="divider">' +
+   780→    '<div class="fr"><div><label>Precio Venta</label><input type="number" id="bl-precio" value="' + (b.precioVenta || '') + '" min="0" step="any"></div>' +
+   781→    '<div style="display:flex;align-items:flex-end;padding-bottom:2px"><div class="cost-box" style="width:100%"><div class="cost-row"><span>Costo estimado</span><span id="bl-costo-est">$0</span></div></div></div></div>' +
+   782→    '<div id="bl-alert" class="alert alert-err"></div>' +
+   783→    '<button class="btn btn-gold btn-full" onclick="guardarBlend(' + (b.id || 0) + ')">' + (b.id ? 'Actualizar' : 'Crear') + ' Blend</button>';
+   784→}
+   785→
+   786→function addBlendRecetaRow(data) {
+   787→  var container = document.getElementById('bl-receta-container');
+   788→  if (!container) return;
+   789→  data = data || {};
+   790→  var row = document.createElement('div');
+   791→  row.className = 'ing-row';
+   792→  row.innerHTML =
+   793→    '<select onchange="calcBlendCostEst()" style="font-size:.82rem">' +
+   794→      '<option value="">Especia</option>' +
+   795→      (getDB().productos || []).filter(function(p) { return p.tipo === 'especia'; }).map(function(p) {
+   796→        return '<option value="' + p.id + '"' + (data.productoId === p.id ? ' selected' : '') + '>' + esc(p.nombre) + '</option>';
+   797→      }).join('') +
+   798→    '</select>' +
+   799→    '<input type="number" placeholder="Cant" min="0.01" step="any" value="' + (data.cantidad || '') + '" onchange="calcBlendCostEst()" style="font-size:.82rem">' +
+   800→    '<select onchange="calcBlendCostEst()" style="font-size:.82rem">' + unitOptions(data.unidad || 'gr') + '</select>' +
+   801→    '<button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove();calcBlendCostEst()" style="padding:5px 8px;font-size:.9rem">x</button>';
+   802→  container.appendChild(row);
+   803→}
+   804→
+   805→function calcBlendCostEst() {
+   806→  var rows = document.querySelectorAll('#bl-receta-container .ing-row');
+   807→  var costo = 0;
+   808→  var db = getDB();
+   809→  rows.forEach(function(row) {
+   810→    var select = row.querySelector('select');
+   811→    var qtyInput = row.querySelectorAll('input')[0];
+   812→    var unitSelect = row.querySelectorAll('select')[1];
+   813→    var productId = parseInt(select.value);
+   814→    var qty = parseFloat(qtyInput.value) || 0;
+   815→    var unit = unitSelect ? unitSelect.value : 'gr';
+   816→
+   817→    var prod = db.productos.find(function(p) { return p.id === productId; });
+   818→    if (prod) {
+   819→      var factor = 1;
+   820→      if (prod.unidad === 'kg' && unit === 'gr') factor = 0.001;
+   821→      else if (prod.unidad === 'L' && unit === 'ml') factor = 0.001;
+   822→      costo += qty * prod.precioCosto * factor;
+   823→    }
+   824→  });
+   825→  var el = document.getElementById('bl-costo-est');
+   826→  if (el) el.textContent = fmt(Math.round(costo));
+   827→}
+   828→
+   829→function guardarBlend(existingId) {
+   830→  var nombre = document.getElementById('bl-nombre').value.trim();
+   831→  var desc = document.getElementById('bl-desc').value.trim();
+   832→  var precio = parseFloat(document.getElementById('bl-precio').value) || 0;
+   833→  var alertEl = document.getElementById('bl-alert');
+   834→
+   835→  if (!nombre) {
+   836→    alertEl.textContent = 'El nombre es obligatorio';
+   837→    alertEl.className = 'alert alert-err show';
+   838→    return;
+   839→  }
+   840→
+   841→  var db = getDB();
+   842→  var rows = document.querySelectorAll('#bl-receta-container .ing-row');
+   843→  var receta = [];
+   844→  rows.forEach(function(row) {
+   845→    var select = row.querySelector('select');
+   846→    var qtyInput = row.querySelectorAll('input')[0];
+   847→    var unitSelect = row.querySelectorAll('select')[1];
+   848→    var productId = parseInt(select.value);
+   849→    var qty = parseFloat(qtyInput.value) || 0;
+   850→    var unit = unitSelect ? unitSelect.value : 'gr';
+   851→    if (productId && qty > 0) {
+   852→      var prod = db.productos.find(function(p) { return p.id === productId; });
+   853→      receta.push({ productoId: productId, nombre: prod ? prod.nombre : '?', cantidad: qty, unidad: unit });
+   854→    }
+   855→  });
+   856→
+   857→  var now = new Date().toISOString();
+   858→
+   859→  if (existingId) {
+   860→    var blend = db.blends.find(function(b) { return b.id === existingId; });
+   861→    if (blend) {
+   862→      blend.nombre = nombre; blend.descripcion = desc; blend.receta = receta;
+   863→      blend.precioVenta = precio; blend.costoUnitario = calcBlendCost({ receta: receta });
+   864→      blend.actualizadoEn = now;
+   865→    }
+   866→  } else {
+   867→    db.blends.push({
+   868→      id: nextId(), nombre: nombre, descripcion: desc, receta: receta,
+   869→      costoUnitario: calcBlendCost({ receta: receta }), precioVenta: precio,
+   870→      stock: 0, creadoEn: now, actualizadoEn: now
+   871→    });
+   872→  }
+   873→
+   874→  saveDB();
+   875→  closeModal();
+   876→  renderBlends();
+   877→  toast(existingId ? 'Blend actualizado' : 'Blend creado');
+   878→}
+   879→
+   880→function modalProducirBlend(id) {
+   881→  var db = getDB();
+   882→  var b = db.blends.find(function(x) { return x.id === id; });
+   883→  if (!b) return;
+   884→
+   885→  // Check if there's enough stock for all ingredients
+   886→  var canProduce = true;
+   887→  var stockInfo = '';
+   888→  (b.receta || []).forEach(function(r) {
+   889→    var prod = db.productos.find(function(p) { return p.id === r.productoId; });
+   890→    if (!prod || prod.stock < r.cantidad) {
+   891→      canProduce = false;
+   892→      stockInfo += '<div class="mov-row"><span class="text-red">' + esc(r.nombre) + ': necesita ' + r.cantidad + ', disponible ' + (prod ? prod.stock : 0) + '</span></div>';
+   893→    }
+   894→  });
+   895→
+   896→  var body = '<div class="mb-12"><label>Blend</label><div style="padding:9px 0" class="fw7 text-gold">' + esc(b.nombre) + '</div></div>';
+   897→
+   898→  if (!canProduce) {
+   899→    body += '<div class="alert alert-err show mb-12">Stock insuficiente para producir</div>' + stockInfo;
+   900→    body += '<hr class="divider"><button class="btn btn-ghost btn-full" onclick="closeModal()">Cerrar</button>';
+   901→  } else {
+   902→    body += '<div class="card mb-16"><h3>Ingredientes necesarios</h3>';
+   903→    (b.receta || []).forEach(function(r) {
+   904→      var prod = db.productos.find(function(p) { return p.id === r.productoId; });
+   905→      body += '<div class="mov-row"><span>' + r.cantidad + ' ' + esc(r.unidad) + '</span><span>' + esc(r.nombre) + '</span>' +
+   906→        '<span class="text-xs text-muted">(stock: ' + (prod ? prod.stock : 0) + ')</span></div>';
+   907→    });
+   908→    body += '</div>';
+   909→    body += '<div class="fr" style="margin-bottom:12px"><div><label>Cantidad a producir</label><input type="number" id="bl-prod-cant" value="1" min="1"></div></div>';
+   910→    body += '<button class="btn btn-gold btn-full" onclick="ejecutarProduccion(' + b.id + ')">Producir</button>';
+   911→  }
+   912→
+   913→  openModal('Producir Blend', body);
+   914→}
+   915→
+   916→function ejecutarProduccion(blendId) {
+   917→  var cant = parseInt(document.getElementById('bl-prod-cant').value) || 1;
+   918→  if (cant < 1) return;
+   919→
+   920→  var db = getDB();
+   921→  var b = db.blends.find(function(x) { return x.id === blendId; });
+   922→  if (!b) return;
+   923→
+   924→  // Check stock for multiplied recipe
+   925→  (b.receta || []).forEach(function(r) {
+   926→    var needed = r.cantidad * cant;
+   927→    var prod = db.productos.find(function(p) { return p.id === r.productoId; });
+   928→    if (!prod || prod.stock < needed) {
+   929→      toast('Stock insuficiente de ' + r.nombre, 'err');
+   930→      return;
+   931→    }
+   932→  });
+   933→
+   934→  // Deduct stock from ingredients
+   935→  (b.receta || []).forEach(function(r) {
+   936→    var needed = r.cantidad * cant;
+   937→    var prod = db.productos.find(function(p) { return p.id === r.productoId; });
+   938→    if (prod) {
+   939→      prod.stock -= needed;
+   940→      prod.actualizadoEn = new Date().toISOString();
+   941→      addMovimiento('blend', 'blends', b.id, r.nombre, -needed, 'Producción: ' + b.nombre + ' x' + cant);
+   942→    }
+   943→  });
+   944→
+   945→  b.stock += cant;
+   946→  b.actualizadoEn = new Date().toISOString();
+   947→  saveDB();
+   948→  closeModal();
+   949→  renderBlends();
+   950→  toast(cant + ' unidad(es) de ' + b.nombre + ' producida(s)');
+   951→}
+   952→
+   953→function eliminarBlend(id) {
+   954→  if (!confirm('Eliminar este blend?')) return;
+   955→  var db = getDB();
+   956→  db.blends = db.blends.filter(function(b) { return b.id !== id; });
+   957→  saveDB();
+   958→  renderBlends();
+   959→  toast('Blend eliminado');
+   960→}
+   961→
+   962→// =====================================================
+   963→//  VENTAS (Admin/Operator POS)
+   964→// =====================================================
+   965→var ventasFilter = 'todos';
+   966→var ventaActual = null; // Current sale being built
+   967→
+   968→function renderVentas() {
+   969→  var db = getDB();
+   970→  var el = document.getElementById('page-ventas');
+   971→  var ventas = db.ventas || [];
+   972→
+   973→  var html = '<h1 class="page-title">Ventas</h1>';
+   974→  html += '<div class="actions-row">' +
+   975→    '<button class="btn btn-gold" onclick="iniciarNuevaVenta()">+ Nueva Venta</button>' +
+   976→    '<button class="btn btn-ghost" onclick="toggleTiendaOrders()" id="btn-tienda-ordenes">Pedidos de Tienda</button></div>';
+   977→
+   978→  // Show active sale if exists
+   979→  if (ventaActual) {
+   980→    html += renderVentaActiva();
+   981→  }
+   982→
+   983→  // Tabs
+   984→  html += '<div class="tabs mb-16">';
+   985→  ['todos', 'pendiente', 'completada', 'cancelada'].forEach(function(f) {
+   986→    html += '<button class="tab' + (ventasFilter === f ? ' active' : '') + '" onclick="ventasFilter=\'' + f + '\';renderVentas()">' +
+   987→      (f === 'todos' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)) + '</button>';
+   988→  });
+   989→  html += '</div>';
+   990→
+   991→  // Filter: admin sees all, operator sees their own
+   992→  var filtered = ventas;
+   993→  if (currentUser && currentUser.rol !== 'admin') {
+   994→    filtered = filtered.filter(function(v) { return v.creadoPor === currentUser.id; });
+   995→  }
+   996→  if (ventasFilter !== 'todos') filtered = filtered.filter(function(v) { return v.estado === ventasFilter; });
+   997→  filtered = filtered.slice().sort(function(a, b) { return new Date(b.creadoEn) - new Date(a.creadoEn); });
+   998→
+   999→  if (filtered.length === 0) {
+  1000→    html += '<div class="empty"><div class="empty-icon">\u2193</div><p>No hay ventas</p></div>';
+  1001→  } else {
+  1002→    html += '<div class="card"><div class="tw"><table>' +
+  1003→      '<tr><th>Fecha</th><th>Cliente</th><th>Items</th><th>Total</th><th>Estado</th><th>Tipo</th><th></th></tr>';
+  1004→    filtered.forEach(function(v) {
+  1005→      var estadoBadge = v.estado === 'completada' ? 'bg' : (v.estado === 'pendiente' ? 'by' : 'br');
+  1006→      var tipo = v.tipo === 'tienda' ? '<span class="badge bb">Tienda</span>' : '<span class="badge ba">Mostrador</span>';
+  1007→      html += '<tr><td>' + fmtDateTime(v.fecha || v.creadoEn) + '</td>' +
+  1008→        '<td>' + esc(v.clienteNombre || '-') + '</td>' +
+  1009→        '<td>' + (v.items || []).length + '</td>' +
+  1010→        '<td class="text-gold fw7">' + fmt(v.total) + '</td>' +
+  1011→        '<td><span class="badge ' + estadoBadge + '">' + esc(v.estado) + '</span></td>' +
+  1012→        '<td>' + tipo + '</td>' +
+  1013→        '<td class="tr"><button class="btn btn-ghost btn-sm" onclick="modalVerVenta(' + v.id + ')">Ver</button></td></tr>';
+  1014→    });
+  1015→    html += '</table></div></div>';
+  1016→  }
+  1017→
+  1018→  el.innerHTML = html;
+  1019→}
+  1020→
+  1021→function renderVentaActiva() {
+  1022→  var items = ventaActual.items || [];
+  1023→  var total = items.reduce(function(s, i) { return s + i.subtotal; }, 0);
+  1024→
+  1025→  var html = '<div class="card card-gold mb-20">' +
+  1026→    '<div class="flex justify-between items-center mb-12"><div class="section-title" style="margin:0">Venta en Curso</div>' +
+  1027→    '<button class="btn btn-ghost btn-sm" onclick="cancelarVentaActual()">Cancelar</button></div>';
+  1028→
+  1029→  if (items.length === 0) {
+  1030→    html += '<p class="text-muted text-sm">Agrega productos al lado derecho</p>';
+  1031→  } else {
+  1032→    html += '<div class="tw"><table><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Sub</th><th></th></tr>';
+  1033→    items.forEach(function(it, i) {
+  1034→      html += '<tr><td>' + esc(it.nombre) + '</td><td>' + it.cantidad + '</td>' +
+  1035→        '<td>' + fmt(it.precioUnitario) + '</td><td class="text-gold">' + fmt(it.subtotal) + '</td>' +
+  1036→        '<td><button class="btn btn-ghost btn-sm" onclick="removeVentaItem(' + i + ')" style="padding:3px 6px;font-size:.8rem">x</button></td></tr>';
+  1037→    });
+  1038→    html += '</table></div>';
+  1039→  }
+  1040→
+  1041→  html += '<hr class="divider"><div class="cost-box">' +
+  1042→    '<div class="cost-row total"><span>Total</span><span>' + fmt(total) + '</span></div></div>';
+  1043→
+  1044→  html += '<div class="fr mt-12">' +
+  1045→    '<div><label>Cliente</label><input id="va-cliente" value="' + esc(ventaActual.clienteNombre || '') + '" placeholder="Nombre (opcional)"></div>' +
+  1046→    '<div><label>Teléfono</label><input id="va-tel" value="' + esc(ventaActual.clienteTelefono || '') + '" placeholder="Teléfono (opcional)"></div></div>';
+  1047→
+  1048→  html += '<div class="flex gap-8 mt-12">' +
+  1049→    '<button class="btn btn-gold" onclick="completarVenta()" style="flex:1">Completar Venta</button></div>';
+  1050→
+  1051→  html += '</div>';
+  1052→  return html;
+  1053→}
+  1054→
+  1055→function iniciarNuevaVenta() {
+  1056→  var db = getDB();
+  1057→  // Build modal with product picker
+  1058→  var especias = db.productos.filter(function(p) { return p.tipo === 'especia' && p.precioVenta > 0 && p.stock > 0; });
+  1059→  var blends = db.blends.filter(function(b) { return b.stock > 0 && b.precioVenta > 0; });
+  1060→
+  1061→  var body = '<h3>Especias</h3><div class="mb-16">';
+  1062→  if (especias.length === 0) {
+  1063→    body += '<p class="text-muted text-sm">No hay especias disponibles para venta</p>';
+  1064→  } else {
+  1065→    especias.forEach(function(p) {
+  1066→      body += '<div class="mov-row" style="cursor:pointer" onclick="agregarAVenta(\'especia\',' + p.id + ')">' +
+  1067→        '<span class="fw7">' + esc(p.nombre) + '</span>' +
+  1068→        '<span class="text-xs text-muted">' + p.stock + ' ' + esc(p.unidad) + '</span>' +
+  1069→        '<span class="text-gold">' + fmt(p.precioVenta) + '</span></div>';
+  1070→    });
+  1071→  }
+  1072→  body += '</div><h3>Blends</h3>';
+  1073→  if (blends.length === 0) {
+  1074→    body += '<p class="text-muted text-sm">No hay blends disponibles</p>';
+  1075→  } else {
+  1076→    blends.forEach(function(b) {
+  1077→      body += '<div class="mov-row" style="cursor:pointer" onclick="agregarAVenta(\'blend\',' + b.id + ')">' +
+  1078→        '<span class="fw7">' + esc(b.nombre) + '</span>' +
+  1079→        '<span class="text-xs text-muted">' + b.stock + ' und</span>' +
+  1080→        '<span class="text-gold">' + fmt(b.precioVenta) + '</span></div>';
+  1081→    });
+  1082→  }
+  1083→
+  1084→  openModal('Agregar a Venta', body);
+  1085→}
+  1086→
+  1087→function agregarAVenta(tipo, id) {
+  1088→  var db = getDB();
+  1089→  var item;
+  1090→
+  1091→  if (tipo === 'especia') {
+  1092→    var prod = db.productos.find(function(p) { return p.id === id; });
+  1093→    if (!prod) return;
+  1094→    item = { tipo: 'especia', id: prod.id, nombre: prod.nombre, cantidad: 1, unidad: prod.unidad, precioUnitario: prod.precioVenta, subtotal: prod.precioVenta, maxStock: prod.stock };
+  1095→  } else {
+  1096→    var blend = db.blends.find(function(b) { return b.id === id; });
+  1097→    if (!blend) return;
+  1098→    item = { tipo: 'blend', id: blend.id, nombre: blend.nombre, cantidad: 1, unidad: 'unidad', precioUnitario: blend.precioVenta, subtotal: blend.precioVenta, maxStock: blend.stock };
+  1099→  }
+  1100→
+  1101→  if (!ventaActual) {
+  1102→    ventaActual = { items: [], clienteNombre: '', clienteTelefono: '' };
+  1103→  }
+  1104→
+  1105→  // Check if already in cart
+  1106→  var existing = ventaActual.items.find(function(i) { return i.tipo === tipo && i.id === id; });
+  1107→  if (existing) {
+  1108→    if (existing.cantidad >= existing.maxStock) { toast('Stock máximo', 'err'); return; }
+  1109→    existing.cantidad++;
+  1110→    existing.subtotal = existing.cantidad * existing.precioUnitario;
+  1111→  } else {
+  1112→    ventaActual.items.push(item);
+  1113→  }
+  1114→
+  1115→  closeModal();
+  1116→  renderVentas();
+  1117→}
+  1118→
+  1119→function removeVentaItem(idx) {
+  1120→  if (!ventaActual) return;
+  1121→  ventaActual.items.splice(idx, 1);
+  1122→  if (ventaActual.items.length === 0) ventaActual = null;
+  1123→  renderVentas();
+  1124→}
+  1125→
+  1126→function cancelarVentaActual() {
+  1127→  if (ventaActual && ventaActual.items.length > 0 && !confirm('Cancelar venta en curso?')) return;
+  1128→  ventaActual = null;
+  1129→  renderVentas();
+  1130→}
+  1131→
+  1132→function completarVenta() {
+  1133→  if (!ventaActual || ventaActual.items.length === 0) { toast('No hay items en la venta', 'err'); return; }
+  1134→
+  1135→  // Read client info from DOM
+  1136→  var clienteEl = document.getElementById('va-cliente');
+  1137→  var telEl = document.getElementById('va-tel');
+  1138→  if (clienteEl) ventaActual.clienteNombre = clienteEl.value.trim();
+  1139→  if (telEl) ventaActual.clienteTelefono = telEl.value.trim();
+  1140→
+  1141→  var db = getDB();
+  1142→  var total = ventaActual.items.reduce(function(s, i) { return s + i.subtotal; }, 0);
+  1143→
+  1144→  var venta = {
+  1145→    id: nextId(),
+  1146→    fecha: new Date().toISOString(),
+  1147→    clienteNombre: ventaActual.clienteNombre || 'Mostrador',
+  1148→    clienteTelefono: ventaActual.clienteTelefono || '',
+  1149→    items: ventaActual.items,
+  1150→    total: total,
+  1151→    estado: 'completada',
+  1152→    tipo: 'mostrador',
+  1153→    creadoPor: currentUser ? currentUser.id : null,
+  1154→    creadoEn: new Date().toISOString()
+  1155→  };
+  1156→
+  1157→  db.ventas.push(venta);
+  1158→
+  1159→  // Update stock
+  1160→  ventaActual.items.forEach(function(it) {
+  1161→    if (it.tipo === 'especia') {
+  1162→      var prod = db.productos.find(function(p) { return p.id === it.id; });
+  1163→      if (prod) {
+  1164→        prod.stock = Math.max(0, prod.stock - it.cantidad);
+  1165→        prod.actualizadoEn = new Date().toISOString();
+  1166→        addMovimiento('venta', 'ventas', venta.id, it.nombre, -it.cantidad, 'Venta mostrador');
+  1167→      }
+  1168→    } else if (it.tipo === 'blend') {
+  1169→      var blend = db.blends.find(function(b) { return b.id === it.id; });
+  1170→      if (blend) {
+  1171→        blend.stock = Math.max(0, blend.stock - it.cantidad);
+  1172→        blend.actualizadoEn = new Date().toISOString();
+  1173→        addMovimiento('venta', 'ventas', venta.id, it.nombre, -it.cantidad, 'Venta mostrador');
+  1174→      }
+  1175→    }
+  1176→  });
+  1177→
+  1178→  saveDB();
+  1179→  ventaActual = null;
+  1180→  renderVentas();
+  1181→  toast('Venta completada');
+  1182→}
+  1183→
+  1184→function modalVerVenta(id) {
+  1185→  var db = getDB();
+  1186→  var v = db.ventas.find(function(x) { return x.id === id; });
+  1187→  if (!v) return;
+  1188→
+  1189→  var estadoBadge = v.estado === 'completada' ? 'bg' : (v.estado === 'pendiente' ? 'by' : 'br');
+  1190→  var tipo = v.tipo === 'tienda' ? 'Pedido de Tienda' : 'Venta de Mostrador';
+  1191→
+  1192→  var body =
+  1193→    '<div class="fr"><div><label>Fecha</label><div style="padding:9px 0">' + fmtDateTime(v.fecha || v.creadoEn) + '</div></div>' +
+  1194→    '<div><label>Tipo</label><div style="padding:9px 0"><span class="badge ba">' + esc(tipo) + '</span></div></div></div>' +
+  1195→    '<div class="fr"><div><label>Cliente</label><div style="padding:9px 0">' + esc(v.clienteNombre || '-') + '</div></div>' +
+  1196→    '<div><label>Teléfono</label><div style="padding:9px 0">' + esc(v.clienteTelefono || '-') + '</div></div></div>' +
+  1197→    '<div class="fr"><div><label>Estado</label><div style="padding:9px 0"><span class="badge ' + estadoBadge + '">' + esc(v.estado) + '</span></div></div>' +
+  1198→    '<div><label>Total</label><div style="padding:9px 0" class="text-gold fw7">' + fmt(v.total) + '</div></div></div>' +
+  1199→    (v.clienteDireccion ? '<div class="mb-12"><label>Dirección</label><div style="padding:9px 0">' + esc(v.clienteDireccion) + '</div></div>' : '') +
+  1200→    '<hr class="divider"><h3>Items</h3>';
+  1201→
+  1202→  (v.items || []).forEach(function(it) {
+  1203→    body += '<div class="mov-row"><span>' + esc(it.nombre) + ' x' + it.cantidad + '</span><span class="text-gold">' + fmt(it.subtotal) + '</span></div>';
+  1204→  });
+  1205→
+  1206→  body += '<hr class="divider"><div class="cost-box mb-16"><div class="cost-row total"><span>Total</span><span>' + fmt(v.total) + '</span></div></div>';
+  1207→
+  1208→  if (v.estado === 'pendiente') {
+  1209→    body += '<div class="flex gap-8">' +
+  1210→      '<button class="btn btn-green" onclick="cambiarEstadoVenta(' + v.id + ',\'completada\')">Completar</button>' +
+  1211→      '<button class="btn btn-red" onclick="cambiarEstadoVenta(' + v.id + ',\'cancelada\')">Cancelar</button></div>';
+  1212→  }
+  1213→
+  1214→  openModal('Venta #' + v.id, body);
+  1215→}
+  1216→
+  1217→function cambiarEstadoVenta(id, nuevoEstado) {
+  1218→  var db = getDB();
+  1219→  var venta = db.ventas.find(function(v) { return v.id === id; });
+  1220→  if (!venta) return;
+  1221→
+  1222→  var estadoAnterior = venta.estado;
+  1223→  venta.estado = nuevoEstado;
+  1224→
+  1225→  // If cancelled and was completed/tienda, restore stock
+  1226→  if (nuevoEstado === 'cancelada' && (estadoAnterior === 'completada' || estadoAnterior === 'pendiente')) {
+  1227→    (venta.items || []).forEach(function(it) {
+  1228→      if (it.tipo === 'especia') {
+  1229→        var prod = db.productos.find(function(p) { return p.id === it.id; });
+  1230→        if (prod) { prod.stock += it.cantidad; prod.actualizadoEn = new Date().toISOString(); }
+  1231→      } else if (it.tipo === 'blend') {
+  1232→        var blend = db.blends.find(function(b) { return b.id === it.id; });
+  1233→        if (blend) { blend.stock += it.cantidad; blend.actualizadoEn = new Date().toISOString(); }
+  1234→      }
+  1235→    });
+  1236→    addMovimiento('ajuste', 'ventas', venta.id, 'Devolución', 0, 'Venta #' + id + ' cancelada - stock restaurado');
+  1237→  }
+  1238→
+  1239→  saveDB();
+  1240→  closeModal();
+  1241→  renderVentas();
+  1242→  toast('Venta actualizada');
+  1243→}
+  1244→
+  1245→function toggleTiendaOrders() {
+  1246→  ventasFilter = 'pendiente';
+  1247→  renderVentas();
+  1248→}
+  1249→
+  1250→// =====================================================
+  1251→//  USUARIOS (Admin only)
+  1252→// =====================================================
+  1253→function renderUsuarios() {
+  1254→  if (!currentUser || currentUser.rol !== 'admin') return;
+  1255→  var db = getDB();
+  1256→  var el = document.getElementById('page-usuarios');
+  1257→  var usuarios = db.usuarios || [];
+  1258→
+  1259→  var html = '<h1 class="page-title">Usuarios</h1>';
+  1260→  html += '<div class="actions-row"><button class="btn btn-gold" onclick="modalNuevoUsuario()">+ Nuevo Usuario</button></div>';
+  1261→
+  1262→  html += '<div class="g3">';
+  1263→  usuarios.forEach(function(u) {
+  1264→    var roleLabel = u.rol === 'admin' ? 'Admin' : (u.rol === 'operador' ? 'Operador' : 'Vendedor');
+  1265→    var roleBadge = u.rol === 'admin' ? 'ba' : (u.rol === 'operador' ? 'bg' : 'by');
+  1266→    html += '<div class="card">' +
+  1267→      '<div class="flex justify-between items-center mb-12"><div class="user-avatar" style="width:42px;height:42px;font-size:1.2rem">' + esc(u.nombre.charAt(0)) + '</div>' +
+  1268→      '<span class="badge ' + roleBadge + '">' + roleLabel + '</span></div>' +
+  1269→      '<div class="fw7 mb-8" style="font-size:1rem">' + esc(u.nombre) + '</div>' +
+  1270→      '<div class="text-xs text-muted mb-12">PIN: ' + esc(u.pin) + ' &bull; ' + (u.activo ? '<span class="text-green">Activo</span>' : '<span class="text-red">Inactivo</span>') + '</div>' +
+  1271→      '<div class="flex gap-8">' +
+  1272→        '<button class="btn btn-ghost btn-sm" onclick="modalEditarUsuario(' + u.id + ')">Editar</button>' +
+  1273→        (u.rol !== 'admin' ? '<button class="btn btn-red btn-sm" onclick="toggleUsuarioActivo(' + u.id + ')">' + (u.activo ? 'Desactivar' : 'Activar') + '</button>' : '') +
+  1274→      '</div></div>';
+  1275→  });
+  1276→  html += '</div>';
+  1277→
+  1278→  el.innerHTML = html;
+  1279→}
+  1280→
+  1281→function usuarioFormHTML(u) {
+  1282→  u = u || {};
+  1283→  return '<div class="fr">' +
+  1284→    '<div><label>Nombre</label><input id="usr-nombre" value="' + esc(u.nombre || '') + '" placeholder="Nombre"></div>' +
+  1285→    '<div><label>PIN (4 dígitos)</label><input id="usr-pin" value="' + esc(u.pin || '') + '" maxlength="4" placeholder="1234"></div></div>' +
+  1286→    '<div class="fr1" style="margin-bottom:12px"><label>Rol</label><select id="usr-rol">' + optHtml(ROLES, u.rol || 'operador') + '</select></div>' +
+  1287→    (u.id ? '<div class="fr1" style="margin-bottom:12px"><label>Estado</label><select id="usr-activo"><option value="1"' + (u.activo !== false ? ' selected' : '') + '>Activo</option><option value="0"' + (u.activo === false ? ' selected' : '') + '>Inactivo</option></select></div>' : '') +
+  1288→    '<div id="usr-alert" class="alert alert-err"></div>' +
+  1289→    '<button class="btn btn-gold btn-full" onclick="guardarUsuario(' + (u.id || 0) + ')">' + (u.id ? 'Actualizar' : 'Crear') + ' Usuario</button>';
+  1290→}
+  1291→
+  1292→function modalNuevoUsuario() {
+  1293→  openModal('Nuevo Usuario', usuarioFormHTML(null));
+  1294→}
+  1295→
+  1296→function modalEditarUsuario(id) {
+  1297→  var db = getDB();
+  1298→  var u = db.usuarios.find(function(x) { return x.id === id; });
+  1299→  if (!u) return;
+  1300→  openModal('Editar Usuario', usuarioFormHTML(u));
+  1301→}
+  1302→
+  1303→function guardarUsuario(existingId) {
+  1304→  var nombre = document.getElementById('usr-nombre').value.trim();
+  1305→  var pin = document.getElementById('usr-pin').value.trim();
+  1306→  var rol = document.getElementById('usr-rol').value;
+  1307→  var alertEl = document.getElementById('usr-alert');
+  1308→
+  1309→  if (!nombre || !pin) {
+  1310→    alertEl.textContent = 'Nombre y PIN son obligatorios';
+  1311→    alertEl.className = 'alert alert-err show';
+  1312→    return;
+  1313→  }
+  1314→  if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+  1315→    alertEl.textContent = 'El PIN debe ser exactamente 4 dígitos';
+  1316→    alertEl.className = 'alert alert-err show';
+  1317→    return;
+  1318→  }
+  1319→
+  1320→  var db = getDB();
+  1321→
+  1322→  if (existingId) {
+  1323→    var usr = db.usuarios.find(function(u) { return u.id === existingId; });
+  1324→    if (usr) {
+  1325→      usr.nombre = nombre; usr.pin = pin; usr.rol = rol;
+  1326→      var activoEl = document.getElementById('usr-activo');
+  1327→      if (activoEl) usr.activo = activoEl.value === '1';
+  1328→    }
+  1329→  } else {
+  1330→    db.usuarios.push({
+  1331→      id: nextId(), nombre: nombre, pin: pin, rol: rol,
+  1332→      activo: true, creadoEn: new Date().toISOString()
+  1333→    });
+  1334→  }
+  1335→
+  1336→  saveDB();
+  1337→  closeModal();
+  1338→  renderUsuarios();
+  1339→  toast(existingId ? 'Usuario actualizado' : 'Usuario creado');
+  1340→}
+  1341→
+  1342→function toggleUsuarioActivo(id) {
+  1343→  var db = getDB();
+  1344→  var usr = db.usuarios.find(function(u) { return u.id === id; });
+  1345→  if (!usr) return;
+  1346→  usr.activo = !usr.activo;
+  1347→  saveDB();
+  1348→  renderUsuarios();
+  1349→  toast(usr.nombre + (usr.activo ? ' activado' : ' desactivado'));
+  1350→}
+  1351→
+  1352→// =====================================================
+  1353→//  AJUSTES
+  1354→// =====================================================
+  1355→function renderAjustes() {
+  1356→  var el = document.getElementById('page-ajustes');
+  1357→  var db = getDB();
+  1358→
+  1359→  var html = '<h1 class="page-title">Ajustes</h1>';
+  1360→
+  1361→  // Sync status
+  1362→  html += '<div class="section-title mb-12">Sincronización Firebase</div>';
+  1363→  html += '<div class="card mb-20">' +
+  1364→    '<div class="flex items-center gap-12 mb-12"><span id="ajustes-conn-badge" class="badge ' + (fbIsConnected() ? 'bg' : 'br') + '">' + (fbIsConnected() ? 'Conectado' : 'Desconectado') + '</span>' +
+  1365→    '<span class="text-sm text-muted">Firebase Realtime Database</span></div>' +
+  1366→    '<div class="flex gap-8">' +
+  1367→      '<button class="btn btn-ghost btn-sm" onclick="fbForceReload()">Forzar Sincronización</button>' +
+  1368→      '<button class="btn btn-red btn-sm" onclick="fbClearRemote()">Borrar Datos Remotos</button></div></div>';
+  1369→
+  1370→  // Data summary
+  1371→  html += '<div class="section-title mb-12">Resumen de Datos</div>';
+  1372→  html += '<div class="card mb-20">';
+  1373→  var collections = [
+  1374→    { name: 'Productos', count: (db.productos || []).length },
+  1375→    { name: 'Compras', count: (db.compras || []).length },
+  1376→    { name: 'Blends', count: (db.blends || []).length },
+  1377→    { name: 'Ventas', count: (db.ventas || []).length },
+  1378→    { name: 'Usuarios', count: (db.usuarios || []).length },
+  1379→    { name: 'Movimientos', count: (db.movimientos || []).length }
+  1380→  ];
+  1381→  collections.forEach(function(c) {
+  1382→    html += '<div class="mov-row"><span>' + esc(c.name) + '</span><span class="text-gold fw7">' + c.count + ' registros</span></div>';
+  1383→  });
+  1384→  html += '</div>';
+  1385→
+  1386→  // Danger zone
+  1387→  if (currentUser && currentUser.rol === 'admin') {
+  1388→    html += '<div class="section-title mb-12">Zona de Peligro</div>';
+  1389→    html += '<div class="card" style="border-color:var(--red)">' +
+  1390→      '<div class="text-sm mb-12">Estas acciones no se pueden deshacer</div>' +
+  1391→      '<div class="flex gap-8">' +
+  1392→        '<button class="btn btn-red btn-sm" onclick="resetearMovimientos()">Limpiar Movimientos</button>' +
+  1393→        '<button class="btn btn-red btn-sm" onclick="resetearTodo()">Resetear Todo</button></div></div>';
+  1394→  }
+  1395→
+  1396→  el.innerHTML = html;
+  1397→}
+  1398→
+  1399→function resetearMovimientos() {
+  1400→  if (!confirm('Borrar todos los movimientos?')) return;
+  1401→  var db = getDB();
+  1402→  db.movimientos = [];
+  1403→  saveDB();
+  1404→  renderAjustes();
+  1405→  toast('Movimientos eliminados');
+  1406→}
+  1407→
+  1408→function resetearTodo() {
+  1409→  if (!confirm('ATENCIÓN: Esto borrará TODOS los datos y reiniciará el sistema. Continuar?')) return;
+  1410→  localStorage.removeItem(DB_KEY);
+  1411→  _idC = 0;
+  1412→  currentUser = null;
+  1413→  sessionStorage.removeItem('arcano_user');
+  1414→  location.reload();
+  1415→}

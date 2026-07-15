@@ -1,0 +1,532 @@
+     1→  1399→  1399→
+     2→  1400→  1400→function cambiarEstadoVenta(id, nuevoEstado) {
+     3→  1401→  1401→  var db = getDB();
+     4→  1402→  1402→  var venta = db.ventas.find(function(v) { return v.id === id; });
+     5→  1403→  1403→  if (!venta) return;
+     6→  1404→  1404→
+     7→  1405→  1405→  var estadoAnterior = venta.estado;
+     8→  1406→  1406→  venta.estado = nuevoEstado;
+     9→  1407→  1407→
+    10→  1408→  1408→  // If cancelled and was completed/tienda, restore stock
+    11→  1409→  1409→  if (nuevoEstado === 'cancelada' && (estadoAnterior === 'completada' || estadoAnterior === 'pendiente')) {
+    12→  1410→  1410→    (venta.items || []).forEach(function(it) {
+    13→  1411→  1411→      if (it.tipo === 'especia') {
+    14→  1412→  1412→        var prod = db.productos.find(function(p) { return p.id === it.id; });
+    15→  1413→  1413→        if (prod) { prod.stock += it.cantidad; prod.actualizadoEn = new Date().toISOString(); }
+    16→  1414→  1414→      } else if (it.tipo === 'blend') {
+    17→  1415→  1415→        var blend = db.blends.find(function(b) { return b.id === it.id; });
+    18→  1416→  1416→        if (blend) { blend.stock += it.cantidad; blend.actualizadoEn = new Date().toISOString(); }
+    19→  1417→  1417→        // Restore frasco
+    20→  1418→  1418→        if (it.frascoId) {
+    21→  1419→  1419→          var frasco = db.productos.find(function(p) { return p.id === it.frascoId; });
+    22→  1420→  1420→          if (frasco) { frasco.stock += it.cantidad; frasco.actualizadoEn = new Date().toISOString(); }
+    23→  1421→  1421→        }
+    24→  1422→  1422→        // Restore etiqueta
+    25→  1423→  1423→        if (it.etiquetaId) {
+    26→  1424→  1424→          var etiqueta = db.productos.find(function(p) { return p.id === it.etiquetaId; });
+    27→  1425→  1425→          if (etiqueta) { etiqueta.stock += it.cantidad; etiqueta.actualizadoEn = new Date().toISOString(); }
+    28→  1426→  1426→        }
+    29→  1427→  1427→      }
+    30→  1428→  1428→    });
+    31→  1429→  1429→    addMovimiento('ajuste', 'ventas', venta.id, 'Devolución', 0, 'Venta #' + id + ' cancelada - stock restaurado');
+    32→  1430→  1430→  }
+    33→  1431→  1431→
+    34→  1432→  1432→  saveDB();
+    35→  1433→  1433→  closeModal();
+    36→  1434→  1434→  renderVentas();
+    37→  1435→  1435→  toast('Venta actualizada');
+    38→  1436→  1436→}
+    39→  1437→  1437→
+    40→  1438→  1438→function toggleTiendaOrders() {
+    41→  1439→  1439→  ventasFilter = 'pendiente';
+    42→  1440→  1440→  renderVentas();
+    43→  1441→  1441→}
+    44→  1442→  1442→
+    45→  1443→  1443→// =====================================================
+    46→  1444→  1444→//  USUARIOS (Admin only)
+    47→  1445→  1445→// =====================================================
+    48→  1446→  1446→function renderUsuarios() {
+    49→  1447→  1447→  if (!currentUser || currentUser.rol !== 'admin') return;
+    50→  1448→  1448→  var db = getDB();
+    51→  1449→  1449→  var el = document.getElementById('page-usuarios');
+    52→  1450→  1450→  var usuarios = db.usuarios || [];
+    53→  1451→  1451→
+    54→  1452→  1452→  var html = '<h1 class="page-title">Usuarios</h1>';
+    55→  1453→  1453→  html += '<div class="actions-row"><button class="btn btn-gold" onclick="modalNuevoUsuario()">+ Nuevo Usuario</button></div>';
+    56→  1454→  1454→
+    57→  1455→  1455→  html += '<div class="g3">';
+    58→  1456→  1456→  usuarios.forEach(function(u) {
+    59→  1457→  1457→    var roleLabel = u.rol === 'admin' ? 'Admin' : (u.rol === 'operador' ? 'Operador' : 'Vendedor');
+    60→  1458→  1458→    var roleBadge = u.rol === 'admin' ? 'ba' : (u.rol === 'operador' ? 'bg' : 'by');
+    61→  1459→  1459→    html += '<div class="card">' +
+    62→  1460→  1460→      '<div class="flex justify-between items-center mb-12"><div class="user-avatar" style="width:42px;height:42px;font-size:1.2rem">' + esc(u.nombre.charAt(0)) + '</div>' +
+    63→  1461→  1461→      '<span class="badge ' + roleBadge + '">' + roleLabel + '</span></div>' +
+    64→  1462→  1462→      '<div class="fw7 mb-8" style="font-size:1rem">' + esc(u.nombre) + '</div>' +
+    65→  1463→  1463→      '<div class="text-xs text-muted mb-12">PIN: ' + esc(u.pin) + ' &bull; ' + (u.activo ? '<span class="text-green">Activo</span>' : '<span class="text-red">Inactivo</span>') + '</div>' +
+    66→  1464→  1464→      '<div class="flex gap-8">' +
+    67→  1465→  1465→        '<button class="btn btn-ghost btn-sm" onclick="modalEditarUsuario(' + u.id + ')">Editar</button>' +
+    68→  1466→  1466→        (u.rol !== 'admin' ? '<button class="btn btn-red btn-sm" onclick="toggleUsuarioActivo(' + u.id + ')">' + (u.activo ? 'Desactivar' : 'Activar') + '</button>' : '') +
+    69→  1467→  1467→      '</div></div>';
+    70→  1468→  1468→  });
+    71→  1469→  1469→  html += '</div>';
+    72→  1470→  1470→
+    73→  1471→  1471→  el.innerHTML = html;
+    74→  1472→  1472→}
+    75→  1473→  1473→
+    76→  1474→  1474→function usuarioFormHTML(u) {
+    77→  1475→  1475→  u = u || {};
+    78→  1476→  1476→  return '<div class="fr">' +
+    79→  1477→  1477→    '<div><label>Nombre</label><input id="usr-nombre" value="' + esc(u.nombre || '') + '" placeholder="Nombre"></div>' +
+    80→  1478→  1478→    '<div><label>PIN (4 dígitos)</label><input id="usr-pin" value="' + esc(u.pin || '') + '" maxlength="4" placeholder="1234"></div></div>' +
+    81→  1479→  1479→    '<div class="fr1" style="margin-bottom:12px"><label>Rol</label><select id="usr-rol">' + optHtml(ROLES, u.rol || 'operador') + '</select></div>' +
+    82→  1480→  1480→    (u.id ? '<div class="fr1" style="margin-bottom:12px"><label>Estado</label><select id="usr-activo"><option value="1"' + (u.activo !== false ? ' selected' : '') + '>Activo</option><option value="0"' + (u.activo === false ? ' selected' : '') + '>Inactivo</option></select></div>' : '') +
+    83→  1481→  1481→    '<div id="usr-alert" class="alert alert-err"></div>' +
+    84→  1482→  1482→    '<button class="btn btn-gold btn-full" onclick="guardarUsuario(' + (u.id || 0) + ')">' + (u.id ? 'Actualizar' : 'Crear') + ' Usuario</button>';
+    85→  1483→  1483→}
+    86→  1484→  1484→
+    87→  1485→  1485→function modalNuevoUsuario() {
+    88→  1486→  1486→  openModal('Nuevo Usuario', usuarioFormHTML(null));
+    89→  1487→  1487→}
+    90→  1488→  1488→
+    91→  1489→  1489→function modalEditarUsuario(id) {
+    92→  1490→  1490→  var db = getDB();
+    93→  1491→  1491→  var u = db.usuarios.find(function(x) { return x.id === id; });
+    94→  1492→  1492→  if (!u) return;
+    95→  1493→  1493→  openModal('Editar Usuario', usuarioFormHTML(u));
+    96→  1494→  1494→}
+    97→  1495→  1495→
+    98→  1496→  1496→function guardarUsuario(existingId) {
+    99→  1497→  1497→  var nombre = document.getElementById('usr-nombre').value.trim();
+   100→  1498→  1498→  var pin = document.getElementById('usr-pin').value.trim();
+   101→  1499→  1499→  var rol = document.getElementById('usr-rol').value;
+   102→  1500→  1500→  var alertEl = document.getElementById('usr-alert');
+   103→  1501→  1501→
+   104→  1502→  1502→  if (!nombre || !pin) {
+   105→  1503→  1503→    alertEl.textContent = 'Nombre y PIN son obligatorios';
+   106→  1504→  1504→    alertEl.className = 'alert alert-err show';
+   107→  1505→  1505→    return;
+   108→  1506→  1506→  }
+   109→  1507→  1507→  if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+   110→  1508→  1508→    alertEl.textContent = 'El PIN debe ser exactamente 4 dígitos';
+   111→  1509→  1509→    alertEl.className = 'alert alert-err show';
+   112→  1510→  1510→    return;
+   113→  1511→  1511→  }
+   114→  1512→  1512→
+   115→  1513→  1513→  var db = getDB();
+   116→  1514→  1514→
+   117→  1515→  1515→  if (existingId) {
+   118→  1516→  1516→    var usr = db.usuarios.find(function(u) { return u.id === existingId; });
+   119→  1517→  1517→    if (usr) {
+   120→  1518→  1518→      usr.nombre = nombre; usr.pin = pin; usr.rol = rol;
+   121→  1519→  1519→      var activoEl = document.getElementById('usr-activo');
+   122→  1520→  1520→      if (activoEl) usr.activo = activoEl.value === '1';
+   123→  1521→  1521→    }
+   124→  1522→  1522→  } else {
+   125→  1523→  1523→    db.usuarios.push({
+   126→  1524→  1524→      id: nextId(), nombre: nombre, pin: pin, rol: rol,
+   127→  1525→  1525→      activo: true, creadoEn: new Date().toISOString()
+   128→  1526→  1526→    });
+   129→  1527→  1527→  }
+   130→  1528→  1528→
+   131→  1529→  1529→  saveDB();
+   132→  1530→  1530→  closeModal();
+   133→  1531→  1531→  renderUsuarios();
+   134→  1532→  1532→  toast(existingId ? 'Usuario actualizado' : 'Usuario creado');
+   135→  1533→  1533→}
+   136→  1534→  1534→
+   137→  1535→  1535→function toggleUsuarioActivo(id) {
+   138→  1536→  1536→  var db = getDB();
+   139→  1537→  1537→  var usr = db.usuarios.find(function(u) { return u.id === id; });
+   140→  1538→  1538→  if (!usr) return;
+   141→  1539→  1539→  usr.activo = !usr.activo;
+   142→  1540→  1540→  saveDB();
+   143→  1541→  1541→  renderUsuarios();
+   144→  1542→  1542→  toast(usr.nombre + (usr.activo ? ' activado' : ' desactivado'));
+   145→  1543→  1543→}
+   146→  1544→  1544→
+   147→  1545→  1545→// =====================================================
+   148→  1546→  1546→//  AJUSTES
+   149→  1547→  1547→// =====================================================
+   150→  1548→  1548→function renderAjustes() {
+   151→  1549→  1549→  var el = document.getElementById('page-ajustes');
+   152→  1550→  1550→  var db = getDB();
+   153→  1551→  1551→
+   154→  1552→  1552→  var html = '<h1 class="page-title">Ajustes</h1>';
+   155→  1553→  1553→
+   156→  1554→  1554→  // Sync status
+   157→  1555→  1555→  html += '<div class="section-title mb-12">Sincronización Firebase</div>';
+   158→  1556→  1556→  html += '<div class="card mb-20">' +
+   159→  1557→  1557→    '<div class="flex items-center gap-12 mb-12"><span id="ajustes-conn-badge" class="badge ' + (fbIsConnected() ? 'bg' : 'br') + '">' + (fbIsConnected() ? 'Conectado' : 'Desconectado') + '</span>' +
+   160→  1558→  1558→    '<span class="text-sm text-muted">Firebase Realtime Database</span></div>' +
+   161→  1559→  1559→    '<div class="flex gap-8">' +
+   162→  1560→  1560→      '<button class="btn btn-ghost btn-sm" onclick="fbForceReload()">Forzar Sincronización</button>' +
+   163→  1561→  1561→      '<button class="btn btn-red btn-sm" onclick="fbClearRemote()">Borrar Datos Remotos</button></div></div>';
+   164→  1562→  1562→
+   165→  1563→  1563→  // Import / Export
+   166→  1564→  1564→  html += '<div class="section-title mb-12">Importar / Exportar Excel</div>';
+   167→  1565→  1565→  html += '<div class="card mb-20">';
+   168→  1566→  1566→  html += '<div class="mb-12"><label style="margin-bottom:8px">Importar catálogo desde Excel</label>' +
+   169→  1567→  1567→    '<div class="text-xs text-muted mb-8">Columnas esperadas: Blend (nombre), Categoría, Origen, Uso Principal, Perfil. Los productos se crean como tipo "especia" con precio $0. Luego editás los precios y stock.</div>' +
+   170→  1568→  1568→    '<input type="file" id="import-excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelImport(this)">' +
+   171→  1569→  1569→    '<button class="btn btn-gold btn-sm" onclick="document.getElementById(\'import-excel-input\').click()">Seleccionar Archivo Excel</button></div>';
+   172→  1570→  1570→  html += '<hr class="divider">';
+   173→  1571→  1571→  html += '<div class="flex gap-8" style="flex-wrap:wrap">';
+   174→  1572→  1572→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'productos\')">Exportar Productos</button>';
+   175→  1573→  1573→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'blends\')">Exportar Blends</button>';
+   176→  1574→  1574→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'ventas\')">Exportar Ventas</button>';
+   177→  1575→  1575→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'stock\')">Exportar Stock</button>';
+   178→  1576→  1576→  html += '<button class="btn btn-ghost btn-sm" onclick="exportarExcel(\'todo\')">Exportar Todo</button>';
+   179→  1577→  1577→  html += '</div></div>';
+   180→  1578→  1578→
+   181→  1579→  1579→  // Data summary
+   182→  1580→  1580→  html += '<div class="section-title mb-12">Resumen de Datos</div>';
+   183→  1581→  1581→  html += '<div class="card mb-20">';
+   184→  1582→  1582→  var collections = [
+   185→  1583→  1583→    { name: 'Productos', count: (db.productos || []).length },
+   186→  1584→  1584→    { name: 'Compras', count: (db.compras || []).length },
+   187→  1585→  1585→    { name: 'Blends', count: (db.blends || []).length },
+   188→  1586→  1586→    { name: 'Ventas', count: (db.ventas || []).length },
+   189→  1587→  1587→    { name: 'Usuarios', count: (db.usuarios || []).length },
+   190→  1588→  1588→    { name: 'Movimientos', count: (db.movimientos || []).length }
+   191→  1589→  1589→  ];
+   192→  1590→  1590→  collections.forEach(function(c) {
+   193→  1591→  1591→    html += '<div class="mov-row"><span>' + esc(c.name) + '</span><span class="text-gold fw7">' + c.count + ' registros</span></div>';
+   194→  1592→  1592→  });
+   195→  1593→  1593→  html += '</div>';
+   196→  1594→  1594→
+   197→  1595→  1595→  // Danger zone
+   198→  1596→  1596→  if (currentUser && currentUser.rol === 'admin') {
+   199→  1597→  1597→    html += '<div class="section-title mb-12">Zona de Peligro</div>';
+   200→  1598→  1598→    html += '<div class="card" style="border-color:var(--red)">' +
+   201→  1599→  1599→      '<div class="text-sm mb-12">Estas acciones no se pueden deshacer</div>' +
+   202→  1600→  1600→      '<div class="flex gap-8">' +
+   203→  1601→  1601→        '<button class="btn btn-red btn-sm" onclick="resetearMovimientos()">Limpiar Movimientos</button>' +
+   204→  1602→  1602→        '<button class="btn btn-red btn-sm" onclick="resetearTodo()">Resetear Todo</button></div></div>';
+   205→  1603→  1603→  }
+   206→  1604→  1604→
+   207→  1605→  1605→  el.innerHTML = html;
+   208→  1606→  1606→}
+   209→  1607→  1607→
+   210→  1608→  1608→// =====================================================
+   211→  1609→  1609→//  EXCEL IMPORT
+   212→  1610→  1610→// =====================================================
+   213→  1611→  1611→function handleExcelImport(input) {
+   214→  1612→  1612→  var file = input.files[0];
+   215→  1613→  1613→  if (!file) return;
+   216→  1614→  1614→
+   217→  1615→  1615→  var reader = new FileReader();
+   218→  1616→  1616→  reader.onload = function(e) {
+   219→  1617→  1617→    try {
+   220→  1618→  1618→      var data = new Uint8Array(e.target.result);
+   221→  1619→  1619→      var workbook = XLSX.read(data, { type: 'array' });
+   222→  1620→  1620→      var firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+   223→  1621→  1621→      var rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+   224→  1622→  1622→
+   225→  1623→  1623→      if (rows.length === 0) {
+   226→  1624→  1624→        toast('El archivo está vacío', 'err');
+   227→  1625→  1625→        return;
+   228→  1626→  1626→      }
+   229→  1627→  1627→
+   230→  1628→  1628→      // Detect column mapping
+   231→  1629→  1629→      var headers = Object.keys(rows[0]);
+   232→  1630→  1630→      var colMap = detectColumnMap(headers);
+   233→  1631→  1631→
+   234→  1632→  1632→      if (!colMap.nombre) {
+   235→  1633→  1633→        toast('No se encontró columna de nombre (Blend/Nombre/Producto)', 'err');
+   236→  1634→  1634→        return;
+   237→  1635→  1635→      }
+   238→  1636→  1636→
+   239→  1637→  1637→      // Show preview before importing
+   240→  1638→  1638→      showImportPreview(rows, colMap);
+   241→  1639→  1639→
+   242→  1640→  1640→    } catch(err) {
+   243→  1641→  1641→      toast('Error al leer el archivo: ' + err.message, 'err');
+   244→  1642→  1642→      console.error('[Import]', err);
+   245→  1643→  1643→    }
+   246→  1644→  1644→  };
+   247→  1645→  1645→  reader.readAsArrayBuffer(file);
+   248→  1646→  1646→  input.value = ''; // Reset so same file can be re-selected
+   249→  1647→  1647→}
+   250→  1648→  1648→
+   251→  1649→  1649→function detectColumnMap(headers) {
+   252→  1650→  1650→  var map = { nombre: null, categoria: null, origen: null, uso: null, perfil: null, precioCosto: null, precioVenta: null, stock: null, unidad: null };
+   253→  1651→  1651→
+   254→  1652→  1652→  headers.forEach(function(h) {
+   255→  1653→  1653→    var hl = h.toLowerCase().trim();
+   256→  1654→  1654→    if (['blend', 'nombre', 'producto', 'name', 'especia', 'item'].indexOf(hl) !== -1) map.nombre = h;
+   257→  1655→  1655→    else if (['categoría', 'categoria', 'category', 'tipo', 'type'].indexOf(hl) !== -1) map.categoria = h;
+   258→  1656→  1656→    else if (['origen', 'origin', 'país', 'pais', 'procedencia'].indexOf(hl) !== -1) map.origen = h;
+   259→  1657→  1657→    else if (['uso principal', 'uso', 'use', 'aplicación', 'aplicacion'].indexOf(hl) !== -1) map.uso = h;
+   260→  1658→  1658→    else if (['perfil', 'profile', 'sabor', 'flavor'].indexOf(hl) !== -1) map.perfil = h;
+   261→  1659→  1659→    else if (['precio costo', 'costo', 'precio_compra', 'cost', 'precio de costo'].indexOf(hl) !== -1) map.precioCosto = h;
+   262→  1660→  1660→    else if (['precio venta', 'venta', 'precio', 'price', 'precio de venta'].indexOf(hl) !== -1) map.precioVenta = h;
+   263→  1661→  1661→    else if (['stock', 'cantidad', 'inventario', 'inventory', 'existencia'].indexOf(hl) !== -1) map.stock = h;
+   264→  1662→  1662→    else if (['unidad', 'unit', 'medida', 'um'].indexOf(hl) !== -1) map.unidad = h;
+   265→  1663→  1663→  });
+   266→  1664→  1664→
+   267→  1665→  1665→  return map;
+   268→  1666→  1666→}
+   269→  1667→  1667→
+   270→  1668→  1668→function showImportPreview(rows, colMap) {
+   271→  1669→  1669→  var previewRows = rows.slice(0, 8);
+   272→  1670→  1670→  var html = '<p class="text-sm text-muted mb-12">Se encontraron <strong class="text-gold">' + rows.length + '</strong> filas. Columnas detectadas:' +
+   273→  1671→  1671→    '<br>Nombre: <strong>' + esc(colMap.nombre || '-') + '</strong>' +
+   274→  1672→  1672→    (colMap.categoria ? ' | Categoría: <strong>' + esc(colMap.categoria) + '</strong>' : '') +
+   275→  1673→  1673→    (colMap.origen ? ' | Origen: <strong>' + esc(colMap.origen) + '</strong>' : '') +
+   276→  1674→  1674→    (colMap.uso ? ' | Uso: <strong>' + esc(colMap.uso) + '</strong>' : '') +
+   277→  1675→  1675→    (colMap.perfil ? ' | Perfil: <strong>' + esc(colMap.perfil) + '</strong>' : '') +
+   278→  1676→  1676→    (colMap.precioCosto ? ' | Costo: <strong>' + esc(colMap.precioCosto) + '</strong>' : '') +
+   279→  1677→  1677→    (colMap.precioVenta ? ' | Venta: <strong>' + esc(colMap.precioVenta) + '</strong>' : '') +
+   280→  1678→  1678→    (colMap.stock ? ' | Stock: <strong>' + esc(colMap.stock) + '</strong>' : '') +
+   281→  1679→  1679→    '</p>';
+   282→  1680→  1680→
+   283→  1681→  1681→  html += '<div class="tw mb-16"><table><tr><th>Nombre</th><th>Categoría</th><th>Origen</th><th>Uso</th><th>Perfil</th></tr>';
+   284→  1682→  1682→  previewRows.forEach(function(r) {
+   285→  1683→  1683→    html += '<tr><td>' + esc(r[colMap.nombre] || '') + '</td>' +
+   286→  1684→  1684→      '<td>' + esc(r[colMap.categoria] || '') + '</td>' +
+   287→  1685→  1685→      '<td>' + esc(r[colMap.origen] || '') + '</td>' +
+   288→  1686→  1686→      '<td>' + esc(r[colMap.uso] || '') + '</td>' +
+   289→  1687→  1687→      '<td>' + esc(r[colMap.perfil] || '') + '</td></tr>';
+   290→  1688→  1688→  });
+   291→  1689→  1689→  if (rows.length > 8) html += '<tr><td colspan="5" class="text-muted text-center">... y ' + (rows.length - 8) + ' más</td></tr>';
+   292→  1690→  1690→  html += '</table></div>';
+   293→  1691→  1691→
+   294→  1692→  1692→  html += '<div class="fr1" style="margin-bottom:12px"><label>Tipo de producto</label>' +
+   295→  1693→  1693→    '<select id="import-tipo">' + optHtml(PRODUCT_TYPES, 'especia') + '</select></div>';
+   296→  1694→  1694→
+   297→  1695→  1695→  html += '<div class="fr"><label>Si el producto ya existe (por nombre):</label></div>';
+   298→  1696→  1696→  html += '<div class="fr mb-12"><label></label>' +
+   299→  1697→  1697→    '<select id="import-dupes"><option value="skip">Ignorar duplicados</option>' +
+   300→  1698→  1698→    '<option value="update">Actualizar existentes</option>' +
+   301→  1699→  1699→    '<option value="overwrite">Reemplazar todo</option></select></div>';
+   302→  1700→  1700→
+   303→  1701→  1701→  html += '<div id="import-alert" class="alert alert-err"></div>';
+   304→  1702→  1702→  html += '<button class="btn btn-gold btn-full" onclick="executeImport()">Importar ' + rows.length + ' Productos</button>';
+   305→  1703→  1703→
+   306→  1704→  1704→  // Store for later use
+   307→  1705→  1705→  window._importRows = rows;
+   308→  1706→  1706→  window._importColMap = colMap;
+   309→  1707→  1707→
+   310→  1708→  1708→  openModal('Vista Previa de Importación', html);
+   311→  1709→  1709→}
+   312→  1710→  1710→
+   313→  1711→  1711→function executeImport() {
+   314→  1712→  1712→  var rows = window._importRows;
+   315→  1713→  1713→  var colMap = window._importColMap;
+   316→  1714→  1714→  var tipo = document.getElementById('import-tipo').value;
+   317→  1715→  1715→  var dupeAction = document.getElementById('import-dupes').value;
+   318→  1716→  1716→  var alertEl = document.getElementById('import-alert');
+   319→  1717→  1717→
+   320→  1718→  1718→  if (!rows || rows.length === 0) return;
+   321→  1719→  1719→
+   322→  1720→  1720→  var db = getDB();
+   323→  1721→  1721→  var now = new Date().toISOString();
+   324→  1722→  1722→  var imported = 0, updated = 0, skipped = 0;
+   325→  1723→  1723→
+   326→  1724→  1724→  // If overwrite, clear existing products of this type
+   327→  1725→  1725→  if (dupeAction === 'overwrite') {
+   328→  1726→  1726→    var before = db.productos.length;
+   329→  1727→  1727→    db.productos = db.productos.filter(function(p) { return p.tipo !== tipo; });
+   330→  1728→  1728→    toast('Eliminados ' + (before - db.productos.length) + ' productos de tipo ' + tipo);
+   331→  1729→  1729→  }
+   332→  1730→  1730→
+   333→  1731→  1731→  rows.forEach(function(r) {
+   334→  1732→  1732→    var nombre = String(r[colMap.nombre] || '').trim();
+   335→  1733→  1733→    if (!nombre) return;
+   336→  1734→  1734→
+   337→  1735→  1735→    var existing = db.productos.find(function(p) {
+   338→  1736→  1736→      return p.nombre.toLowerCase() === nombre.toLowerCase() && p.tipo === tipo;
+   339→  1737→  1737→    });
+   340→  1738→  1738→
+   341→  1739→  1739→    if (existing) {
+   342→  1740→  1740→      if (dupeAction === 'skip') { skipped++; return; }
+   343→  1741→  1741→      // Update existing
+   344→  1742→  1742→      if (colMap.categoria) existing.categoria = String(r[colMap.categoria] || '').trim();
+   345→  1743→  1743→      if (colMap.origen) existing.origen = String(r[colMap.origen] || '').trim();
+   346→  1744→  1744→      if (colMap.uso) existing.usoPrincipal = String(r[colMap.uso] || '').trim();
+   347→  1745→  1745→      if (colMap.perfil) existing.perfil = String(r[colMap.perfil] || '').trim();
+   348→  1746→  1746→      if (colMap.precioCosto) existing.precioCosto = parseFloat(r[colMap.precioCosto]) || existing.precioCosto;
+   349→  1747→  1747→      if (colMap.precioVenta) existing.precioVenta = parseFloat(r[colMap.precioVenta]) || existing.precioVenta;
+   350→  1748→  1748→      if (colMap.stock) existing.stock = parseFloat(r[colMap.stock]) || existing.stock;
+   351→  1749→  1749→      if (colMap.unidad) existing.unidad = String(r[colMap.unidad] || '').trim();
+   352→  1750→  1750→      existing.actualizadoEn = now;
+   353→  1751→  1751→      updated++;
+   354→  1752→  1752→    } else {
+   355→  1753→  1753→      var notas = [];
+   356→  1754→  1754→      if (colMap.uso) notas.push('Uso: ' + String(r[colMap.uso] || '').trim());
+   357→  1755→  1755→      if (colMap.perfil) notas.push('Perfil: ' + String(r[colMap.perfil] || '').trim());
+   358→  1756→  1756→
+   359→  1757→  1757→      var prod = {
+   360→  1758→  1758→        id: nextId(),
+   361→  1759→  1759→        nombre: nombre,
+   362→  1760→  1760→        tipo: tipo,
+   363→  1761→  1761→        unidad: colMap.unidad ? String(r[colMap.unidad] || 'gr').trim() : 'gr',
+   364→  1762→  1762→        precioCosto: colMap.precioCosto ? (parseFloat(r[colMap.precioCosto]) || 0) : 0,
+   365→  1763→  1763→        precioVenta: colMap.precioVenta ? (parseFloat(r[colMap.precioVenta]) || 0) : 0,
+   366→  1764→  1764→        stock: colMap.stock ? (parseFloat(r[colMap.stock]) || 0) : 0,
+   367→  1765→  1765→        stockMin: 0,
+   368→  1766→  1766→        proveedor: '',
+   369→  1767→  1767→        notas: notas.join(' | '),
+   370→  1768→  1768→        categoria: colMap.categoria ? String(r[colMap.categoria] || '').trim() : '',
+   371→  1769→  1769→        origen: colMap.origen ? String(r[colMap.origen] || '').trim() : '',
+   372→  1770→  1770→        usoPrincipal: colMap.uso ? String(r[colMap.uso] || '').trim() : '',
+   373→  1771→  1771→        perfil: colMap.perfil ? String(r[colMap.perfil] || '').trim() : '',
+   374→  1772→  1772→        creadoEn: now,
+   375→  1773→  1773→        actualizadoEn: now
+   376→  1774→  1774→      };
+   377→  1775→  1775→      db.productos.push(prod);
+   378→  1776→  1776→      imported++;
+   379→  1777→  1777→    }
+   380→  1778→  1778→  });
+   381→  1779→  1779→
+   382→  1780→  1780→  saveDB();
+   383→  1781→  1781→  closeModal();
+   384→  1782→  1782→  renderAjustes();
+   385→  1783→  1783→  toast('Importados: ' + imported + ' | Actualizados: ' + updated + ' | Ignorados: ' + skipped);
+   386→  1784→  1784→}
+   387→  1785→  1785→
+   388→  1786→  1786→// =====================================================
+   389→  1787→  1787→//  EXCEL EXPORT
+   390→  1788→  1788→// =====================================================
+   391→  1789→  1789→function exportarExcel(tipo) {
+   392→  1790→  1790→  var db = getDB();
+   393→  1791→  1791→  var wb = XLSX.utils.book_new();
+   394→  1792→  1792→  var fecha = new Date().toISOString().split('T')[0];
+   395→  1793→  1793→
+   396→  1794→  1794→  if (tipo === 'productos' || tipo === 'todo') {
+   397→  1795→  1795→    var prods = (db.productos || []).map(function(p) {
+   398→  1796→  1796→      return {
+   399→  1797→  1797→        'ID': p.id,
+   400→  1798→  1798→        'Nombre': p.nombre,
+   401→  1799→  1799→        'Tipo': p.tipo,
+   402→  1800→  1800→        'Categoría': p.categoria || '',
+   403→  1801→  1801→        'Origen': p.origen || '',
+   404→  1802→  1802→        'Uso Principal': p.usoPrincipal || '',
+   405→  1803→  1803→        'Perfil': p.perfil || '',
+   406→  1804→  1804→        'Unidad': p.unidad,
+   407→  1805→  1805→        'Precio Costo': p.precioCosto || 0,
+   408→  1806→  1806→        'Precio Venta': p.precioVenta || 0,
+   409→  1807→  1807→        'Stock': p.stock || 0,
+   410→  1808→  1808→        'Stock Mínimo': p.stockMin || 0,
+   411→  1809→  1809→        'Proveedor': p.proveedor || '',
+   412→  1810→  1810→        'Notas': p.notas || ''
+   413→  1811→  1811→      };
+   414→  1812→  1812→    });
+   415→  1813→  1813→    var wsProd = XLSX.utils.json_to_sheet(prods);
+   416→  1814→  1814→    wsProd['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 24 }, { wch: 18 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 30 }];
+   417→  1815→  1815→    XLSX.utils.book_append_sheet(wb, wsProd, 'Productos');
+   418→  1816→  1816→  }
+   419→  1817→  1817→
+   420→  1818→  1818→  if (tipo === 'blends' || tipo === 'todo') {
+   421→  1819→  1819→    var blends = (db.blends || []).map(function(b) {
+   422→  1820→  1820→      var recetaStr = (b.receta || []).map(function(r) { return r.nombre + ' (' + r.cantidad + r.unidad + ')'; }).join(', ');
+   423→  1821→  1821→      return {
+   424→  1822→  1822→        'ID': b.id,
+   425→  1823→  1823→        'Nombre': b.nombre,
+   426→  1824→  1824→        'Descripción': b.descripcion || '',
+   427→  1825→  1825→        'Receta': recetaStr,
+   428→  1826→  1826→        'Costo Unitario': b.costoUnitario || calcBlendCost(b),
+   429→  1827→  1827→        'Precio Venta': b.precioVenta || 0,
+   430→  1828→  1828→        'Stock': b.stock || 0
+   431→  1829→  1829→      };
+   432→  1830→  1830→    });
+   433→  1831→  1831→    var wsBlend = XLSX.utils.json_to_sheet(blends);
+   434→  1832→  1832→    wsBlend['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 30 }, { wch: 60 }, { wch: 16 }, { wch: 14 }, { wch: 10 }];
+   435→  1833→  1833→    XLSX.utils.book_append_sheet(wb, wsBlend, 'Blends');
+   436→  1834→  1834→  }
+   437→  1835→  1835→
+   438→  1836→  1836→  if (tipo === 'ventas' || tipo === 'todo') {
+   439→  1837→  1837→    var ventas = (db.ventas || []).map(function(v) {
+   440→  1838→  1838→      var itemsStr = (v.items || []).map(function(i) { return i.nombre + ' x' + i.cantidad + ' (' + fmt(i.subtotal) + ')'; }).join(', ');
+   441→  1839→  1839→      return {
+   442→  1840→  1840→        'ID': v.id,
+   443→  1841→  1841→        'Fecha': fmtDateTime(v.fecha || v.creadoEn),
+   444→  1842→  1842→        'Tipo': v.tipo === 'tienda' ? 'Tienda' : 'Mostrador',
+   445→  1843→  1843→        'Cliente': v.clienteNombre || '',
+   446→  1844→  1844→        'Teléfono': v.clienteTelefono || '',
+   447→  1845→  1845→        'Dirección': v.clienteDireccion || '',
+   448→  1846→  1846→        'Items': itemsStr,
+   449→  1847→  1847→        'Total': v.total || 0,
+   450→  1848→  1848→        'Estado': v.estado || '',
+   451→  1849→  1849→        'Creado Por': v.creadoPor || ''
+   452→  1850→  1850→      };
+   453→  1851→  1851→    });
+   454→  1852→  1852→    var wsVentas = XLSX.utils.json_to_sheet(ventas);
+   455→  1853→  1853→    wsVentas['!cols'] = [{ wch: 6 }, { wch: 18 }, { wch: 12 }, { wch: 20 }, { wch: 16 }, { wch: 24 }, { wch: 60 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+   456→  1854→  1854→    XLSX.utils.book_append_sheet(wb, wsVentas, 'Ventas');
+   457→  1855→  1855→  }
+   458→  1856→  1856→
+   459→  1857→  1857→  if (tipo === 'stock' || tipo === 'todo') {
+   460→  1858→  1858→    var stockRows = [];
+   461→  1859→  1859→    (db.productos || []).forEach(function(p) {
+   462→  1860→  1860→      var estado = p.stock <= (p.stockMin || 0) ? 'BAJO' : 'OK';
+   463→  1861→  1861→      stockRows.push({
+   464→  1862→  1862→        'Nombre': p.nombre,
+   465→  1863→  1863→        'Tipo': p.tipo,
+   466→  1864→  1864→        'Categoría': p.categoria || '',
+   467→  1865→  1865→        'Stock Actual': p.stock || 0,
+   468→  1866→  1866→        'Unidad': p.unidad,
+   469→  1867→  1867→        'Stock Mínimo': p.stockMin || 0,
+   470→  1868→  1868→        'Estado': estado,
+   471→  1869→  1869→        'Precio Venta': p.precioVenta || 0,
+   472→  1870→  1870→        'Valor en Stock': (p.stock || 0) * (p.precioCosto || 0)
+   473→  1871→  1871→      });
+   474→  1872→  1872→    });
+   475→  1873→  1873→    (db.blends || []).forEach(function(b) {
+   476→  1874→  1874→      stockRows.push({
+   477→  1875→  1875→        'Nombre': b.nombre,
+   478→  1876→  1876→        'Tipo': 'Blend',
+   479→  1877→  1877→        'Categoría': '',
+   480→  1878→  1878→        'Stock Actual': b.stock || 0,
+   481→  1879→  1879→        'Unidad': 'unidad',
+   482→  1880→  1880→        'Stock Mínimo': 0,
+   483→  1881→  1881→        'Estado': b.stock > 0 ? 'OK' : 'SIN STOCK',
+   484→  1882→  1882→        'Precio Venta': b.precioVenta || 0,
+   485→  1883→  1883→        'Valor en Stock': (b.stock || 0) * (b.costoUnitario || 0)
+   486→  1884→  1884→      });
+   487→  1885→  1885→    });
+   488→  1886→  1886→    var wsStock = XLSX.utils.json_to_sheet(stockRows);
+   489→  1887→  1887→    wsStock['!cols'] = [{ wch: 30 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }];
+   490→  1888→  1888→    XLSX.utils.book_append_sheet(wb, wsStock, 'Stock');
+   491→  1889→  1889→  }
+   492→  1890→  1890→
+   493→  1891→  1891→  if (tipo === 'todo') {
+   494→  1892→  1892→    // Also add a summary sheet
+   495→  1893→  1893→    var totalVentas = (db.ventas || []).filter(function(v) { return v.estado !== 'cancelada'; }).reduce(function(s, v) { return s + (v.total || 0); }, 0);
+   496→  1894→  1894→    var totalCompras = (db.compras || []).filter(function(c) { return c.estado === 'recibida'; }).reduce(function(s, c) { return s + (c.total || 0); }, 0);
+   497→  1895→  1895→    var summary = [
+   498→  1896→  1896→      { 'Métrica': 'Total Productos', 'Valor': (db.productos || []).length },
+   499→  1897→  1897→      { 'Métrica': 'Total Blends', 'Valor': (db.blends || []).length },
+   500→  1898→  1898→      { 'Métrica': 'Total Ventas', 'Valor': (db.ventas || []).length },
+   501→  1899→  1899→      { 'Métrica': 'Total Compras', 'Valor': (db.compras || []).length },
+   502→  1900→  1900→      { 'Métrica': 'Ventas ($)', 'Valor': totalVentas },
+   503→  1901→  1901→      { 'Métrica': 'Compras ($)', 'Valor': totalCompras },
+   504→  1902→  1902→      { 'Métrica': 'Fecha Exportación', 'Valor': fecha }
+   505→  1903→  1903→    ];
+   506→  1904→  1904→    var wsSum = XLSX.utils.json_to_sheet(summary);
+   507→  1905→  1905→    wsSum['!cols'] = [{ wch: 24 }, { wch: 18 }];
+   508→  1906→  1906→    XLSX.utils.book_append_sheet(wb, wsSum, 'Resumen');
+   509→  1907→  1907→  }
+   510→  1908→  1908→
+   511→  1909→  1909→  var fileName = 'Arcano_' + tipo + '_' + fecha + '.xlsx';
+   512→  1910→  1910→  XLSX.writeFile(wb, fileName);
+   513→  1911→  1911→  toast('Excel descargado: ' + fileName);
+   514→  1912→  1912→}
+   515→  1913→  1913→
+   516→  1914→  1914→function resetearMovimientos() {
+   517→  1915→  1915→  if (!confirm('Borrar todos los movimientos?')) return;
+   518→  1916→  1916→  var db = getDB();
+   519→  1917→  1917→  db.movimientos = [];
+   520→  1918→  1918→  saveDB();
+   521→  1919→  1919→  renderAjustes();
+   522→  1920→  1920→  toast('Movimientos eliminados');
+   523→  1921→  1921→}
+   524→  1922→  1922→
+   525→  1923→  1923→function resetearTodo() {
+   526→  1924→  1924→  if (!confirm('ATENCIÓN: Esto borrará TODOS los datos y reiniciará el sistema. Continuar?')) return;
+   527→  1925→  1925→  localStorage.removeItem(DB_KEY);
+   528→  1926→  1926→  _idC = 0;
+   529→  1927→  1927→  currentUser = null;
+   530→  1928→  1928→  sessionStorage.removeItem('arcano_user');
+   531→  1929→  1929→  location.reload();
+   532→  1930→  1930→}
