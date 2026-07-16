@@ -147,22 +147,32 @@ async function doDeploy(){
     var sha=ci.object.sha;
     log('SHA: '+sha.substring(0,8));
 
-    // 3. Build tree
+    // 3. Create blobs for each file, then build tree with SHAs
     var tree=[];
     var paths=Object.keys(FILES);
     for(var i=0;i<paths.length;i++){
       var p=paths[i];
       var content=btoa(unescape(encodeURIComponent(FILES[p])));
-      tree.push({path:p,mode:'100644',type:'blob',content:content});
-      log('Archivo: '+p+' ('+FILES[p].length+' chars)','log-info');
+      var br=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
+        method:'POST',headers:h,body:JSON.stringify({content:content,encoding:'base64'})
+      });
+      if(!br.ok){var be=await br.json();throw new Error('Blob error for '+p+': '+(be.message||br.status))}
+      var bd=await br.json();
+      tree.push({path:p,mode:'100644',type:'blob',sha:bd.sha});
+      log('Blob: '+p+' ('+FILES[p].length+' chars) → '+bd.sha.substring(0,8),'log-info');
     }
 
     // Binary files
     var bpaths=Object.keys(BINARIES);
     for(var j=0;j<bpaths.length;j++){
       var bp=bpaths[j];
-      tree.push({path:bp,mode:'100644',type:'blob',content:BINARIES[bp]});
-      log('Binario: '+bp,'log-info');
+      var bbr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
+        method:'POST',headers:h,body:JSON.stringify({content:BINARIES[bp],encoding:'base64'})
+      });
+      if(!bbr.ok) throw new Error('Blob error for '+bp+': '+bbr.status);
+      var bbd=await bbr.json();
+      tree.push({path:bp,mode:'100644',type:'blob',sha:bbd.sha});
+      log('Blob binario: '+bp+' → '+bbd.sha.substring(0,8),'log-info');
     }
 
     log('Creando tree con '+tree.length+' archivos...');
