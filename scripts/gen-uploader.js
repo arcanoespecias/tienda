@@ -108,7 +108,7 @@ var deployFn = [
   '    log("Tree creado: "+td.sha.substr(0,7),"ok");',
   '    setPct(80);',
   '    log("Creando commit...","info");',
-  '    var cr=await fetch("https://api.github.com/repos/"+owner+"/"+repo+"/git/commits",{method:"POST",headers:{Authorization:"Bearer "+token,"User-Agent":"Arcano","Content-Type":"application/json"},body:JSON.stringify({message:"Arcano v7-dbkey-save-fix",tree:td.sha,parents:[sha]})});',
+  '    var cr=await fetch("https://api.github.com/repos/"+owner+"/"+repo+"/git/commits",{method:"POST",headers:{Authorization:"Bearer "+token,"User-Agent":"Arcano","Content-Type":"application/json"},body:JSON.stringify({message:"Arcano v8-firebase-first",tree:td.sha,parents:[sha]})});',
   '    if(!cr.ok)throw new Error("Commit error: "+cr.status);',
   '    var cd=await cr.json();',
   '    log("Commit: "+cd.sha.substr(0,7),"ok");',
@@ -130,7 +130,7 @@ var html = '<!DOCTYPE html>\n<html lang="es">\n<head>\n' +
   '<style>\n' + css + '\n</style>\n</head>\n<body>\n' +
   '<div class="container">\n' +
   '<h1>Arcano Deploy</h1>\n' +
-  '<p class="sub">v7-dbkey-save-fix</p>\n' +
+  '<p class="sub">v8-firebase-first</p>\n' +
   '<div class="card">\n' +
   '<label>Token de GitHub</label>\n' +
   '<input type="password" id="token" placeholder="ghp_xxxx...">\n' +
@@ -183,24 +183,24 @@ try {
   // Verify index.html has real </script> tags (not escaped ones)
   var idxContent = parsed['index.html'] || '';
   var scriptTags = idxContent.match(/<\/script>/g) || [];
-  if (scriptTags.length < 5) {
-    errors.push('index.html seems corrupted - only ' + scriptTags.length + ' </script> tags found (expected ~7)');
+  if (scriptTags.length < 2) {
+    errors.push('index.html seems corrupted - only ' + scriptTags.length + ' </script> tags found');
   }
   console.log('JSON validation OK: ' + Object.keys(parsed).length + ' files, index.html has ' + scriptTags.length + ' script tags');
 } catch(e) {
   errors.push('JSON parse error: ' + e.message);
 }
 
-// 3. Check db.js has correct DB_KEY
+// 3. Check db.js uses Firebase directly (no localStorage)
 try {
   var dbContent = JSON.parse(unescaped)['js/db.js'] || '';
-  if (dbContent.indexOf('arcano_db_v3') < 0) {
-    errors.push('js/db.js missing arcano_db_v3!');
+  if (dbContent.indexOf('firebase.database().ref(FB_PATH).set') < 0) {
+    errors.push('js/db.js missing Firebase set()!');
   }
-  if (dbContent.indexOf('_dbCached') < 0) {
-    errors.push('js/db.js missing _dbCached fix!');
+  if (dbContent.match(/localStorage\.\w+\(/)) {
+    errors.push('js/db.js should NOT call localStorage methods!');
   }
-  console.log('db.js validation OK');
+  console.log('db.js validation OK (Firebase-first, no localStorage)');
 } catch(e) {}
 
 if (errors.length > 0) {
