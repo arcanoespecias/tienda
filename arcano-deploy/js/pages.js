@@ -391,6 +391,23 @@ const Pages = {
       return o;
     }
 
+    function buildProductoOpts() {
+      var o = '';
+      var esps = ArcanoDB.getEspecias();
+      var bls = ArcanoDB.getBlends();
+      if (esps.length > 0) {
+        o += '<optgroup label="Especias">';
+        for (var i = 0; i < esps.length; i++) o += '<option value="' + esps[i].nombre + '">' + esps[i].nombre + '</option>';
+        o += '</optgroup>';
+      }
+      if (bls.length > 0) {
+        o += '<optgroup label="Blends">';
+        for (var i = 0; i < bls.length; i++) o += '<option value="' + bls[i].nombre + '">' + bls[i].nombre + '</option>';
+        o += '</optgroup>';
+      }
+      return o;
+    }
+
     function addEntRow() {
       var div = document.createElement('div');
       div.className = 'card mb-8';
@@ -417,7 +434,7 @@ const Pages = {
         } else if (t === 'envase') {
           detailDiv.innerHTML = '<label>Talla</label><select class="input ent-talla"><option value="chico">Chico</option><option value="grande">Grande</option></select>';
         } else {
-          detailDiv.innerHTML = '<label>Producto</label><input type="text" class="input ent-etq-nombre" placeholder="Nombre del producto"><label class="mt-8" style="display:block">Talla</label><select class="input ent-talla"><option value="chico">Chico</option><option value="grande">Grande</option></select>';
+          detailDiv.innerHTML = '<label>Producto</label><select class="input ent-etq-nombre"><option value="">Seleccionar</option>' + buildProductoOpts() + '</select><label class="mt-8" style="display:block">Talla</label><select class="input ent-talla"><option value="chico">Chico</option><option value="grande">Grande</option></select>';
         }
       }
       tipoSel.addEventListener('change', renderDetail);
