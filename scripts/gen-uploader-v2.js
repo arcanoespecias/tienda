@@ -228,8 +228,8 @@ async function doDeploy(){
 
   // Validate DB_KEY consistency
   const dbContent = filesObj['js/db.js'];
-  if (dbContent.includes("const DB_KEY = 'arcano_v2'")) {
-    console.log('Validation: DB_KEY = arcano_v2 OK');
+  if (dbContent.includes("const DB_KEY = 'arcano_v3'")) {
+    console.log('Validation: DB_KEY = arcano_v3 OK');
   } else {
     console.error('ERROR: DB_KEY not found or wrong in db.js!');
   }
