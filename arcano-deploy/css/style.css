@@ -352,6 +352,40 @@ select.input { cursor: pointer; }
   .sidebar-closed .sidebar { transform: translateX(-100%); }
 }
 
+/* ==================== ETIQUETAS ==================== */
+.etiquetas-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.etiqueta-card {
+  background: var(--bg); border: 1px solid var(--bg4);
+  border-radius: var(--radius); padding: 16px; text-align: center;
+  border-top: 3px solid var(--gold);
+}
+.etiqueta-label {
+  font-size: 1rem; font-weight: 800; color: var(--gold);
+  margin-bottom: 6px; word-break: break-word;
+}
+.etiqueta-cat { margin-bottom: 8px; }
+.etiqueta-stock {
+  font-size: 1.8rem; font-weight: 900; color: var(--text);
+  line-height: 1.2;
+}
+.etiqueta-prices {
+  display: flex; justify-content: center; gap: 16px;
+  font-size: 0.72rem; color: var(--text2); margin-top: 6px;
+}
+.etiqueta-actions {
+  display: flex; justify-content: center; gap: 6px; margin-top: 10px;
+}
+.venta-total-box {
+  background: var(--bg); border: 1px solid var(--bg4);
+  border-radius: var(--radius-sm); padding: 10px 14px;
+  font-size: 1.3rem; font-weight: 800; color: var(--gold);
+  text-align: center; min-height: 42px; display: flex;
+  align-items: center; justify-content: center;
+}
+
 /* ---------- Scrollbar ---------- */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }

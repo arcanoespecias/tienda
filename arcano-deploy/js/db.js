@@ -28,13 +28,14 @@ function _emptyDB() {
   return {
     especias: {},
     blends: {},
+    producciones: {},
     compras: {},
     ventas: {},
     usuarios: {
       admin: { id: 'admin', nombre: 'Administrador', pin: '1234', rol: 'admin', activo: true, creado: new Date().toISOString() }
     },
     meta: {
-      nextId: { especias: 1, blends: 1, compras: 1, ventas: 1, usuarios: 1 }
+      nextId: { especias: 1, blends: 1, producciones: 1, compras: 1, ventas: 1, usuarios: 1 }
     }
   };
 }
@@ -115,10 +116,11 @@ function _loadFromFirebase() {
         }
         // Ensure meta structure exists
         if (!_db.meta || !_db.meta.nextId) {
-          _db.meta = { nextId: { especias: 1, blends: 1, compras: 1, ventas: 1, usuarios: 1 } };
+          _db.meta = { nextId: { especias: 1, blends: 1, producciones: 1, compras: 1, ventas: 1, usuarios: 1 } };
         }
         if (!_db.especias) _db.especias = {};
         if (!_db.blends) _db.blends = {};
+        if (!_db.producciones) _db.producciones = {};
         if (!_db.compras) _db.compras = {};
         if (!_db.ventas) _db.ventas = {};
         if (!_db.usuarios) _db.usuarios = {};
@@ -145,10 +147,11 @@ function _loadFromLocal() {
     }
     // Ensure structure
     if (!_db.meta || !_db.meta.nextId) {
-      _db.meta = { nextId: { especias: 1, blends: 1, compras: 1, ventas: 1, usuarios: 1 } };
+      _db.meta = { nextId: { especias: 1, blends: 1, producciones: 1, compras: 1, ventas: 1, usuarios: 1 } };
     }
     if (!_db.especias) _db.especias = {};
     if (!_db.blends) _db.blends = {};
+    if (!_db.producciones) _db.producciones = {};
     if (!_db.compras) _db.compras = {};
     if (!_db.ventas) _db.ventas = {};
     if (!_db.usuarios) _db.usuarios = {};
@@ -206,7 +209,7 @@ function onDBChange(fn) {
 
 /** Generate next ID for a collection. */
 function nextId(collection) {
-  const validCols = ['especias', 'blends', 'compras', 'ventas', 'usuarios'];
+  const validCols = ['especias', 'blends', 'producciones', 'compras', 'ventas', 'usuarios'];
   if (!validCols.includes(collection)) throw new Error('Invalid collection: ' + collection);
   const id = String(_db.meta.nextId[collection] || 1);
   _db.meta.nextId[collection] = (_db.meta.nextId[collection] || 0) + 1;
@@ -282,32 +285,61 @@ function saveBlend(data) {
   return data;
 }
 
-/** Produce blend: consume especias stock, add blend stock. */
+/** Produce blend: consume especias stock, add blend stock, create produccion record (etiqueta). */
 function producirBlend(blendId, cantidad) {
   const blend = _db.blends[blendId];
   if (!blend) throw new Error('Blend no encontrado: ' + blendId);
   cantidad = Number(cantidad) || 0;
   if (cantidad <= 0) throw new Error('Cantidad debe ser mayor a 0');
 
-  // Check & consume especias stock
   const ingredientes = blend.ingredientes || [];
+  const detalleIngredientes = [];
+
+  // Check especias stock
   for (const ing of ingredientes) {
     const esp = _db.especias[ing.especiaId];
     if (!esp) throw new Error('Especia no encontrada: ' + ing.especiaId);
     const needed = (ing.cantidad || 0) * cantidad;
     if (esp.stock < needed) {
-      throw new Error(`Stock insuficiente de "${esp.nombre}". Necesario: ${needed}, Disponible: ${esp.stock}`);
+      throw new Error('Stock insuficiente de "' + esp.nombre + '". Necesario: ' + needed + ', Disponible: ' + esp.stock);
     }
   }
-  // All checks passed — consume stock
+
+  // All checks passed — consume especias stock and record
   for (const ing of ingredientes) {
-    _db.especias[ing.especiaId].stock -= (ing.cantidad || 0) * cantidad;
+    const esp = _db.especias[ing.especiaId];
+    const needed = (ing.cantidad || 0) * cantidad;
+    esp.stock -= needed;
+    detalleIngredientes.push({
+      especiaId: ing.especiaId,
+      especiaNombre: esp.nombre,
+      cantidadPorUnidad: ing.cantidad || 0,
+      cantidadTotal: needed
+    });
   }
+
+  // Add blend stock (etiquetas producidas)
   blend.stock += cantidad;
+
+  // Create produccion record
+  const prodId = nextId('producciones');
+  const produccion = {
+    id: prodId,
+    blendId: blendId,
+    blendNombre: blend.nombre,
+    categoria: blend.categoria || '',
+    cantidad: cantidad,
+    ingredientesUsados: detalleIngredientes,
+    fecha: new Date().toISOString().slice(0, 10),
+    creado: new Date().toISOString()
+  };
+  _db.producciones[prodId] = produccion;
+
   _saveToFirebase();
+  _notify('create', 'producciones', prodId);
   _notify('update', 'blends', blendId);
-  console.log(`[DB] Blend producido: ${blend.nombre} x${cantidad}`);
-  return blend;
+  console.log('[DB] Etiquetas producidas: ' + blend.nombre + ' x' + cantidad + ' (prod #' + prodId + ')');
+  return { blend, produccion };
 }
 
 function deleteBlend(id) {
@@ -316,6 +348,36 @@ function deleteBlend(id) {
   _saveToFirebase();
   _notify('delete', 'blends', id);
   return true;
+}
+
+/* ==================== PRODUCCIONES (ETIQUETAS) ==================== */
+
+function getProducciones() {
+  return Object.values(getDB().producciones).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+}
+
+function deleteProduccion(id) {
+  if (!_db.producciones[id]) return false;
+  delete _db.producciones[id];
+  _saveToFirebase();
+  _notify('delete', 'producciones', id);
+  return true;
+}
+
+/** Get current labeled stock — blends with stock > 0, organized as etiquetas. */
+function getEtiquetas() {
+  const db = getDB();
+  return Object.values(db.blends)
+    .filter(b => b.stock > 0)
+    .map(b => ({
+      blendId: b.id,
+      nombre: b.nombre,
+      categoria: b.categoria || '',
+      stock: b.stock,
+      precioChico: b.precioChico || 0,
+      precioGrande: b.precioGrande || 0
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 
 /* ==================== COMPRAS ==================== */
@@ -371,15 +433,17 @@ function saveVenta(data) {
     data.items = data.items || [];
     data.total = Number(data.total) || 0;
   }
-  // Consume stock from venta items
+  // Consume stock from venta items — descuenta etiquetas con nombre
   if (isNew) {
     for (const item of data.items) {
       const producto = item.tipo === 'especia' ? _db.especias[item.productoId] : _db.blends[item.productoId];
-      if (!producto) throw new Error(`Producto no encontrado: ${item.tipo}/${item.productoId}`);
+      if (!producto) throw new Error('Producto no encontrado: ' + item.tipo + '/' + item.productoId);
       const cant = Number(item.cantidad) || 0;
       if (producto.stock < cant) {
-        throw new Error(`Stock insuficiente de "${producto.nombre}". Solicitado: ${cant}, Disponible: ${producto.stock}`);
+        throw new Error('Stock insuficiente de "' + producto.nombre + '". Solicitado: ' + cant + ', Disponible: ' + producto.stock);
       }
+      // Store the product name (etiqueta) in the venta item
+      item.productoNombre = producto.nombre;
       producto.stock -= cant;
     }
   }
@@ -498,6 +562,7 @@ window.ArcanoDB = {
   initDB, getDB, onDBChange, nextId,
   getEspecias, getEspecia, saveEspecia, deleteEspecia,
   getBlends, getBlend, saveBlend, deleteBlend, producirBlend,
+  getProducciones, deleteProduccion, getEtiquetas,
   getCompras, saveCompra, deleteCompra,
   getVentas, saveVenta, deleteVenta,
   getUsuarios, getUsuario, saveUsuario, deleteUsuario,

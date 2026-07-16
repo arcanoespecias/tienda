@@ -116,6 +116,9 @@ const App = {
             <a class="nav-item" data-page="blends" onclick="App.navigate('blends')">
               <span class="nav-icon">🧪</span><span class="nav-label">Blends</span>
             </a>
+            <a class="nav-item" data-page="etiquetas" onclick="App.navigate('etiquetas')">
+              <span class="nav-icon">🏷️</span><span class="nav-label">Etiquetas</span>
+            </a>
             <a class="nav-item" data-page="compras" onclick="App.navigate('compras')">
               <span class="nav-icon">📦</span><span class="nav-label">Compras</span>
             </a>
@@ -162,7 +165,7 @@ const App = {
     // Update title
     const titles = {
       dashboard: 'Dashboard', especias: 'Especias', blends: 'Blends',
-      compras: 'Compras', ventas: 'Ventas', stock: 'Stock', usuarios: 'Usuarios'
+      etiquetas: 'Etiquetas', compras: 'Compras', ventas: 'Ventas', stock: 'Stock', usuarios: 'Usuarios'
     };
     document.getElementById('page-title').textContent = titles[page] || page;
     this.renderPage(page);
@@ -187,6 +190,7 @@ const App = {
         case 'dashboard': Pages.renderDashboard(container); break;
         case 'especias': Pages.renderEspecias(container); break;
         case 'blends': Pages.renderBlends(container); break;
+        case 'etiquetas': Pages.renderEtiquetas(container); break;
         case 'compras': Pages.renderCompras(container); break;
         case 'ventas': Pages.renderVentas(container); break;
         case 'stock': Pages.renderStock(container); break;
