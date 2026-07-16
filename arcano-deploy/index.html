@@ -1,110 +1,37 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta name="theme-color" content="#120905">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Arcano">
-<link rel="icon" type="image/png" href="icons/favicon.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<title>Arcano — Especias y Blends</title>
-<link rel="manifest" href="manifest.json?v=1">
-<link rel="stylesheet" href="css/style.css?v=8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1b0b07">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Arcano Especias - Plataforma de gestion">
+  <title>Arcano Especias</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/favicon.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <div id="app-root"></div>
 
-<!-- ========== STOREFRONT ========== -->
-<div id="storefront" style="display:none">
-  <header class="store-header">
-    <div class="store-header-inner">
-      <div class="store-brand">
-        <span class="store-logo">ARCANO</span>
-        <span class="store-sub">Complice del Sabor</span>
-      </div>
-      <div class="store-actions">
-        <button class="btn btn-ghost btn-sm" onclick="showLogin()">Ingresar</button>
-        <button class="btn btn-gold btn-sm cart-btn" onclick="toggleCart()">
-          Carrito <span id="cart-count" class="cart-count" style="display:none">0</span>
-        </button>
-      </div>
-    </div>
-  </header>
-  <nav class="store-nav"><div id="store-nav" class="store-nav-inner"></div></nav>
-  <div class="store-hero">
-    <h1 class="hero-title">ARCANO</h1>
-    <p class="hero-sub">Especias y blends artesanales</p>
-  </div>
-  <main class="store-main">
-    <div id="store-products" class="products-grid"></div>
-    <div id="store-empty" class="empty-msg" style="display:none">No hay productos disponibles</div>
-  </main>
-  <div id="cart-overlay" class="cart-overlay" onclick="toggleCart()"></div>
-  <div id="cart-drawer" class="cart-drawer">
-    <div class="cart-header"><h3>Tu Carrito</h3><button class="btn-icon" onclick="toggleCart()">&times;</button></div>
-    <div id="cart-items" class="cart-items"></div>
-    <div id="cart-footer" class="cart-footer" style="display:none">
-      <div class="cart-total">Total: <strong id="cart-total-val">$0</strong></div>
-      <button class="btn btn-gold btn-full" onclick="submitOrder()">Finalizar Compra</button>
-    </div>
-  </div>
-</div>
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-<!-- ========== PIN SCREEN ========== -->
-<div id="pin-screen">
-  <div class="pin-container" id="pin-content">
-    <div id="boot-loader">
-      <div class="loader-spin"></div>
-      <div class="boot-brand">ARCANO</div>
-      <div class="boot-sub" id="boot-status">Cargando...</div>
-    </div>
-  </div>
-</div>
+  <!-- App -->
+  <script src="js/db.js"></script>
+  <script src="js/pages.js"></script>
+  <script src="js/core.js"></script>
 
-<!-- ========== ADMIN APP ========== -->
-<div id="admin-app" style="display:none">
-  <header class="app-header">
-    <div class="header-logo">
-      <img src="icons/logo-header.png" alt="" onerror="this.style.display='none'">
-      <div><div class="header-brand">ARCANO</div><div class="header-sub">Complice del Sabor</div></div>
-    </div>
-    <div class="header-right">
-      <span id="sync-badge" class="badge badge-green">Online</span>
-      <div class="user-chip" id="user-chip" onclick="handleLogout()"></div>
-    </div>
-  </header>
-  <nav id="admin-nav" class="admin-nav"></nav>
-  <main class="admin-main">
-    <div id="page-dashboard" class="page"></div>
-    <div id="page-compras" class="page"></div>
-    <div id="page-especias" class="page"></div>
-    <div id="page-blends" class="page"></div>
-    <div id="page-ventas" class="page"></div>
-    <div id="page-produccion" class="page"></div>
-    <div id="page-usuarios" class="page"></div>
-  </main>
-</div>
-
-<!-- ========== MODAL ========== -->
-<div id="modal-overlay" class="modal-overlay" onclick="closeModal()">
-  <div class="modal-box" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <h3 id="modal-title"></h3>
-      <button class="btn-icon" onclick="closeModal()">&times;</button>
-    </div>
-    <div class="modal-body" id="modal-body"></div>
-  </div>
-</div>
-
-<!-- ========== TOAST ========== -->
-<div id="toast"></div>
-
-<!-- ========== SCRIPTS ========== -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<script src="js/db.js?v=8"></script>
-<script src="js/app.js?v=8"></script>
+  <!-- PWA Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').catch(function() {});
+      });
+    }
+  </script>
 </body>
 </html>

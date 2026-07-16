@@ -1,4 +1,54 @@
-var CACHE='arcano-v8';
-self.addEventListener('install',function(e){e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(['./','index.html','css/style.css','js/db.js','js/app.js','manifest.json','icons/favicon.png','icons/icon-192.png']);}));self.skipWaiting();});
-self.addEventListener('activate',function(e){e.waitUntil(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){return k!==CACHE;}).map(function(k){return caches.delete(k);}));}));self.clients.claim();});
-self.addEventListener('fetch',function(e){e.respondWith(caches.match(e.request).then(function(r){return r||fetch(e.request).then(function(res){if(res.status===200){var clone=res.clone();caches.open(CACHE).then(function(c){c.put(e.request,clone);});}return res;});}).catch(function(){return caches.match('./index.html');}));});
+const CACHE_NAME = 'arcano-v2-1';
+const ASSETS = [
+  '/',
+  '/index.html',
+  '/css/style.css',
+  '/js/db.js',
+  '/js/pages.js',
+  '/js/core.js',
+  '/manifest.json',
+  '/icons/favicon.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
+];
+
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  // Firebase: always network-first
+  if (e.request.url.includes('firebaseio.com')) {
+    e.respondWith(
+      fetch(e.request)
+        .then(r => {
+          const clone = r.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+          return r;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  // App assets: cache-first
+  e.respondWith(
+    caches.match(e.request).then(r => r || fetch(e.request).then(resp => {
+      if (resp.status === 200) {
+        const clone = resp.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+      }
+      return resp;
+    }))
+  );
+});
