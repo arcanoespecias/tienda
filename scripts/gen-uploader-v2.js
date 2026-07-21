@@ -30,8 +30,8 @@ const FILES_TO_EMBED = [
   'version.json'
 ];
 
-// Files deployed as-is (not embedded in uploader, pushed separately)
-const DEPLOY_FILES = [
+// Tienda files — read by Node and embedded as TIENDA_FILES JSON in browser
+const TIENDA_FILES_LIST = [
   'tienda.html',
   'css/tienda.css',
   'js/tienda-data.js',
@@ -75,12 +75,27 @@ function main() {
     }
   }
 
+  // Read tienda files (optional — skip if not found)
+  const tiendaObj = {};
+  for (const rel of TIENDA_FILES_LIST) {
+    const abs = path.join(DEPLOY_DIR, rel);
+    if (fs.existsSync(abs)) {
+      tiendaObj[rel] = fs.readFileSync(abs, 'utf8');
+      console.log(`  Read tienda: ${rel} (${tiendaObj[rel].length} chars)`);
+    } else {
+      console.warn(`  WARN: Tienda file not found: ${rel} (skipping)`);
+    }
+  }
+
   // JSON.stringify the files object, then escape </ to prevent HTML breakage
   const jsonStr = JSON.stringify(filesObj);
   const safeJson = jsonStr.replace(/<\//g, '<\\/');
 
   const binaryJson = JSON.stringify(binaryObj);
   const safeBinaryJson = binaryJson.replace(/<\//g, '<\\/');
+
+  const tiendaJson = JSON.stringify(tiendaObj);
+  const safeTiendaJson = tiendaJson.replace(/<\//g, '<\\/');
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -127,6 +142,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 var FILES = ${safeJson};
 var BINARIES = ${safeBinaryJson};
+var TIENDA_FILES = ${safeTiendaJson};
 
 function log(m,c){var el=document.getElementById('log');el.innerHTML+='<div class="'+(c||'')+'">'+m+'</div>';el.scrollTop=el.scrollHeight}
 
@@ -183,20 +199,18 @@ async function doDeploy(){
       log('Blob binario: '+bp+' → '+bbd.sha.substring(0,8),'log-info');
     }
 
-    // Tienda deploy files (separate, not embedded)
-    for(var k=0;k<DEPLOY_FILES.length;k++){
-      var dp=DEPLOY_FILES[k];
-      var dabs=path.join(DEPLOY_DIR, dp);
-      if(!fs.existsSync(dabs)){log('WARN: '+dp+' not found, skipping','log-err');continue;}
-      var dcontent=fs.readFileSync(dabs,'utf8');
-      var db64=btoa(unescape(encodeURIComponent(dcontent)));
-      var dbr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
-        method:'POST',headers:h,body:JSON.stringify({content:db64,encoding:'base64'})
+    // Tienda deploy files (pre-read in Node, embedded as TIENDA_FILES)
+    var tiendaPaths=Object.keys(TIENDA_FILES);
+    for(var k=0;k<tiendaPaths.length;k++){
+      var tp=tiendaPaths[k];
+      var tb64=btoa(unescape(encodeURIComponent(TIENDA_FILES[tp])));
+      var tbr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
+        method:'POST',headers:h,body:JSON.stringify({content:tb64,encoding:'base64'})
       });
-      if(!dbr.ok) throw new Error('Blob error for tienda '+dp+': '+dbr.status);
-      var dbd=await dbr.json();
-      tree.push({path:dp,mode:'100644',type:'blob',sha:dbd.sha});
-      log('Blob tienda: '+dp+' → '+dbd.sha.substring(0,8),'log-info');
+      if(!tbr.ok) throw new Error('Blob error for tienda '+tp+': '+tbr.status);
+      var tbd=await tbr.json();
+      tree.push({path:tp,mode:'100644',type:'blob',sha:tbd.sha});
+      log('Blob tienda: '+tp+' → '+tbd.sha.substring(0,8),'log-info');
     }
 
     log('Creando tree con '+tree.length+' archivos...');
