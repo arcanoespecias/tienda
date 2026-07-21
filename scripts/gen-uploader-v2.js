@@ -30,6 +30,14 @@ const FILES_TO_EMBED = [
   'version.json'
 ];
 
+// Files deployed as-is (not embedded in uploader, pushed separately)
+const DEPLOY_FILES = [
+  'tienda.html',
+  'css/tienda.css',
+  'js/tienda-data.js',
+  'js/tienda-ui.js'
+];
+
 // Binary files to upload as-is
 const BINARY_FILES = [
   'icons/favicon.png',
@@ -173,6 +181,22 @@ async function doDeploy(){
       var bbd=await bbr.json();
       tree.push({path:bp,mode:'100644',type:'blob',sha:bbd.sha});
       log('Blob binario: '+bp+' → '+bbd.sha.substring(0,8),'log-info');
+    }
+
+    // Tienda deploy files (separate, not embedded)
+    for(var k=0;k<DEPLOY_FILES.length;k++){
+      var dp=DEPLOY_FILES[k];
+      var dabs=path.join(DEPLOY_DIR, dp);
+      if(!fs.existsSync(dabs)){log('WARN: '+dp+' not found, skipping','log-err');continue;}
+      var dcontent=fs.readFileSync(dabs,'utf8');
+      var db64=btoa(unescape(encodeURIComponent(dcontent)));
+      var dbr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
+        method:'POST',headers:h,body:JSON.stringify({content:db64,encoding:'base64'})
+      });
+      if(!dbr.ok) throw new Error('Blob error for tienda '+dp+': '+dbr.status);
+      var dbd=await dbr.json();
+      tree.push({path:dp,mode:'100644',type:'blob',sha:dbd.sha});
+      log('Blob tienda: '+dp+' → '+dbd.sha.substring(0,8),'log-info');
     }
 
     log('Creando tree con '+tree.length+' archivos...');
