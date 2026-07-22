@@ -1,0 +1,996 @@
+     1→/* ===================== ARCANO V3 — DATA LAYER =====================
+     2→   Flujo:
+     3→     Insumos → Stock (bolsa grs, envases, etiquetas)
+     4→     Produccion → consume insumos → Frascos listos (chico / grande)
+     5→     Ventas → consume frascos
+     6→
+     7→   Stock por especia: stockBolsa (grs), stockChico, stockGrande (frascos)
+     8→   Stock por blend:   stockChico, stockGrande (frascos)
+     9→   Stock global:      envasesChico, envasesGrande
+    10→   Etiquetas:         por producto, stockChico, stockGrande
+    11→   ===================== */
+    12→
+    13→const DB_KEY = 'arcano_v3';
+    14→const FB_PATH = 'arcano/db';
+    15→const DB_VERSION = 3;
+    16→
+    17→const FIREBASE_CONFIG = {
+    18→  apiKey: "AIzaSyBvuJusx4_FvAdXhBl89VVlCicNb-yrdzo",
+    19→  authDomain: "arcano-6788d.firebaseapp.com",
+    20→  databaseURL: "https://arcano-6788d-default-rtdb.firebaseio.com",
+    21→  projectId: "arcano-6788d",
+    22→  storageBucket: "arcano-6788d.appspot.com",
+    23→  messagingSenderId: "544197982462",
+    24→  appId: "1:544197982462:web:4e8d7e3e4a9e7c6c7b3a2d"
+    25→};
+    26→
+    27→var _db = null;
+    28→var _ready = false;
+    29→var _saveTimer = null;
+    30→var _listeners = [];
+    31→
+    32→var DEFAULT_IDS = { especias: 1, blends: 1, producciones: 1, ventas: 1, entradas: 1, etiquetas: 1 };
+    33→
+    34→/* ==================== HELPERS ==================== */
+    35→
+    36→function _filterValid(arr) {
+    37→  return arr.filter(function(o) { return o && typeof o === 'object'; });
+    38→}
+    39→
+    40→function _cleanNulls() {
+    41→  var cols = ['especias', 'blends', 'producciones', 'ventas', 'entradas', 'etiquetas'];
+    42→  for (var c = 0; c < cols.length; c++) {
+    43→    var col = cols[c];
+    44→    if (!_db[col]) { _db[col] = {}; continue; }
+    45→    var keys = Object.keys(_db[col]);
+    46→    for (var j = 0; j < keys.length; j++) {
+    47→      if (_db[col][keys[j]] == null || typeof _db[col][keys[j]] !== 'object') {
+    48→        delete _db[col][keys[j]];
+    49→      }
+    50→    }
+    51→  }
+    52→}
+    53→
+    54→function _ensureStructure() {
+    55→  if (!_db || typeof _db !== 'object' || Array.isArray(_db)) {
+    56→    _db = null;
+    57→    return false;
+    58→  }
+    59→  if (!_db.meta || !_db.meta.nextId) {
+    60→    _db.meta = { nextId: Object.assign({}, DEFAULT_IDS), version: DB_VERSION };
+    61→  } else {
+    62→    _db.meta.version = DB_VERSION;
+    63→    for (var k in DEFAULT_IDS) {
+    64→      if (typeof _db.meta.nextId[k] !== 'number') _db.meta.nextId[k] = DEFAULT_IDS[k];
+    65→    }
+    66→  }
+    67→  if (!_db.especias) _db.especias = {};
+    68→  if (!_db.blends) _db.blends = {};
+    69→  if (!_db.producciones) _db.producciones = {};
+    70→  if (!_db.ventas) _db.ventas = {};
+    71→  if (!_db.entradas) _db.entradas = {};
+    72→  if (!_db.etiquetas) _db.etiquetas = {};
+    73→  if (!_db.stockEnvases) _db.stockEnvases = { chico: 0, grande: 0 };
+    74→  if (!_db.usuarios) _db.usuarios = {
+    75→    admin: { id: 'admin', nombre: 'Administrador', pin: '1234', rol: 'admin', activo: true, creado: new Date().toISOString() }
+    76→  };
+    77→  if (!_db.productTags) _db.productTags = {
+    78→    'Comidas': ['Aves', 'Pescados y Mariscos', 'Cerdo', 'Salsas y Aderezos', 'Verduras y Vegetales', 'Granos y Legumbres'],
+    79→    'Infusiones': ['Relajante', 'Digestiva', 'Energética', 'Citrica', 'Refrescante', 'Detox', 'Aromatica'],
+    80→    'Cocteleria': ['Tropical', 'Citrica', 'Seca', 'Dulce']
+    81→  };
+    82→  _cleanNulls();
+    83→  return true;
+    84→}
+    85→
+    86→function _emptyDB() {
+    87→  return {
+    88→    meta: { nextId: Object.assign({}, DEFAULT_IDS), version: DB_VERSION },
+    89→    especias: {}, blends: {}, producciones: {}, ventas: {}, entradas: {}, etiquetas: {},
+    90→    stockEnvases: { chico: 0, grande: 0 },
+    91→    productTags: {
+    92→      'Comidas': ['Aves', 'Pescados y Mariscos', 'Cerdo', 'Salsas y Aderezos', 'Verduras y Vegetales', 'Granos y Legumbres'],
+    93→      'Infusiones': ['Relajante', 'Digestiva', 'Energética', 'Citrica', 'Refrescante', 'Detox', 'Aromatica'],
+    94→      'Cocteleria': ['Tropical', 'Citrica', 'Seca', 'Dulce']
+    95→    },
+    96→    usuarios: { admin: { id: 'admin', nombre: 'Administrador', pin: '1234', rol: 'admin', activo: true, creado: new Date().toISOString() } }
+    97→  };
+    98→}
+    99→
+   100→function nextId(col) {
+   101→  if (!_db.meta.nextId[col]) _db.meta.nextId[col] = 1;
+   102→  var id = _db.meta.nextId[col]++;
+   103→  return id;
+   104→}
+   105→
+   106→/* ==================== FIREBASE ==================== */
+   107→
+   108→var _firebaseApp = null;
+   109→var _firebaseDb = null;
+   110→var _firebaseRef = null;
+   111→
+   112→function _initFirebase() {
+   113→  if (_firebaseDb) return;
+   114→  try {
+   115→    _firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+   116→    _firebaseDb = firebase.database();
+   117→    _firebaseRef = _firebaseDb.ref(FB_PATH);
+   118→  } catch (e) {
+   119→    console.error('[DB] Firebase init error:', e);
+   120→  }
+   121→}
+   122→
+   123→function _saveToFirebase() {
+   124→  if (!_firebaseRef) return;
+   125→  clearTimeout(_saveTimer);
+   126→  _saveTimer = setTimeout(function() {
+   127→    try {
+   128→      _firebaseRef.set(_db);
+   129→    } catch (e) {
+   130→      console.error('[DB] Firebase save error:', e);
+   131→    }
+   132→  }, 500);
+   133→}
+   134→
+   135→function _notify(type, col, id) {
+   136→  for (var i = 0; i < _listeners.length; i++) {
+   137→    try { _listeners[i](type, col, id); } catch (e) {}
+   138→  }
+   139→}
+   140→
+   141→/* ==================== INIT ==================== */
+   142→
+   143→function initDB() {
+   144→  return new Promise(function(resolve) {
+   145→    _initFirebase();
+   146→
+   147→    // Try localStorage cache
+   148→    var cached = null;
+   149→    try { cached = JSON.parse(localStorage.getItem(DB_KEY)); } catch (e) {}
+   150→
+   151→    if (cached && cached.meta && cached.meta.version === DB_VERSION && _ensureStructureOn(cached)) {
+   152→      _db = cached;
+   153→      _ready = true;
+   154→      _startFirebaseListener();
+   155→      resolve();
+   156→      return;
+   157→    }
+   158→
+   159→    // Load from Firebase
+   160→    if (_firebaseRef) {
+   161→      _firebaseRef.once('value').then(function(snap) {
+   162→        var fbData = snap.val();
+   163→        if (fbData && fbData.meta && fbData.meta.version === DB_VERSION && _ensureStructureOn(fbData)) {
+   164→          _db = fbData;
+   165→        } else {
+   166→          // Fresh DB (old version or empty)
+   167→          _db = _emptyDB();
+   168→          _ensureStructure();
+   169→          _saveToFirebase();
+   170→        }
+   171→        _ready = true;
+   172→        _cacheLocal();
+   173→        _startFirebaseListener();
+   174→        resolve();
+   175→      }).catch(function() {
+   176→        _db = _emptyDB();
+   177→        _ensureStructure();
+   178→        _ready = true;
+   179→        resolve();
+   180→      });
+   181→    } else {
+   182→      _db = _emptyDB();
+   183→      _ensureStructure();
+   184→      _ready = true;
+   185→      resolve();
+   186→    }
+   187→  });
+   188→}
+   189→
+   190→function _ensureStructureOn(data) {
+   191→  if (!data || typeof data !== 'object') return false;
+   192→  if (!data.meta || !data.meta.version) return false;
+   193→  if (data.meta.version !== DB_VERSION) return false;
+   194→  // Basic check
+   195→  if (!data.especias || !data.blends) return false;
+   196→  return true;
+   197→}
+   198→
+   199→function _cacheLocal() {
+   200→  try { localStorage.setItem(DB_KEY, JSON.stringify(_db)); } catch (e) {}
+   201→}
+   202→
+   203→function _startFirebaseListener() {
+   204→  if (!_firebaseRef) return;
+   205→  _firebaseRef.on('value', function(snap) {
+   206→    var data = snap.val();
+   207→    if (!data || !data.meta || data.meta.version !== DB_VERSION) return;
+   208→    var prevJson = JSON.stringify(_db);
+   209→    _db = data;
+   210→    _ensureStructure();
+   211→    _cacheLocal();
+   212→    var newJson = JSON.stringify(_db);
+   213→    if (prevJson !== newJson) {
+   214→      _notify('remote_change', '', '');
+   215→    }
+   216→  });
+   217→}
+   218→
+   219→function onDBChange(fn) { _listeners.push(fn); }
+   220→
+   221→/* ==================== GETTERS ==================== */
+   222→
+   223→function getDB() { return _db; }
+   224→
+   225→function getEspecias() {
+   226→  return _filterValid(Object.values(_db.especias || {})).sort(function(a, b) { return (a.nombre || '').localeCompare(b.nombre || ''); });
+   227→}
+   228→function getEspecia(id) { return _db.especias[id] || null; }
+   229→
+   230→function getBlends() {
+   231→  return _filterValid(Object.values(_db.blends || {})).sort(function(a, b) { return (a.nombre || '').localeCompare(b.nombre || ''); });
+   232→}
+   233→function getBlend(id) { return _db.blends[id] || null; }
+   234→
+   235→function getEtiquetas() {
+   236→  return _filterValid(Object.values(_db.etiquetas || {})).sort(function(a, b) { return (a.nombre || '').localeCompare(b.nombre || ''); });
+   237→}
+   238→
+   239→function getEntradas() {
+   240→  return _filterValid(Object.values(_db.entradas || {})).sort(function(a, b) { return (b.fecha || '').localeCompare(a.fecha || ''); });
+   241→}
+   242→function getProducciones() {
+   243→  return _filterValid(Object.values(_db.producciones || {})).sort(function(a, b) { return (b.creado || '').localeCompare(a.creado || ''); });
+   244→}
+   245→function getVentas() {
+   246→  return _filterValid(Object.values(_db.ventas || {})).sort(function(a, b) { return (b.fecha || '').localeCompare(a.fecha || ''); });
+   247→}
+   248→
+   249→/* ==================== ESPECIAS ==================== */
+   250→
+   251→function saveEspecia(data) {
+   252→  _ensureStructure();
+   253→  var isNew = !data.id;
+   254→  if (isNew) {
+   255→    data.id = nextId('especias');
+   256→    data.creado = new Date().toISOString();
+   257→  } else {
+   258→    var existing = _db.especias[data.id];
+   259→    if (existing) {
+   260→      data.stockBolsa = Number(existing.stockBolsa) || 0;
+   261→      data.stockChico = Number(existing.stockChico) || 0;
+   262→      data.stockGrande = Number(existing.stockGrande) || 0;
+   263→      data.creado = existing.creado;
+   264→    }
+   265→  }
+   266→  data.nombre = (data.nombre || '').trim();
+   267→  data.categoria = data.categoria || 'Comidas';
+   268→  data.precioChico = Number(data.precioChico) || 0;
+   269→  data.precioGrande = Number(data.precioGrande) || 0;
+   270→  data.gramosChico = Number(data.gramosChico) || 0;
+   271→  data.gramosGrande = Number(data.gramosGrande) || 0;
+   272→  data.stockBolsa = Number(data.stockBolsa) || 0;
+   273→  data.stockChico = Number(data.stockChico) || 0;
+   274→  data.stockGrande = Number(data.stockGrande) || 0;
+   275→  _db.especias[data.id] = data;
+   276→  _saveToFirebase(); _cacheLocal();
+   277→  _notify(isNew ? 'create' : 'update', 'especias', data.id);
+   278→  return data;
+   279→}
+   280→
+   281→function deleteEspecia(id) {
+   282→  if (!_db.especias[id]) return false;
+   283→  delete _db.especias[id];
+   284→  _saveToFirebase(); _cacheLocal();
+   285→  _notify('delete', 'especias', id);
+   286→  return true;
+   287→}
+   288→
+   289→/* ==================== BLENDS ==================== */
+   290→
+   291→function saveBlend(data) {
+   292→  _ensureStructure();
+   293→  var isNew = !data.id;
+   294→  if (isNew) {
+   295→    data.id = nextId('blends');
+   296→    data.creado = new Date().toISOString();
+   297→  } else {
+   298→    var existing = _db.blends[data.id];
+   299→    if (existing) {
+   300→      data.stockChico = Number(existing.stockChico) || 0;
+   301→      data.stockGrande = Number(existing.stockGrande) || 0;
+   302→      data.creado = existing.creado;
+   303→    }
+   304→  }
+   305→  data.nombre = (data.nombre || '').trim();
+   306→  data.categoria = data.categoria || 'Comidas';
+   307→  data.precioChico = Number(data.precioChico) || 0;
+   308→  data.precioGrande = Number(data.precioGrande) || 0;
+   309→  data.ingredientes = data.ingredientes || [];
+   310→  data.stockChico = Number(data.stockChico) || 0;
+   311→  data.stockGrande = Number(data.stockGrande) || 0;
+   312→  _db.blends[data.id] = data;
+   313→  _saveToFirebase(); _cacheLocal();
+   314→  _notify(isNew ? 'create' : 'update', 'blends', data.id);
+   315→  return data;
+   316→}
+   317→
+   318→function deleteBlend(id) {
+   319→  if (!_db.blends[id]) return false;
+   320→  delete _db.blends[id];
+   321→  _saveToFirebase(); _cacheLocal();
+   322→  _notify('delete', 'blends', id);
+   323→  return true;
+   324→}
+   325→
+   326→/* ==================== ETIQUETAS ==================== */
+   327→
+   328→function _findEtiquetaByNombre(nombre) {
+   329→  var keys = Object.keys(_db.etiquetas || {});
+   330→  for (var i = 0; i < keys.length; i++) {
+   331→    if (_db.etiquetas[keys[i]].nombre === nombre) return _db.etiquetas[keys[i]];
+   332→  }
+   333→  return null;
+   334→}
+   335→
+   336→function _getOrCreateEtiqueta(nombre) {
+   337→  if (!_db.etiquetas) _db.etiquetas = {};
+   338→  var existing = _findEtiquetaByNombre(nombre);
+   339→  if (existing) return existing;
+   340→  var id = nextId('etiquetas');
+   341→  var nueva = { id: id, nombre: nombre, stockChico: 0, stockGrande: 0, creado: new Date().toISOString() };
+   342→  _db.etiquetas[id] = nueva;
+   343→  return nueva;
+   344→}
+   345→
+   346→/** Get all products (especias+blends) with their etiqueta stock merged */
+   347→function getProductosConEtiquetas() {
+   348→  var items = [];
+   349→  var espKeys = Object.keys(_db.especias || {});
+   350→  for (var i = 0; i < espKeys.length; i++) {
+   351→    var e = _db.especias[espKeys[i]];
+   352→    if (!e || typeof e !== 'object') continue;
+   353→    var etq = _findEtiquetaByNombre(e.nombre);
+   354→    items.push({
+   355→      id: e.id, nombre: e.nombre || '', tipo: 'especia', categoria: e.categoria || '',
+   356→      stockChico: etq ? (Number(etq.stockChico) || 0) : 0,
+   357→      stockGrande: etq ? (Number(etq.stockGrande) || 0) : 0
+   358→    });
+   359→  }
+   360→  var blKeys = Object.keys(_db.blends || {});
+   361→  for (var i = 0; i < blKeys.length; i++) {
+   362→    var b = _db.blends[blKeys[i]];
+   363→    if (!b || typeof b !== 'object') continue;
+   364→    var etq = _findEtiquetaByNombre(b.nombre);
+   365→    items.push({
+   366→      id: b.id, nombre: b.nombre || '', tipo: 'blend', categoria: b.categoria || '',
+   367→      stockChico: etq ? (Number(etq.stockChico) || 0) : 0,
+   368→      stockGrande: etq ? (Number(etq.stockGrande) || 0) : 0
+   369→    });
+   370→  }
+   371→  return items.sort(function(a, b) { return a.nombre.localeCompare(b.nombre); });
+   372→}
+   373→
+   374→/* ==================== ENTRADAS (Insumos) ==================== */
+   375→
+   376→function saveEntrada(data) {
+   377→  _ensureStructure();
+   378→  var isNew = !data.id;
+   379→  if (isNew) {
+   380→    data.id = nextId('entradas');
+   381→    data.creado = new Date().toISOString();
+   382→    data.fecha = data.fecha || new Date().toISOString().slice(0, 10);
+   383→    data.items = data.items || [];
+   384→    data.total = Number(data.total) || 0;
+   385→  }
+   386→  if (isNew) {
+   387→    for (var i = 0; i < data.items.length; i++) {
+   388→      var item = data.items[i];
+   389→      var tipo = item.tipo;
+   390→      if (tipo === 'especia_grs') {
+   391→        // Add grams to especia stockBolsa
+   392→        if (item.especiaId && _db.especias[item.especiaId]) {
+   393→          _db.especias[item.especiaId].stockBolsa = (_db.especias[item.especiaId].stockBolsa || 0) + (Number(item.cantidad) || 0);
+   394→        }
+   395→      } else if (tipo === 'envase') {
+   396→        var talla = item.talla || 'chico';
+   397→        if (!_db.stockEnvases) _db.stockEnvases = { chico: 0, grande: 0 };
+   398→        _db.stockEnvases[talla] = (_db.stockEnvases[talla] || 0) + (Number(item.cantidad) || 0);
+   399→      } else if (tipo === 'etiqueta') {
+   400→        var etq = _getOrCreateEtiqueta(item.etiquetaNombre);
+   401→        var t = item.talla || 'chico';
+   402→        if (t === 'grande') {
+   403→          etq.stockGrande = (etq.stockGrande || 0) + (Number(item.cantidad) || 0);
+   404→        } else {
+   405→          etq.stockChico = (etq.stockChico || 0) + (Number(item.cantidad) || 0);
+   406→        }
+   407→      }
+   408→    }
+   409→  }
+   410→  _db.entradas[data.id] = data;
+   411→  _saveToFirebase(); _cacheLocal();
+   412→  _notify(isNew ? 'create' : 'update', 'entradas', data.id);
+   413→  return data;
+   414→}
+   415→
+   416→function deleteEntrada(id) {
+   417→  if (!_db.entradas[id]) return false;
+   418→  delete _db.entradas[id];
+   419→  _saveToFirebase(); _cacheLocal();
+   420→  _notify('delete', 'entradas', id);
+   421→  return true;
+   422→}
+   423→
+   424→/* ==================== PRODUCCION ==================== */
+   425→
+   426→function producirEspecia(especiaId, talla, cantidad) {
+   427→  _ensureStructure();
+   428→  var esp = _db.especias[especiaId];
+   429→  if (!esp) throw new Error('Especia no encontrada');
+   430→  talla = (talla === 'grande') ? 'grande' : 'chico';
+   431→  cantidad = Number(cantidad) || 0;
+   432→  if (cantidad <= 0) throw new Error('La cantidad debe ser mayor a 0');
+   433→
+   434→  var gramosPorFrasco = (talla === 'grande') ? (Number(esp.gramosGrande) || 0) : (Number(esp.gramosChico) || 0);
+   435→  if (gramosPorFrasco <= 0) throw new Error('La especia no tiene gramos definidos para frasco ' + talla + '. Editala primero.');
+   436→
+   437→  var grsTotal = gramosPorFrasco * cantidad;
+   438→
+   439→  // Check & consume bolsa
+   440→  if ((esp.stockBolsa || 0) < grsTotal) {
+   441→    throw new Error('Bolsa insuficiente de "' + esp.nombre + '". Necesitas ' + grsTotal + 'grs, tienes ' + (esp.stockBolsa || 0) + 'grs');
+   442→  }
+   443→
+   444→  // Check & consume envases
+   445→  if (!_db.stockEnvases) _db.stockEnvases = { chico: 0, grande: 0 };
+   446→  if ((_db.stockEnvases[talla] || 0) < cantidad) {
+   447→    throw new Error('Envases ' + talla + ' insuficientes. Necesitas ' + cantidad + ', tienes ' + (_db.stockEnvases[talla] || 0));
+   448→  }
+   449→
+   450→  // Check & consume etiquetas
+   451→  var etq = _findEtiquetaByNombre(esp.nombre);
+   452→  var etqStock = etq ? (Number(etq[talla === 'grande' ? 'stockGrande' : 'stockChico']) || 0) : 0;
+   453→  if (etqStock < cantidad) {
+   454→    throw new Error('Etiquetas ' + talla + ' insuficientes para "' + esp.nombre + '". Necesitas ' + cantidad + ', tienes ' + etqStock);
+   455→  }
+   456→
+   457→  // All checks passed — consume
+   458→  esp.stockBolsa = (esp.stockBolsa || 0) - grsTotal;
+   459→  _db.stockEnvases[talla] = (_db.stockEnvases[talla] || 0) - cantidad;
+   460→  if (etq) {
+   461→    var etqKey = talla === 'grande' ? 'stockGrande' : 'stockChico';
+   462→    etq[etqKey] = (etq[etqKey] || 0) - cantidad;
+   463→  }
+   464→  var frascoKey = talla === 'grande' ? 'stockGrande' : 'stockChico';
+   465→  esp[frascoKey] = (esp[frascoKey] || 0) + cantidad;
+   466→
+   467→  // Record
+   468→  var prodId = nextId('producciones');
+   469→  var prod = {
+   470→    id: prodId, tipo: 'especia', productoId: especiaId, productoNombre: esp.nombre,
+   471→    categoria: esp.categoria || '', talla: talla, cantidad: cantidad,
+   472→    gramosPorFrasco: gramosPorFrasco, gramosTotal: grsTotal,
+   473→    envasesConsumidos: cantidad, etiquetasConsumidas: cantidad,
+   474→    fecha: new Date().toISOString().slice(0, 10), creado: new Date().toISOString()
+   475→  };
+   476→  _db.producciones[prodId] = prod;
+   477→  _saveToFirebase(); _cacheLocal();
+   478→  _notify('create', 'producciones', prodId);
+   479→  _notify('update', 'especias', especiaId);
+   480→  return { producto: esp, produccion: prod };
+   481→}
+   482→
+   483→function producirBlend(blendId, talla, cantidad) {
+   484→  _ensureStructure();
+   485→  var blend = _db.blends[blendId];
+   486→  if (!blend) throw new Error('Blend no encontrado');
+   487→  talla = (talla === 'grande') ? 'grande' : 'chico';
+   488→  cantidad = Number(cantidad) || 0;
+   489→  if (cantidad <= 0) throw new Error('La cantidad debe ser mayor a 0');
+   490→
+   491→  var ingredientes = blend.ingredientes || [];
+   492→  if (ingredientes.length === 0) throw new Error('El blend no tiene ingredientes definidos. Editalo primero.');
+   493→
+   494→  // Check ingredient stock
+   495→  var detalleIngredientes = [];
+   496→  for (var i = 0; i < ingredientes.length; i++) {
+   497→    var ing = ingredientes[i];
+   498→    var esp = _db.especias[ing.especiaId];
+   499→    if (!esp) throw new Error('Especia "' + (ing.especiaNombre || ing.especiaId) + '" no encontrada');
+   500→    var grsPorFrasco = (talla === 'grande') ? (Number(ing.gramosGrande) || 0) : (Number(ing.gramosChico) || 0);
+   501→    if (grsPorFrasco <= 0) throw new Error('El ingrediente "' + esp.nombre + '" no tiene gramos para frasco ' + talla);
+   502→    var grsNeeded = grsPorFrasco * cantidad;
+   503→    if ((esp.stockBolsa || 0) < grsNeeded) {
+   504→      throw new Error('Bolsa insuficiente de "' + esp.nombre + '". Necesitas ' + grsNeeded + 'grs, tienes ' + (esp.stockBolsa || 0) + 'grs');
+   505→    }
+   506→    detalleIngredientes.push({ especiaId: ing.especiaId, especiaNombre: esp.nombre, gramosPorFrasco: grsPorFrasco, gramosTotal: grsNeeded });
+   507→  }
+   508→
+   509→  // Check envases
+   510→  if (!_db.stockEnvases) _db.stockEnvases = { chico: 0, grande: 0 };
+   511→  if ((_db.stockEnvases[talla] || 0) < cantidad) {
+   512→    throw new Error('Envases ' + talla + ' insuficientes. Necesitas ' + cantidad + ', tienes ' + (_db.stockEnvases[talla] || 0));
+   513→  }
+   514→
+   515→  // Check etiquetas
+   516→  var etq = _findEtiquetaByNombre(blend.nombre);
+   517→  var etqStock = etq ? (Number(etq[talla === 'grande' ? 'stockGrande' : 'stockChico']) || 0) : 0;
+   518→  if (etqStock < cantidad) {
+   519→    throw new Error('Etiquetas ' + talla + ' insuficientes para "' + blend.nombre + '". Necesitas ' + cantidad + ', tienes ' + etqStock);
+   520→  }
+   521→
+   522→  // All checks passed — consume
+   523→  var grsTotalGeneral = 0;
+   524→  for (var i = 0; i < detalleIngredientes.length; i++) {
+   525→    var d = detalleIngredientes[i];
+   526→    var esp = _db.especias[d.especiaId];
+   527→    esp.stockBolsa = (esp.stockBolsa || 0) - d.gramosTotal;
+   528→    grsTotalGeneral += d.gramosTotal;
+   529→  }
+   530→  _db.stockEnvases[talla] = (_db.stockEnvases[talla] || 0) - cantidad;
+   531→  if (etq) {
+   532→    var etqKey = talla === 'grande' ? 'stockGrande' : 'stockChico';
+   533→    etq[etqKey] = (etq[etqKey] || 0) - cantidad;
+   534→  }
+   535→  var frascoKey = talla === 'grande' ? 'stockGrande' : 'stockChico';
+   536→  blend[frascoKey] = (blend[frascoKey] || 0) + cantidad;
+   537→
+   538→  var prodId = nextId('producciones');
+   539→  var prod = {
+   540→    id: prodId, tipo: 'blend', productoId: blendId, productoNombre: blend.nombre,
+   541→    categoria: blend.categoria || '', talla: talla, cantidad: cantidad,
+   542→    ingredientes: detalleIngredientes, gramosTotal: grsTotalGeneral,
+   543→    envasesConsumidos: cantidad, etiquetasConsumidas: cantidad,
+   544→    fecha: new Date().toISOString().slice(0, 10), creado: new Date().toISOString()
+   545→  };
+   546→  _db.producciones[prodId] = prod;
+   547→  _saveToFirebase(); _cacheLocal();
+   548→  _notify('create', 'producciones', prodId);
+   549→  _notify('update', 'blends', blendId);
+   550→  return { producto: blend, produccion: prod };
+   551→}
+   552→
+   553→function deleteProduccion(id) {
+   554→  if (!_db.producciones[id]) return false;
+   555→  delete _db.producciones[id];
+   556→  _saveToFirebase(); _cacheLocal();
+   557→  _notify('delete', 'producciones', id);
+   558→  return true;
+   559→}
+   560→
+   561→/* ==================== VENTAS ==================== */
+   562→
+   563→function saveVenta(data) {
+   564→  _ensureStructure();
+   565→  var isNew = !data.id;
+   566→  if (isNew) {
+   567→    data.id = nextId('ventas');
+   568→    data.creado = new Date().toISOString();
+   569→    data.fecha = data.fecha || new Date().toISOString().slice(0, 10);
+   570→    data.items = data.items || [];
+   571→    data.total = Number(data.total) || 0;
+   572→  }
+   573→  if (isNew) {
+   574→    for (var i = 0; i < data.items.length; i++) {
+   575→      var item = data.items[i];
+   576→      var producto;
+   577→      if (item.tipo === 'especia') {
+   578→        producto = _db.especias[item.productoId];
+   579→        if (!producto) throw new Error('Especia no encontrada: ' + item.productoId);
+   580→      } else {
+   581→        producto = _db.blends[item.productoId];
+   582→        if (!producto) throw new Error('Blend no encontrado: ' + item.productoId);
+   583→      }
+   584→      item.productoNombre = producto.nombre;
+   585→      var cant = Number(item.cantidad) || 0;
+   586→      var talla = item.talla || 'chico';
+   587→      var stockKey = talla === 'grande' ? 'stockGrande' : 'stockChico';
+   588→      if ((producto[stockKey] || 0) < cant) {
+   589→        throw new Error('Stock insuficiente de frascos ' + talla + ' de "' + producto.nombre + '". Solicitado: ' + cant + ', Disponible: ' + (producto[stockKey] || 0));
+   590→      }
+   591→      producto[stockKey] = (producto[stockKey] || 0) - cant;
+   592→      item.precioUnitario = Number(item.precioUnitario) || 0;
+   593→      item.subtotal = item.precioUnitario * cant;
+   594→    }
+   595→    // Recalculate total
+   596→    data.total = data.items.reduce(function(s, it) { return s + (it.subtotal || 0); }, 0);
+   597→  }
+   598→  _db.ventas[data.id] = data;
+   599→  _saveToFirebase(); _cacheLocal();
+   600→  _notify(isNew ? 'create' : 'update', 'ventas', data.id);
+   601→  return data;
+   602→}
+   603→
+   604→function deleteVenta(id) {
+   605→  if (!_db.ventas[id]) return false;
+   606→  delete _db.ventas[id];
+   607→  _saveToFirebase(); _cacheLocal();
+   608→  _notify('delete', 'ventas', id);
+   609→  return true;
+   610→}
+   611→
+   612→/* ==================== AUTH ==================== */
+   613→
+   614→function authenticateUser(pin) {
+   615→  var users = _db.usuarios || {};
+   616→  var keys = Object.keys(users);
+   617→  for (var i = 0; i < keys.length; i++) {
+   618→    var u = users[keys[i]];
+   619→    if (u && u.pin === pin && u.activo !== false) {
+   620→      var session = { id: u.id, nombre: u.nombre, rol: u.rol };
+   621→      sessionStorage.setItem(DB_KEY + '_session', JSON.stringify(session));
+   622→      return session;
+   623→    }
+   624→  }
+   625→  return null;
+   626→}
+   627→
+   628→function getCurrentUser() {
+   629→  try { var r = sessionStorage.getItem(DB_KEY + '_session'); return r ? JSON.parse(r) : null; } catch (e) { return null; }
+   630→}
+   631→function logoutUser() { sessionStorage.removeItem(DB_KEY + '_session'); }
+   632→
+   633→function getUsuarios() {
+   634→  return _filterValid(Object.values(_db.usuarios || {}));
+   635→}
+   636→function saveUsuario(data) {
+   637→  _ensureStructure();
+   638→  _db.usuarios[data.id] = data;
+   639→  _saveToFirebase(); _cacheLocal();
+   640→  return data;
+   641→}
+   642→function deleteUsuario(id) {
+   643→  if (id === 'admin') return false;
+   644→  delete _db.usuarios[id];
+   645→  _saveToFirebase(); _cacheLocal();
+   646→  return true;
+   647→}
+   648→
+   649→/* ==================== STATS ==================== */
+   650→
+   651→function getStats() {
+   652→  var especias = _filterValid(Object.values(_db.especias || {}));
+   653→  var blends = _filterValid(Object.values(_db.blends || {}));
+   654→  var ventas = _filterValid(Object.values(_db.ventas || {}));
+   655→  var etiquetas = _filterValid(Object.values(_db.etiquetas || {}));
+   656→  var envases = _db.stockEnvases || { chico: 0, grande: 0 };
+   657→
+   658→  var today = new Date().toISOString().slice(0, 10);
+   659→  var mes = new Date().toISOString().slice(0, 7);
+   660→  var ventasHoy = ventas.filter(function(v) { return v.fecha === today; });
+   661→  var ventasMes = ventas.filter(function(v) { return v.fecha && v.fecha.startsWith(mes); });
+   662→
+   663→  var frascosChico = especias.reduce(function(s, e) { return s + (e.stockChico || 0); }, 0) +
+   664→                     blends.reduce(function(s, b) { return s + (b.stockChico || 0); }, 0);
+   665→  var frascosGrande = especias.reduce(function(s, e) { return s + (e.stockGrande || 0); }, 0) +
+   666→                      blends.reduce(function(s, b) { return s + (b.stockGrande || 0); }, 0);
+   667→
+   668→  var etqBajo = etiquetas.filter(function(e) { return (e.stockChico + e.stockGrande) <= 5; });
+   669→  var espBolsaBaja = especias.filter(function(e) { return (e.stockBolsa || 0) <= 50; });
+   670→
+   671→  return {
+   672→    totalEspecias: especias.length,
+   673→    totalBlends: blends.length,
+   674→    totalProductos: especias.length + blends.length,
+   675→    frascosChico: frascosChico,
+   676→    frascosGrande: frascosGrande,
+   677→    totalFrascos: frascosChico + frascosGrande,
+   678→    envasesChico: envases.chico || 0,
+   679→    envasesGrande: envases.grande || 0,
+   680→    ventasHoy: ventasHoy.length,
+   681→    totalVentasHoy: ventasHoy.reduce(function(s, v) { return s + (Number(v.total) || 0); }, 0),
+   682→    ventasMes: ventasMes.length,
+   683→    totalVentasMes: ventasMes.reduce(function(s, v) { return s + (Number(v.total) || 0); }, 0),
+   684→    especiasBolsaBaja: espBolsaBaja,
+   685→    etiquetasBajas: etqBajo
+   686→  };
+   687→}
+   688→
+   689→/** Items for venta selection: products with frascos > 0 */
+   690→function getFrascosParaVender() {
+   691→  var items = [];
+   692→  var espKeys = Object.keys(_db.especias || {});
+   693→  for (var i = 0; i < espKeys.length; i++) {
+   694→    var e = _db.especias[espKeys[i]];
+   695→    if (!e || typeof e !== 'object') continue;
+   696→    if ((e.stockChico || 0) > 0) items.push({ tipo: 'especia', id: e.id, nombre: e.nombre, talla: 'chico', stock: e.stockChico, precio: e.precioChico || 0 });
+   697→    if ((e.stockGrande || 0) > 0) items.push({ tipo: 'especia', id: e.id, nombre: e.nombre, talla: 'grande', stock: e.stockGrande, precio: e.precioGrande || 0 });
+   698→  }
+   699→  var blKeys = Object.keys(_db.blends || {});
+   700→  for (var i = 0; i < blKeys.length; i++) {
+   701→    var b = _db.blends[blKeys[i]];
+   702→    if (!b || typeof b !== 'object') continue;
+   703→    if ((b.stockChico || 0) > 0) items.push({ tipo: 'blend', id: b.id, nombre: b.nombre, talla: 'chico', stock: b.stockChico, precio: b.precioChico || 0 });
+   704→    if ((b.stockGrande || 0) > 0) items.push({ tipo: 'blend', id: b.id, nombre: b.nombre, talla: 'grande', stock: b.stockGrande, precio: b.precioGrande || 0 });
+   705→  }
+   706→  return items.sort(function(a, b) { return a.nombre.localeCompare(b.nombre); });
+   707→}
+   708→
+   709→/* ==================== TIENDA (STORE) ==================== */
+   710→
+   711→/** Products visible in the public store (enTienda=true, stock>0) */
+   712→function getTiendaProductos() {
+   713→  var products = [];
+   714→  var espKeys = Object.keys(_db.especias || {});
+   715→  for (var i = 0; i < espKeys.length; i++) {
+   716→    var e = _db.especias[espKeys[i]];
+   717→    if (!e || !e.enTienda) continue;
+   718→    if ((e.stockChico || 0) <= 0 && (e.stockGrande || 0) <= 0) continue;
+   719→    products.push({
+   720→      id: e.id, nombre: e.nombre, tipo: 'especia', categoria: e.categoria || 'Comidas',
+   721→      precioChico: Number(e.precioTiendaChico) || Number(e.precioChico) || 0,
+   722→      precioGrande: Number(e.precioTiendaGrande) || Number(e.precioGrande) || 0,
+   723→      stockChico: e.stockChico || 0, stockGrande: e.stockGrande || 0,
+   724→      region: '', uso: ''
+   725→    });
+   726→  }
+   727→  var blKeys = Object.keys(_db.blends || {});
+   728→  for (var i = 0; i < blKeys.length; i++) {
+   729→    var b = _db.blends[blKeys[i]];
+   730→    if (!b || !b.enTienda) continue;
+   731→    if ((b.stockChico || 0) <= 0 && (b.stockGrande || 0) <= 0) continue;
+   732→    products.push({
+   733→      id: b.id, nombre: b.nombre, tipo: 'blend', categoria: b.categoria || 'Comidas',
+   734→      precioChico: Number(b.precioTiendaChico) || Number(b.precioChico) || 0,
+   735→      precioGrande: Number(b.precioTiendaGrande) || Number(b.precioGrande) || 0,
+   736→      stockChico: b.stockChico || 0, stockGrande: b.stockGrande || 0,
+   737→      region: b.region || '', uso: b.uso || ''
+   738→    });
+   739→  }
+   740→  return products.sort(function(a, b) { return a.nombre.localeCompare(b.nombre); });
+   741→}
+   742→
+   743→/** Toggle enTienda for a product */
+   744→function toggleTienda(tipo, id) {
+   745→  if (tipo === 'especia' && _db.especias[id]) {
+   746→    _db.especias[id].enTienda = !_db.especias[id].enTienda;
+   747→  } else if (tipo === 'blend' && _db.blends[id]) {
+   748→    _db.blends[id].enTienda = !_db.blends[id].enTienda;
+   749→  } else return;
+   750→  _saveToFirebase(); _cacheLocal();
+   751→  _notify('update', tipo === 'especia' ? 'especias' : 'blends', id);
+   752→}
+   753→
+   754→/* ==================== EXCEL IMPORT ==================== */
+   755→
+   756→/** Find especia by name with flexible matching (exact, prefix, contains, word overlap) */
+   757→function findEspeciaByName(nombre) {
+   758→  if (!nombre) return null;
+   759→  var target = nombre.trim().toLowerCase();
+   760→  var keys = Object.keys(_db.especias || {});
+   761→  // 1. Exact match
+   762→  for (var i = 0; i < keys.length; i++) {
+   763→    var e = _db.especias[keys[i]];
+   764→    if (e && (e.nombre || '').trim().toLowerCase() === target) return e;
+   765→  }
+   766→  // 2. Especia name starts with target (e.g. "Color" matches "Color (achiote/...)")
+   767→  for (var i = 0; i < keys.length; i++) {
+   768→    var e = _db.especias[keys[i]];
+   769→    if (e && (e.nombre || '').trim().toLowerCase().indexOf(target) === 0) return e;
+   770→  }
+   771→  // 3. Target is contained in especia name
+   772→  for (var i = 0; i < keys.length; i++) {
+   773→    var e = _db.especias[keys[i]];
+   774→    if (e && (e.nombre || '').trim().toLowerCase().indexOf(target) >= 0) return e;
+   775→  }
+   776→  // 4. Word overlap: any word (len>=4) from target appears in especia name
+   777→  var targetWords = target.split(/[\s()\/,]+/).filter(function(w) { return w.length >= 4; });
+   778→  for (var w = 0; w < targetWords.length; w++) {
+   779→    for (var i = 0; i < keys.length; i++) {
+   780→      var e = _db.especias[keys[i]];
+   781→      if (e && (e.nombre || '').trim().toLowerCase().indexOf(targetWords[w]) >= 0) return e;
+   782→    }
+   783→  }
+   784→  return null;
+   785→}
+   786→
+   787→/** Auto-detect categoria from blend USO field */
+   788→function _categoriaFromUso(uso) {
+   789→  if (!uso) return 'Comidas';
+   790→  var u = uso.toLowerCase();
+   791→  // Cocteleria keywords
+   792→  if (/\b(gin|ron|vodka|whisky|mojito|mule|vermouth|aperitif|coctel)\b/.test(u)) return 'Cocteleria';
+   793→  // Infusiones keywords
+   794→  if (/\b(relajant|sueño|digestiv|energiz|té|calidez|respiratorio|meditaci|antioxidant|bienestar|infusi)\b/.test(u)) return 'Infusiones';
+   795→  return 'Comidas';
+   796→}
+   797→
+   798→/**
+   799→ * Import especias and blends from parsed Excel data.
+   800→ * Returns { especiasCreadas: N, blendsCreados: N, blendsParciales: N, errores: [] }
+   801→ *
+   802→ * especiasList: [{ nombre, categoria? }]
+   803→ * blendsList:   [{ nombre, region, uso, categoria, ingredientes: [{ especia, g, pct }] }]
+   804→ * gramosChico:  default grams for frasco chico (e.g. 30)
+   805→ * gramosGrande: default grams for frasco grande (e.g. 80)
+   806→ */
+   807→function importFromExcelData(especiasList, blendsList, gramosChico, gramosGrande) {
+   808→  _ensureStructure();
+   809→  var resultado = { especiasCreadas: 0, especiasExistentes: 0, blendsCreados: 0, blendsExistentes: 0, ingredientesNoResueltos: [], errores: [] };
+   810→
+   811→  // 1. Create especias (skip if name already exists)
+   812→  for (var i = 0; i < especiasList.length; i++) {
+   813→    var esp = especiasList[i];
+   814→    var nombre = (esp.nombre || '').trim();
+   815→    if (!nombre) continue;
+   816→    var existing = findEspeciaByName(nombre);
+   817→    if (existing) {
+   818→      resultado.especiasExistentes++;
+   819→      continue;
+   820→    }
+   821→    saveEspecia({
+   822→      nombre: nombre,
+   823→      categoria: esp.categoria || 'Comidas',
+   824→      precioChico: 0,
+   825→      precioGrande: 0,
+   826→      gramosChico: Number(gramosChico) || 30,
+   827→      gramosGrande: Number(gramosGrande) || 80,
+   828→      stockBolsa: 0,
+   829→      stockChico: 0,
+   830→      stockGrande: 0
+   831→    });
+   832→    resultado.especiasCreadas++;
+   833→  }
+   834→
+   835→  // 2. Create blends (skip if name already exists)
+   836→  for (var j = 0; j < blendsList.length; j++) {
+   837→    var bl = blendsList[j];
+   838→    var nombre = (bl.nombre || '').trim();
+   839→    if (!nombre) continue;
+   840→    var existingBlend = null;
+   841→    var blKeys = Object.keys(_db.blends || {});
+   842→    for (var k = 0; k < blKeys.length; k++) {
+   843→      if ((_db.blends[blKeys[k]].nombre || '').trim().toLowerCase() === nombre.toLowerCase()) {
+   844→        existingBlend = _db.blends[blKeys[k]];
+   845→        break;
+   846→      }
+   847→    }
+   848→    if (existingBlend) {
+   849→      resultado.blendsExistentes++;
+   850→      continue;
+   851→    }
+   852→
+   853→    // Resolve ingredients: map specia names to IDs and calculate grams per frasco
+   854→    var ings = bl.ingredientes || [];
+   855→    var recipeTotal = 0;
+   856→    for (var ii = 0; ii < ings.length; ii++) recipeTotal += (Number(ings[ii].g) || 0);
+   857→    if (recipeTotal <= 0) recipeTotal = 500;
+   858→
+   859→    var resolvedIngs = [];
+   860→    for (var ii = 0; ii < ings.length; ii++) {
+   861→      var ing = ings[ii];
+   862→      var espObj = findEspeciaByName(ing.especia);
+   863→      if (!espObj) {
+   864→        resultado.ingredientesNoResueltos.push(nombre + ' → ' + (ing.especia || '?'));
+   865→        continue;
+   866→      }
+   867→      var ingG = Number(ing.g) || 0;
+   868→      resolvedIngs.push({
+   869→        especiaId: espObj.id,
+   870→        especiaNombre: espObj.nombre,
+   871→        gramosChico: Math.round((ingG / recipeTotal) * (Number(gramosChico) || 30) * 100) / 100,
+   872→        gramosGrande: Math.round((ingG / recipeTotal) * (Number(gramosGrande) || 80) * 100) / 100,
+   873→        gramosReceta: ingG
+   874→      });
+   875→    }
+   876→
+   877→    var cat = bl.categoria || _categoriaFromUso(bl.uso);
+   878→    saveBlend({
+   879→      nombre: nombre,
+   880→      categoria: cat,
+   881→      region: bl.region || '',
+   882→      uso: bl.uso || '',
+   883→      precioChico: 0,
+   884→      precioGrande: 0,
+   885→      ingredientes: resolvedIngs,
+   886→      stockChico: 0,
+   887→      stockGrande: 0
+   888→    });
+   889→    resultado.blendsCreados++;
+   890→  }
+   891→
+   892→  return resultado;
+   893→}
+   894→
+   895→/* ==================== PRODUCT TAGS ==================== */
+   896→
+   897→function getProductTags() {
+   898→  _ensureStructure();
+   899→  return _db.productTags || {};
+   900→}
+   901→
+   902→function getTagsForCategoria(cat) {
+   903→  var tags = getProductTags();
+   904→  return tags[cat] || [];
+   905→}
+   906→
+   907→function addProductTag(cat, tagName) {
+   908→  _ensureStructure();
+   909→  tagName = (tagName || '').trim();
+   910→  if (!tagName) return false;
+   911→  if (!_db.productTags) _db.productTags = {};
+   912→  if (!_db.productTags[cat]) _db.productTags[cat] = [];
+   913→  // Check duplicate (case-insensitive)
+   914→  for (var i = 0; i < _db.productTags[cat].length; i++) {
+   915→    if (_db.productTags[cat][i].toLowerCase() === tagName.toLowerCase()) return false;
+   916→  }
+   917→  _db.productTags[cat].push(tagName);
+   918→  _saveToFirebase(); _cacheLocal();
+   919→  return true;
+   920→}
+   921→
+   922→function removeProductTag(cat, tagName) {
+   923→  _ensureStructure();
+   924→  if (!_db.productTags || !_db.productTags[cat]) return false;
+   925→  var idx = -1;
+   926→  for (var i = 0; i < _db.productTags[cat].length; i++) {
+   927→    if (_db.productTags[cat][i] === tagName) { idx = i; break; }
+   928→  }
+   929→  if (idx < 0) return false;
+   930→  _db.productTags[cat].splice(idx, 1);
+   931→  // Also remove from all products that have this tag
+   932→  var allEsp = getEspecias();
+   933→  for (var e = 0; e < allEsp.length; e++) {
+   934→    if (allEsp[e].tags) {
+   935→      var ti = allEsp[e].tags.indexOf(tagName);
+   936→      if (ti >= 0) { allEsp[e].tags.splice(ti, 1); }
+   937→    }
+   938→  }
+   939→  var allBl = getBlends();
+   940→  for (var b = 0; b < allBl.length; b++) {
+   941→    if (allBl[b].tags) {
+   942→      var bi = allBl[b].tags.indexOf(tagName);
+   943→      if (bi >= 0) { allBl[b].tags.splice(bi, 1); }
+   944→    }
+   945→  }
+   946→  _saveToFirebase(); _cacheLocal();
+   947→  return true;
+   948→}
+   949→
+   950→/* ==================== IMAGE HELPER ==================== */
+   951→
+   952→function compressImage(file, maxW, quality, cb) {
+   953→  var reader = new FileReader();
+   954→  reader.onload = function(ev) {
+   955→    var img = new Image();
+   956→    img.onload = function() {
+   957→      var w = img.width, h = img.height;
+   958→      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+   959→      var canvas = document.createElement('canvas');
+   960→      canvas.width = w; canvas.height = h;
+   961→      var ctx = canvas.getContext('2d');
+   962→      ctx.drawImage(img, 0, 0, w, h);
+   963→      var dataUrl = canvas.toDataURL('image/jpeg', quality);
+   964→      cb(null, dataUrl);
+   965→    };
+   966→    img.onerror = function() { cb('Error al cargar imagen'); };
+   967→    img.src = ev.target.result;
+   968→  };
+   969→  reader.onerror = function() { cb('Error al leer archivo'); };
+   970→  reader.readAsDataURL(file);
+   971→}
+   972→
+   973→/* ==================== EXPORT ==================== */
+   974→
+   975→window.ArcanoDB = {
+   976→  initDB: initDB, getDB: getDB, onDBChange: onDBChange, nextId: nextId,
+   977→  getEspecias: getEspecias, getEspecia: getEspecia, saveEspecia: saveEspecia, deleteEspecia: deleteEspecia,
+   978→  getBlends: getBlends, getBlend: getBlend, saveBlend: saveBlend, deleteBlend: deleteBlend,
+   979→  getEtiquetas: getEtiquetas, getProductosConEtiquetas: getProductosConEtiquetas,
+   980→  getEntradas: getEntradas, saveEntrada: saveEntrada, deleteEntrada: deleteEntrada,
+   981→  producirEspecia: producirEspecia, producirBlend: producirBlend,
+   982→  getProducciones: getProducciones, deleteProduccion: deleteProduccion,
+   983→  getFrascosParaVender: getFrascosParaVender,
+   984→  getVentas: getVentas, saveVenta: saveVenta, deleteVenta: deleteVenta,
+   985→  getUsuarios: getUsuarios, saveUsuario: saveUsuario, deleteUsuario: deleteUsuario,
+   986→  authenticateUser: authenticateUser, getCurrentUser: getCurrentUser, logoutUser: logoutUser,
+   987→  getStats: getStats,
+   988→  findEspeciaByName: findEspeciaByName,
+   989→  importFromExcelData: importFromExcelData,
+   990→  getTiendaProductos: getTiendaProductos,
+   991→  toggleTienda: toggleTienda,
+   992→  getProductTags: getProductTags, getTagsForCategoria: getTagsForCategoria,
+   993→  addProductTag: addProductTag, removeProductTag: removeProductTag,
+   994→  compressImage: compressImage,
+   995→  DB_KEY: DB_KEY, FB_PATH: FB_PATH
+   996→};
