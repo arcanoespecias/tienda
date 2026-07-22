@@ -62,9 +62,9 @@ const Pages = {
 
     var h = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
       '<div class="tabs" style="margin-bottom:0;border-bottom:none">' +
-        '<button class="tab' + (tab===&apos;especias&apos; ? ' active' : '') + '" onclick="window._prodTab=&apos;especias&apos;;App.renderPage(&apos;productos&apos;)">Especias<span class="tab-count">' + especias.length + '</span></button>' +
-        '<button class="tab' + (tab===&apos;blends&apos; ? ' active' : '') + '" onclick="window._prodTab=&apos;blends&apos;;App.renderPage(&apos;productos&apos;)">Blends<span class="tab-count">' + blends.length + '</span></button>' +
-        '<button class="tab' + (tab===&apos;etiquetas&apos; ? ' active' : '') + '" onclick="window._prodTab=&apos;etiquetas&apos;;App.renderPage(&apos;productos&apos;)">Etiquetas</button>' +
+        `<button class="tab${tab==='especias' ? ' active' : ''}" onclick="window._prodTab='especias';App.renderPage('productos')">Especias<span class="tab-count">${especias.length}</span></button>` +
+        `<button class="tab${tab==='blends' ? ' active' : ''}" onclick="window._prodTab='blends';App.renderPage('productos')">Blends<span class="tab-count">${blends.length}</span></button>` +
+        `<button class="tab${tab==='etiquetas' ? ' active' : ''}" onclick="window._prodTab='etiquetas';App.renderPage('productos')">Etiquetas</button>` +
       '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
         (tab==='especias' ? '<button class="btn btn-gold" onclick="Pages.formEspecia()">+ Especia</button><button class="btn btn-outline" style="border-color:var(--green);color:var(--green)" onclick="Pages.formImportarExcel()">Importar Excel</button>' : '') +
@@ -92,8 +92,8 @@ const Pages = {
             '<td><span class="' + ((e.stockChico||0)<=3?'text-red fw7':'text-green') + '">' + (e.stockChico||0) + '</span></td>' +
             '<td><span class="' + ((e.stockGrande||0)<=3?'text-red fw7':'text-green') + '">' + (e.stockGrande||0) + '</span></td>' +
             '<td style="white-space:nowrap">' +
-              '<button class="btn btn-sm ' + (e.enTienda ? 'btn-green' : 'btn-outline') + ' mr-4" onclick="ArcanoDB.toggleTienda(&apos;especia&apos;,' + e.id + ');App.renderPage(&apos;productos&apos;)" title="Tienda">' + (e.enTienda ? 'Tienda ON' : 'Tienda') + '</button>' +
-              '<button class="btn btn-sm btn-green mr-4" onclick="Pages.formProduccionRapida(&apos;especia&apos;,' + e.id + ')">Producir</button>' +
+              '<button class="btn btn-sm " + (e.enTienda ? "'btn-green'" : "'btn-outline'") + ' mr-4" onclick="ArcanoDB.toggleTienda(\'especia\',' + e.id + ');App.renderPage(\'productos\')" title="Tienda">' + (e.enTienda ? "'Tienda ON'" : "'Tienda'") + '</button>' +
+              '<button class="btn btn-sm btn-green mr-4" onclick="Pages.formProduccionRapida(\'especia\',' + e.id + ')">Producir</button>' +
               '<button class="btn btn-sm btn-outline mr-8" onclick="Pages.formEspecia(' + e.id + ')">Editar</button>' +
               '<button class="btn btn-sm btn-red" onclick="Pages.delEspecia(' + e.id + ')">X</button>' +
             '</td></tr>';
@@ -121,9 +121,9 @@ const Pages = {
             '<td><span class="' + ((b.stockChico||0)<=3?'text-red fw7':'text-green') + '">' + (b.stockChico||0) + '</span></td>' +
             '<td><span class="' + ((b.stockGrande||0)<=3?'text-red fw7':'text-green') + '">' + (b.stockGrande||0) + '</span></td>' +
             '<td style="white-space:nowrap">' +
-              '<button class="btn btn-sm ' + (b.enTienda ? 'btn-green' : 'btn-outline') + ' mr-4" onclick="ArcanoDB.toggleTienda(&apos;blend&apos;,' + b.id + ');App.renderPage(&apos;productos&apos;)" title="Tienda">' + (b.enTienda ? 'Tienda ON' : 'Tienda') + '</button>' +
-              '<button class="btn btn-sm btn-green mr-4" onclick="Pages.formProduccionRapida(&apos;blend&apos;,' + b.id + ')">Producir</button>' +
-              '<button class="btn btn-sm btn-outline mr-8" onclick="Pages.formBlend(' + b.id + ')">Editar</button>' +
+              \`<button class="btn btn-sm ${b.enTienda ? 'btn-green' : 'btn-outline'} mr-4" onclick="ArcanoDB.toggleTienda('blend',${b.id});App.renderPage('productos')" title="Tienda">${b.enTienda ? 'Tienda ON' : 'Tienda'}</button>\` +
+              '<button class="btn btn-sm " + (b.enTienda ? "'btn-green'" : "'btn-outline'") + ' mr-4" onclick="ArcanoDB.toggleTienda(\'blend\',' + b.id + ');App.renderPage(\'productos\')" title="Tienda">' + (b.enTienda ? "'Tienda ON'" : "'Tienda'") + '</button>' +
+              '<button class="btn btn-sm btn-green mr-4" onclick="Pages.formProduccionRapida(\'blend\',' + b.id + ')">Producir</button>' +
               '<button class="btn btn-sm btn-red" onclick="Pages.delBlend(' + b.id + ')">X</button>' +
             '</td></tr>';
         }
