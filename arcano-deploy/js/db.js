@@ -28,6 +28,7 @@ var _db = null;
 var _ready = false;
 var _saveTimer = null;
 var _listeners = [];
+var _localDirty = false;  // prevents Firebase listener from overwriting pending saves
 
 var DEFAULT_IDS = { especias: 1, blends: 1, producciones: 1, ventas: 1, entradas: 1, stickers: 1 };
 
@@ -129,12 +130,19 @@ function _initFirebase() {
 
 function _saveToFirebase() {
   if (!_firebaseRef) return;
+  _localDirty = true;
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(function() {
     try {
-      _firebaseRef.set(_db);
+      var safetyTimer = setTimeout(function() { _localDirty = false; }, 5000);
+      _firebaseRef.set(_db, function(error) {
+        clearTimeout(safetyTimer);
+        _localDirty = false;
+        if (error) console.error('[DB] Firebase save error:', error);
+      });
     } catch (e) {
       console.error('[DB] Firebase save error:', e);
+      _localDirty = false;
     }
   }, 500);
 }
@@ -151,12 +159,13 @@ function initDB() {
   return new Promise(function(resolve) {
     _initFirebase();
 
-    // Try localStorage cache
+    // Always try localStorage cache for instant UI
     var cached = null;
     try { cached = JSON.parse(localStorage.getItem(DB_KEY)); } catch (e) {}
 
     if (cached && cached.meta && cached.meta.version === DB_VERSION && _ensureStructureOn(cached)) {
       _db = cached;
+      _ensureStructure();  // ensure new fields exist on cached data
       _ready = true;
       _startFirebaseListener();
       resolve();
@@ -169,8 +178,8 @@ function initDB() {
         var fbData = snap.val();
         if (fbData && fbData.meta && fbData.meta.version === DB_VERSION && _ensureStructureOn(fbData)) {
           _db = fbData;
+          _ensureStructure();  // ensure new fields exist on Firebase data
         } else {
-          // Fresh DB (old version or empty)
           _db = _emptyDB();
           _ensureStructure();
           _saveToFirebase();
@@ -212,6 +221,8 @@ function _startFirebaseListener() {
   _firebaseRef.on('value', function(snap) {
     var data = snap.val();
     if (!data || !data.meta || data.meta.version !== DB_VERSION) return;
+    // CRITICAL: skip if local save is pending to prevent overwriting unsaved changes
+    if (_localDirty) return;
     var prevJson = JSON.stringify(_db);
     _db = data;
     _ensureStructure();

@@ -143,7 +143,7 @@ const Pages = {
           `<button class="btn btn-sm btn-outline" onclick="Pages.doAddTag('${cat}',${ci})">+ Agregar</button></div>` +
           '<div style="display:flex;flex-wrap:wrap;gap:6px">';
         for (var ti = 0; ti < tags.length; ti++) {
-          `<span class="tag-chip-admin"><span>${tags[ti]}</span><button onclick="Pages.doRemoveTag('${cat}','${tags[ti].replace(/'/g, '&apos;')}')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1rem;padding:0 2px">Ã</button></span>`;
+          h += '<span class="tag-chip-admin"><span>' + tags[ti] + '</span><button onclick="Pages.doRemoveTag(\'' + cat + '\',\'' + tags[ti].replace(/'/g, '&apos;') + '\')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1rem;padding:0 2px">X</button></span>';
         }
         if (tags.length === 0) h += '<span class="text-sm text-muted">Sin etiquetas de uso</span>';
         h += '</div></div>';
