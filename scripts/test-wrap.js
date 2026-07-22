@@ -1,0 +1,4 @@
+var Pages = {
+  renderProductos(container) {
+  }
+};
