@@ -48,6 +48,18 @@ var EXTRA = {"scripts/generate-recetas.js":"#!/usr/bin/env node\n/* ============
 
 function log(m,c){var el=document.getElementById('log');el.innerHTML+='<div class="'+(c||'')+'">'+m+'</div>';el.scrollTop=el.scrollHeight}
 
+function b64Encode(str){return btoa(unescape(encodeURIComponent(str)))}
+
+async function putFile(owner,repo,token,path,content,sha,branch){
+  var url='https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path;
+  var h={'Authorization':'Bearer '+token,'User-Agent':'Arcano','Content-Type':'application/json'};
+  var body={message:'deploy: '+path,content:content,branch:branch};
+  if(sha) body.sha=sha;
+  var r=await fetch(url,{method:'PUT',headers:h,body:JSON.stringify(body)});
+  if(!r.ok){var e=await r.json();throw new Error(path+': '+(e.message||r.status))}
+  return await r.json();
+}
+
 async function doDeploy(){
   var btn=document.getElementById('deploy-btn');
   var token=document.getElementById('token').value.trim();
@@ -57,7 +69,7 @@ async function doDeploy(){
   btn.disabled=true;btn.textContent='Desplegando...';log('Iniciando deploy...','log-info');
 
   try{
-    var h={'Authorization':'Bearer '+token,'User-Agent':'Arcano','Content-Type':'application/json'};
+    var h={'Authorization':'Bearer '+token,'User-Agent':'Arcano'};
 
     // 1. Get default branch
     var rr=await fetch('https://api.github.com/repos/'+owner+'/'+repo,h);
@@ -66,119 +78,57 @@ async function doDeploy(){
     var branch=ri.default_branch;
     log('Branch: '+branch);
 
-    // 2. Get latest commit SHA and its tree SHA
-    var cr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/refs/heads/'+branch,h);
-    var sha='';
-    var treeSha='';
-    if(cr.ok){
-      var ci=await cr.json();
-      sha=ci.object.sha;
-      log('Commit SHA: '+sha.substring(0,8));
-      // Fetch the commit to get the actual tree SHA
-      var commitReq=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/commits/'+sha,h);
-      if(commitReq.ok){
-        var commitData=await commitReq.json();
-        treeSha=commitData.tree.sha;
-        log('Tree SHA: '+treeSha.substring(0,8));
-      } else {
-        log('No se pudo obtener tree SHA, se usara commit SHA como fallback','log-info');
-        treeSha=sha;
-      }
-    } else {
-      log('Branch vacio o sin commits, se creara tree desde cero','log-info');
-    }
-
-    // 3. Build tree entries from all file sources
-    var tree=[];
-
+    // 2. Build flat file map: path -> base64 content
+    var allFiles={};
+    var p,i;
     // Admin files
     var paths=Object.keys(FILES);
-    for(var i=0;i<paths.length;i++){
-      var p=paths[i];
-      var content=btoa(unescape(encodeURIComponent(FILES[p])));
-      var br=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
-        method:'POST',headers:h,body:JSON.stringify({content:content,encoding:'base64'})
-      });
-      if(!br.ok){var be=await br.json();throw new Error('Blob error for '+p+': '+(be.message||br.status))}
-      var bd=await br.json();
-      tree.push({path:p,mode:'100644',type:'blob',sha:bd.sha});
-      log('Blob: '+p+' ('+FILES[p].length+' chars) → '+bd.sha.substring(0,8),'log-info');
-    }
-
+    for(i=0;i<paths.length;i++){p=paths[i];allFiles[p]={b64:b64Encode(FILES[p]),type:'text'}}
     // Binary files
     var bpaths=Object.keys(BINARIES);
-    for(var j=0;j<bpaths.length;j++){
-      var bp=bpaths[j];
-      var bbr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
-        method:'POST',headers:h,body:JSON.stringify({content:BINARIES[bp],encoding:'base64'})
-      });
-      if(!bbr.ok) throw new Error('Blob error for '+bp+': '+bbr.status);
-      var bbd=await bbr.json();
-      tree.push({path:bp,mode:'100644',type:'blob',sha:bbd.sha});
-      log('Blob binario: '+bp+' → '+bbd.sha.substring(0,8),'log-info');
-    }
-
+    for(i=0;i<bpaths.length;i++){p=bpaths[i];allFiles[p]={b64:BINARIES[p],type:'bin'}}
     // Tienda files
     var tiendaPaths=Object.keys(TIENDA_FILES);
-    for(var k=0;k<tiendaPaths.length;k++){
-      var tp=tiendaPaths[k];
-      var tb64=btoa(unescape(encodeURIComponent(TIENDA_FILES[tp])));
-      var tbr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
-        method:'POST',headers:h,body:JSON.stringify({content:tb64,encoding:'base64'})
-      });
-      if(!tbr.ok) throw new Error('Blob error for tienda '+tp+': '+tbr.status);
-      var tbd=await tbr.json();
-      tree.push({path:tp,mode:'100644',type:'blob',sha:tbd.sha});
-      log('Blob tienda: '+tp+' → '+tbd.sha.substring(0,8),'log-info');
-    }
-
-    // Extra files (scripts, workflows)
+    for(i=0;i<tiendaPaths.length;i++){p=tiendaPaths[i];allFiles[p]={b64:b64Encode(TIENDA_FILES[p]),type:'text'}}
+    // Extra files
     var extraPaths=Object.keys(EXTRA);
-    for(var x=0;x<extraPaths.length;x++){
-      var xp=extraPaths[x];
-      var xb64=btoa(unescape(encodeURIComponent(EXTRA[xp])));
-      var xbr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
-        method:'POST',headers:h,body:JSON.stringify({content:xb64,encoding:'base64'})
-      });
-      if(!xbr.ok) throw new Error('Blob error for extra '+xp+': '+xbr.status);
-      var xbd=await xbr.json();
-      tree.push({path:xp,mode:'100644',type:'blob',sha:xbd.sha});
-      log('Blob extra: '+xp+' → '+xbd.sha.substring(0,8),'log-info');
+    for(i=0;i<extraPaths.length;i++){p=extraPaths[i];allFiles[p]={b64:b64Encode(EXTRA[p]),type:'text'}}
+
+    var fileKeys=Object.keys(allFiles);
+    log('Archivos a desplegar: '+fileKeys.length);
+    log('','');
+
+    // 3. Deploy each file via Contents API
+    for(var f=0;f<fileKeys.length;f++){
+      var fp=fileKeys[f];
+      var finfo=allFiles[fp];
+
+      // Check if file exists to get its SHA (needed for updates)
+      var existingSha=null;
+      var gr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+fp+'?ref='+branch,h);
+      if(gr.ok){
+        var gd=await gr.json();
+        if(gd && gd.sha) existingSha=gd.sha;
+      }
+
+      try{
+        await putFile(owner,repo,token,fp,finfo.b64,existingSha,branch);
+        var tag=finfo.type==='bin'?' (bin)':'';
+        log('OK: '+fp+tag,'log-info');
+      }catch(err){
+        // If conflict (sha changed between GET and PUT), retry once without sha
+        if(err.message && err.message.indexOf('409')>-1){
+          log('  Conflicto, reintentando '+fp+'...','log-info');
+          await putFile(owner,repo,token,fp,finfo.b64,null,branch);
+          log('OK: '+fp+' (retry)','log-info');
+        }else{
+          throw err;
+        }
+      }
     }
 
-    // 4. Create tree (use treeSha as base_tree, fallback without it if repo is empty)
-    log('Creando tree con '+tree.length+' archivos...');
-    var treePayload={tree:tree};
-    if(treeSha) treePayload.base_tree=treeSha;
-    var tr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/trees',{
-      method:'POST',headers:h,body:JSON.stringify(treePayload)
-    });
-    if(!tr.ok){var te=await tr.json();throw new Error('Tree error: '+(te.message||JSON.stringify(te))+' (status: '+tr.status+')')}
-    var td=await tr.json();
-    log('Tree SHA: '+td.sha.substring(0,8),'log-ok');
-
-    // 5. Create commit
-    log('Creando commit...');
-    var commitPayload={message:'Arcano v3 deploy - sidebar recetas + redes sociales',tree:td.sha};
-    if(sha) commitPayload.parents=[sha];
-    var cc=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/commits',{
-      method:'POST',headers:h,body:JSON.stringify(commitPayload)
-    });
-    if(!cc.ok){var ce=await cc.json();throw new Error('Commit error: '+(ce.message||cc.status))}
-    var cd=await cc.json();
-    log('Commit: '+cd.sha.substring(0,8),'log-ok');
-
-    // 6. Update or create ref
-    log('Actualizando '+branch+'...');
-    var refUrl='https://api.github.com/repos/'+owner+'/'+repo+'/git/refs/heads/'+branch;
-    var ur=await fetch(refUrl,{method:'PATCH',headers:h,body:JSON.stringify({sha:cd.sha})});
-    if(!ur.ok){
-      // If PATCH fails (404), try creating the ref (first commit)
-      log('PATCH fallo ('+ur.status+'), intentando crear ref...','log-info');
-      ur=await fetch(refUrl,{method:'POST',headers:h,body:JSON.stringify({ref:'refs/heads/'+branch,sha:cd.sha})});
-    }
-    if(!ur.ok) throw new Error('Ref update error: '+ur.status);
-    log('DEPLOY EXITOSO','log-ok');
+    log('','');
+    log('DEPLOY EXITOSO ('+fileKeys.length+' archivos)','log-ok');
     log('https://'+owner+'.github.io/'+repo+'/','log-ok');
 
   }catch(e){
