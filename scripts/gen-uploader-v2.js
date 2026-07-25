@@ -2,7 +2,10 @@
 /* ===================== ARCANO UPLOADER GENERATOR =====================
    Reads all files from arcano-deploy/, embeds them as JSON,
    produces a single self-contained arcano-uploader.html that
-   pushes to GitHub Pages via the GitHub API.
+   pushes to GitHub Pages via the GitHub Contents API.
+
+   NOTE: .github/workflows/ files CANNOT be uploaded via Contents API.
+   They must be pushed via git directly.
 
    CRITICAL: After JSON.stringify, escape </ to <\/ to prevent
    the browser from interpreting </script> inside embedded JSON.
@@ -36,12 +39,6 @@ const TIENDA_FILES_LIST = [
   'css/tienda.css',
   'js/tienda-data.js',
   'js/tienda-ui.js'
-];
-
-// Extra files to upload (relative to DEPLOY_DIR)
-const EXTRA_FILES_LIST = [
-  'scripts/generate-recetas.js',
-  '.github/workflows/recetas-semanales.yml'
 ];
 
 // Binary files to upload as-is
@@ -94,23 +91,10 @@ function main() {
     }
   }
 
-  // Read extra files
-  const extraObj = {};
-  for (const rel of EXTRA_FILES_LIST) {
-    const abs = path.join(DEPLOY_DIR, rel);
-    if (fs.existsSync(abs)) {
-      extraObj[rel] = fs.readFileSync(abs, 'utf8');
-      console.log(`  Read extra: ${rel} (${extraObj[rel].length} chars)`);
-    } else {
-      console.warn(`  WARN: Extra file not found: ${rel} (skipping)`);
-    }
-  }
-
   // Create safe JSON strings
   const safeJson = escapeJson(JSON.stringify(filesObj));
   const safeBinaryJson = escapeJson(JSON.stringify(binaryObj));
   const safeTiendaJson = escapeJson(JSON.stringify(tiendaObj));
-  const safeExtraJson = escapeJson(JSON.stringify(extraObj));
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -158,19 +142,18 @@ button:disabled{opacity:.5;cursor:not-allowed}
 var FILES = ${safeJson};
 var BINARIES = ${safeBinaryJson};
 var TIENDA_FILES = ${safeTiendaJson};
-var EXTRA = ${safeExtraJson};
 
 function log(m,c){var el=document.getElementById('log');el.innerHTML+='<div class="'+(c||'')+'">'+m+'</div>';el.scrollTop=el.scrollHeight}
 
 function b64Encode(str){return btoa(unescape(encodeURIComponent(str)))}
 
-async function putFile(owner,repo,token,path,content,sha,branch){
-  var url='https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+path;
+async function putFile(owner,repo,token,filepath,content,sha,branch){
+  var url='https://api.github.com/repos/'+owner+'/'+repo+'/contents/'+filepath;
   var h={'Authorization':'Bearer '+token,'User-Agent':'Arcano','Content-Type':'application/json'};
-  var body={message:'deploy: '+path,content:content,branch:branch};
+  var body={message:'deploy: '+filepath,content:content,branch:branch};
   if(sha) body.sha=sha;
   var r=await fetch(url,{method:'PUT',headers:h,body:JSON.stringify(body)});
-  if(!r.ok){var e=await r.json();throw new Error(path+': '+(e.message||r.status))}
+  if(!r.ok){var e=await r.json();throw new Error(filepath+': '+(e.message||r.status))}
   return await r.json();
 }
 
@@ -204,15 +187,12 @@ async function doDeploy(){
     // Tienda files
     var tiendaPaths=Object.keys(TIENDA_FILES);
     for(i=0;i<tiendaPaths.length;i++){p=tiendaPaths[i];allFiles[p]={b64:b64Encode(TIENDA_FILES[p]),type:'text'}}
-    // Extra files
-    var extraPaths=Object.keys(EXTRA);
-    for(i=0;i<extraPaths.length;i++){p=extraPaths[i];allFiles[p]={b64:b64Encode(EXTRA[p]),type:'text'}}
 
     var fileKeys=Object.keys(allFiles);
     log('Archivos a desplegar: '+fileKeys.length);
-    log('','');
+    log('');
 
-    // 3. Deploy each file via Contents API
+    // 3. Deploy each file via Contents API (one by one)
     for(var f=0;f<fileKeys.length;f++){
       var fp=fileKeys[f];
       var finfo=allFiles[fp];
@@ -241,7 +221,7 @@ async function doDeploy(){
       }
     }
 
-    log('','');
+    log('');
     log('DEPLOY EXITOSO ('+fileKeys.length+' archivos)','log-ok');
     log('https://'+owner+'.github.io/'+repo+'/','log-ok');
 
@@ -292,14 +272,6 @@ async function doDeploy(){
     console.log('Validation: Sidebar functions in tienda-ui.js OK');
   } else {
     console.error('ERROR: Missing sidebar functions in tienda-ui.js!');
-  }
-
-  // Validate extra files
-  if (extraObj['scripts/generate-recetas.js']) {
-    console.log('Validation: generate-recetas.js present OK');
-  }
-  if (extraObj['.github/workflows/recetas-semanales.yml']) {
-    console.log('Validation: recetas-semanales.yml present OK');
   }
 }
 
