@@ -18,7 +18,7 @@ const OUTPUT = path.join(__dirname, '..', 'download', 'arcano-uploader.html');
 const OWNER = 'arcanoespecias';
 const REPO = 'arcano-v2';
 
-// Files to embed (relative to DEPLOY_DIR)
+// Files to embed (relative to DEPLOY_DIR) — admin panel
 const FILES_TO_EMBED = [
   'index.html',
   'css/style.css',
@@ -30,7 +30,7 @@ const FILES_TO_EMBED = [
   'version.json'
 ];
 
-// Tienda files — read by Node and embedded as TIENDA_FILES JSON in browser
+// Tienda files — read by Node and embedded as TIENDA_FILES in browser
 const TIENDA_FILES_LIST = [
   'tienda.html',
   'css/tienda.css',
@@ -51,20 +51,21 @@ const BINARY_FILES = [
   'icons/icon-512.png'
 ];
 
+function escapeJson(jsonStr) {
+  return jsonStr.replace(/<\//g, '<\\/');
+}
+
 function main() {
   console.log('=== Arcano Uploader Generator ===');
   console.log(`Owner: ${OWNER}  Repo: ${REPO}`);
   console.log(`Deploy dir: ${DEPLOY_DIR}`);
   console.log(`Output: ${OUTPUT}\n`);
 
-  // Read all text files
+  // Read admin files
   const filesObj = {};
   for (const rel of FILES_TO_EMBED) {
     const abs = path.join(DEPLOY_DIR, rel);
-    if (!fs.existsSync(abs)) {
-      console.error(`ERROR: File not found: ${abs}`);
-      process.exit(1);
-    }
+    if (!fs.existsSync(abs)) { console.error(`ERROR: File not found: ${abs}`); process.exit(1); }
     filesObj[rel] = fs.readFileSync(abs, 'utf8');
     console.log(`  Read: ${rel} (${filesObj[rel].length} chars)`);
   }
@@ -81,7 +82,7 @@ function main() {
     }
   }
 
-  // Read tienda files (optional — skip if not found)
+  // Read tienda files
   const tiendaObj = {};
   for (const rel of TIENDA_FILES_LIST) {
     const abs = path.join(DEPLOY_DIR, rel);
@@ -93,8 +94,8 @@ function main() {
     }
   }
 
-  // Read extra files (optional)
-  var extraObj = {};
+  // Read extra files
+  const extraObj = {};
   for (const rel of EXTRA_FILES_LIST) {
     const abs = path.join(DEPLOY_DIR, rel);
     if (fs.existsSync(abs)) {
@@ -105,15 +106,11 @@ function main() {
     }
   }
 
-  // JSON.stringify the files object, then escape </ to prevent HTML breakage
-  const jsonStr = JSON.stringify(filesObj);
-  const safeJson = jsonStr.replace(/<\//g, '<\\/');
-
-  const binaryJson = JSON.stringify(binaryObj);
-  const safeBinaryJson = binaryJson.replace(/<\//g, '<\\/');
-
-  const extraJson = JSON.stringify(extraObj);
-  const safeTiendaJson = tiendaJson.replace(/<\//g, '<\\/');
+  // Create safe JSON strings
+  const safeJson = escapeJson(JSON.stringify(filesObj));
+  const safeBinaryJson = escapeJson(JSON.stringify(binaryObj));
+  const safeTiendaJson = escapeJson(JSON.stringify(tiendaObj));
+  const safeExtraJson = escapeJson(JSON.stringify(extraObj));
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -160,6 +157,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 var FILES = ${safeJson};
 var BINARIES = ${safeBinaryJson};
+var TIENDA_FILES = ${safeTiendaJson};
 var EXTRA = ${safeExtraJson};
 
 function log(m,c){var el=document.getElementById('log');el.innerHTML+='<div class="'+(c||'')+'">'+m+'</div>';el.scrollTop=el.scrollHeight}
@@ -189,21 +187,10 @@ async function doDeploy(){
     var sha=ci.object.sha;
     log('SHA: '+sha.substring(0,8));
 
-    // Extra deploy files
-    const extraPaths = Object.keys(extraObj);
-    for (var x = 0; x < extraPaths.length; x++) {
-      var xp = extraPaths[x];
-      var xb64 = btoa(unescape(encodeURIComponent(extraObj[xp])));
-      var xbr = await fetch('https://api.github.com/repos/' + owner + '/' + repo + '/git/blobs', {
-        method: 'POST', headers: h, body: JSON.stringify({ content: xb64, encoding: 'base64' })
-      });
-      if (!xbr.ok) throw new Error('Blob error for extra ' + xp + ': ' + xbr.status);
-      var xbd = await xbr.json();
-      tree.push({ path: xp, mode: '100644', type: 'blob', sha: xbd.sha });
-      log('Blob extra: ' + xp + ' → ' + xbd.sha.substring(0, 8), 'log-info');
-    }
-    // 5. Create tree
+    // 3. Build tree entries from all file sources
     var tree=[];
+
+    // Admin files
     var paths=Object.keys(FILES);
     for(var i=0;i<paths.length;i++){
       var p=paths[i];
@@ -230,7 +217,7 @@ async function doDeploy(){
       log('Blob binario: '+bp+' → '+bbd.sha.substring(0,8),'log-info');
     }
 
-    // Tienda deploy files (pre-read in Node, embedded as TIENDA_FILES)
+    // Tienda files
     var tiendaPaths=Object.keys(TIENDA_FILES);
     for(var k=0;k<tiendaPaths.length;k++){
       var tp=tiendaPaths[k];
@@ -244,6 +231,21 @@ async function doDeploy(){
       log('Blob tienda: '+tp+' → '+tbd.sha.substring(0,8),'log-info');
     }
 
+    // Extra files (scripts, workflows)
+    var extraPaths=Object.keys(EXTRA);
+    for(var x=0;x<extraPaths.length;x++){
+      var xp=extraPaths[x];
+      var xb64=btoa(unescape(encodeURIComponent(EXTRA[xp])));
+      var xbr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/blobs',{
+        method:'POST',headers:h,body:JSON.stringify({content:xb64,encoding:'base64'})
+      });
+      if(!xbr.ok) throw new Error('Blob error for extra '+xp+': '+xbr.status);
+      var xbd=await xbr.json();
+      tree.push({path:xp,mode:'100644',type:'blob',sha:xbd.sha});
+      log('Blob extra: '+xp+' → '+xbd.sha.substring(0,8),'log-info');
+    }
+
+    // 4. Create tree
     log('Creando tree con '+tree.length+' archivos...');
     var tr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/trees',{
       method:'POST',headers:h,body:JSON.stringify({base_tree:sha,tree:tree})
@@ -252,16 +254,16 @@ async function doDeploy(){
     var td=await tr.json();
     log('Tree SHA: '+td.sha.substring(0,8),'log-ok');
 
-    // 4. Create commit
+    // 5. Create commit
     log('Creando commit...');
     var cc=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/commits',{
-      method:'POST',headers:h,body:JSON.stringify({message:'Arcano v2 deploy',tree:td.sha,parents:[sha]})
+      method:'POST',headers:h,body:JSON.stringify({message:'Arcano v3 deploy - sidebar recetas + redes sociales',tree:td.sha,parents:[sha]})
     });
     if(!cc.ok) throw new Error('Commit error: '+cc.status);
     var cd=await cc.json();
     log('Commit: '+cd.sha.substring(0,8),'log-ok');
 
-    // 5. Update ref
+    // 6. Update ref
     log('Actualizando '+branch+'...');
     var ur=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/refs/heads/'+branch,{
       method:'PATCH',headers:h,body:JSON.stringify({sha:cd.sha})
@@ -297,20 +299,34 @@ async function doDeploy(){
 
   // Validate DB_KEY consistency
   const dbContent = filesObj['js/db.js'];
-  if (dbContent.includes("const DB_KEY = 'arcano_v3'")) {
+  if (dbContent && dbContent.includes("const DB_KEY = 'arcano_v3'")) {
     console.log('Validation: DB_KEY = arcano_v3 OK');
   } else {
     console.error('ERROR: DB_KEY not found or wrong in db.js!');
   }
 
-  // Validate Firebase config
-  if (dbContent.includes('AIzaSyBvuJusx4_FvAdXhBl89VVlCicNb-yrdzo')) {
-    console.log('Validation: Firebase API key present OK');
+  // Validate Firebase config in tienda-data.js
+  const tiendaData = tiendaObj['js/tienda-data.js'];
+  if (tiendaData && tiendaData.includes('AIzaSyBvuJusx4_FvAdXhBl89VVlCicNb-yrdzo')) {
+    console.log('Validation: Firebase config in tienda-data.js OK');
+  } else {
+    console.error('ERROR: Firebase config missing in tienda-data.js!');
   }
 
-  // Validate Firebase set() call
-  if (dbContent.includes('ref.set(_db)')) {
-    console.log('Validation: Firebase set() call present OK');
+  // Validate tienda-ui.js has sidebar functions
+  const tiendaUI = tiendaObj['js/tienda-ui.js'];
+  if (tiendaUI && tiendaUI.includes('toggleSidebar') && tiendaUI.includes('renderRecetas') && tiendaUI.includes('renderSocialLinks')) {
+    console.log('Validation: Sidebar functions in tienda-ui.js OK');
+  } else {
+    console.error('ERROR: Missing sidebar functions in tienda-ui.js!');
+  }
+
+  // Validate extra files
+  if (extraObj['scripts/generate-recetas.js']) {
+    console.log('Validation: generate-recetas.js present OK');
+  }
+  if (extraObj['.github/workflows/recetas-semanales.yml']) {
+    console.log('Validation: recetas-semanales.yml present OK');
   }
 }
 
