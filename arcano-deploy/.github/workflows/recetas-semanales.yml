@@ -1,0 +1,20 @@
+name: Generar Recetas Semanales
+
+on:
+  schedule:
+    - cron: '0 15 * * 1'
+      # Los lunes a las 15:00 UTC (10am Colombia)
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Generate recipes with Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/generate-recetas.js

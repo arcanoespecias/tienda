@@ -38,6 +38,12 @@ const TIENDA_FILES_LIST = [
   'js/tienda-ui.js'
 ];
 
+// Extra files to upload (relative to DEPLOY_DIR)
+const EXTRA_FILES_LIST = [
+  'scripts/generate-recetas.js',
+  '.github/workflows/recetas-semanales.yml'
+];
+
 // Binary files to upload as-is
 const BINARY_FILES = [
   'icons/favicon.png',
@@ -87,6 +93,18 @@ function main() {
     }
   }
 
+  // Read extra files (optional)
+  var extraObj = {};
+  for (const rel of EXTRA_FILES_LIST) {
+    const abs = path.join(DEPLOY_DIR, rel);
+    if (fs.existsSync(abs)) {
+      extraObj[rel] = fs.readFileSync(abs, 'utf8');
+      console.log(`  Read extra: ${rel} (${extraObj[rel].length} chars)`);
+    } else {
+      console.warn(`  WARN: Extra file not found: ${rel} (skipping)`);
+    }
+  }
+
   // JSON.stringify the files object, then escape </ to prevent HTML breakage
   const jsonStr = JSON.stringify(filesObj);
   const safeJson = jsonStr.replace(/<\//g, '<\\/');
@@ -94,7 +112,7 @@ function main() {
   const binaryJson = JSON.stringify(binaryObj);
   const safeBinaryJson = binaryJson.replace(/<\//g, '<\\/');
 
-  const tiendaJson = JSON.stringify(tiendaObj);
+  const extraJson = JSON.stringify(extraObj);
   const safeTiendaJson = tiendaJson.replace(/<\//g, '<\\/');
 
   const html = `<!DOCTYPE html>
@@ -142,7 +160,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 <script>
 var FILES = ${safeJson};
 var BINARIES = ${safeBinaryJson};
-var TIENDA_FILES = ${safeTiendaJson};
+var EXTRA = ${safeExtraJson};
 
 function log(m,c){var el=document.getElementById('log');el.innerHTML+='<div class="'+(c||'')+'">'+m+'</div>';el.scrollTop=el.scrollHeight}
 
@@ -171,7 +189,20 @@ async function doDeploy(){
     var sha=ci.object.sha;
     log('SHA: '+sha.substring(0,8));
 
-    // 3. Create blobs for each file, then build tree with SHAs
+    // Extra deploy files
+    const extraPaths = Object.keys(extraObj);
+    for (var x = 0; x < extraPaths.length; x++) {
+      var xp = extraPaths[x];
+      var xb64 = btoa(unescape(encodeURIComponent(extraObj[xp])));
+      var xbr = await fetch('https://api.github.com/repos/' + owner + '/' + repo + '/git/blobs', {
+        method: 'POST', headers: h, body: JSON.stringify({ content: xb64, encoding: 'base64' })
+      });
+      if (!xbr.ok) throw new Error('Blob error for extra ' + xp + ': ' + xbr.status);
+      var xbd = await xbr.json();
+      tree.push({ path: xp, mode: '100644', type: 'blob', sha: xbd.sha });
+      log('Blob extra: ' + xp + ' → ' + xbd.sha.substring(0, 8), 'log-info');
+    }
+    // 5. Create tree
     var tree=[];
     var paths=Object.keys(FILES);
     for(var i=0;i<paths.length;i++){
