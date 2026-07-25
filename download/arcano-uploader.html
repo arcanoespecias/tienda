@@ -66,12 +66,27 @@ async function doDeploy(){
     var branch=ri.default_branch;
     log('Branch: '+branch);
 
-    // 2. Get latest commit SHA
+    // 2. Get latest commit SHA and its tree SHA
     var cr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/refs/heads/'+branch,h);
-    if(!cr.ok) throw new Error('No se pudo obtener ref del branch');
-    var ci=await cr.json();
-    var sha=ci.object.sha;
-    log('SHA: '+sha.substring(0,8));
+    var sha='';
+    var treeSha='';
+    if(cr.ok){
+      var ci=await cr.json();
+      sha=ci.object.sha;
+      log('Commit SHA: '+sha.substring(0,8));
+      // Fetch the commit to get the actual tree SHA
+      var commitReq=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/commits/'+sha,h);
+      if(commitReq.ok){
+        var commitData=await commitReq.json();
+        treeSha=commitData.tree.sha;
+        log('Tree SHA: '+treeSha.substring(0,8));
+      } else {
+        log('No se pudo obtener tree SHA, se usara commit SHA como fallback','log-info');
+        treeSha=sha;
+      }
+    } else {
+      log('Branch vacio o sin commits, se creara tree desde cero','log-info');
+    }
 
     // 3. Build tree entries from all file sources
     var tree=[];
@@ -131,29 +146,37 @@ async function doDeploy(){
       log('Blob extra: '+xp+' → '+xbd.sha.substring(0,8),'log-info');
     }
 
-    // 4. Create tree
+    // 4. Create tree (use treeSha as base_tree, fallback without it if repo is empty)
     log('Creando tree con '+tree.length+' archivos...');
+    var treePayload={tree:tree};
+    if(treeSha) treePayload.base_tree=treeSha;
     var tr=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/trees',{
-      method:'POST',headers:h,body:JSON.stringify({base_tree:sha,tree:tree})
+      method:'POST',headers:h,body:JSON.stringify(treePayload)
     });
-    if(!tr.ok){var te=await tr.json();throw new Error('Tree error: '+(te.message||tr.status))}
+    if(!tr.ok){var te=await tr.json();throw new Error('Tree error: '+(te.message||JSON.stringify(te))+' (status: '+tr.status+')')}
     var td=await tr.json();
     log('Tree SHA: '+td.sha.substring(0,8),'log-ok');
 
     // 5. Create commit
     log('Creando commit...');
+    var commitPayload={message:'Arcano v3 deploy - sidebar recetas + redes sociales',tree:td.sha};
+    if(sha) commitPayload.parents=[sha];
     var cc=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/commits',{
-      method:'POST',headers:h,body:JSON.stringify({message:'Arcano v3 deploy - sidebar recetas + redes sociales',tree:td.sha,parents:[sha]})
+      method:'POST',headers:h,body:JSON.stringify(commitPayload)
     });
-    if(!cc.ok) throw new Error('Commit error: '+cc.status);
+    if(!cc.ok){var ce=await cc.json();throw new Error('Commit error: '+(ce.message||cc.status))}
     var cd=await cc.json();
     log('Commit: '+cd.sha.substring(0,8),'log-ok');
 
-    // 6. Update ref
+    // 6. Update or create ref
     log('Actualizando '+branch+'...');
-    var ur=await fetch('https://api.github.com/repos/'+owner+'/'+repo+'/git/refs/heads/'+branch,{
-      method:'PATCH',headers:h,body:JSON.stringify({sha:cd.sha})
-    });
+    var refUrl='https://api.github.com/repos/'+owner+'/'+repo+'/git/refs/heads/'+branch;
+    var ur=await fetch(refUrl,{method:'PATCH',headers:h,body:JSON.stringify({sha:cd.sha})});
+    if(!ur.ok){
+      // If PATCH fails (404), try creating the ref (first commit)
+      log('PATCH fallo ('+ur.status+'), intentando crear ref...','log-info');
+      ur=await fetch(refUrl,{method:'POST',headers:h,body:JSON.stringify({ref:'refs/heads/'+branch,sha:cd.sha})});
+    }
     if(!ur.ok) throw new Error('Ref update error: '+ur.status);
     log('DEPLOY EXITOSO','log-ok');
     log('https://'+owner+'.github.io/'+repo+'/','log-ok');
