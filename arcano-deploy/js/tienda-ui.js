@@ -70,8 +70,8 @@ function renderProducts(filter) {
     var anyStock = hasChico || hasGrande;
     var stockClass = (hasChico && p.stockChico <= 3) || (hasGrande && p.stockGrande <= 3) ? 'stock-low' : 'stock-ok';
     var stockText = '';
-    if (hasChico && hasGrande) stockText = 'Ch: ' + p.stockChico + ' | Gr: ' + p.stockGrande;
-    else if (hasChico) stockText = 'Chico: ' + p.stockChico + ' disp.';
+    if (hasChico && hasGrande) stockText = 'Pq: ' + p.stockChico + ' | Gr: ' + p.stockGrande;
+    else if (hasChico) stockText = 'Pequeño: ' + p.stockChico + ' disp.';
     else if (hasGrande) stockText = 'Grande: ' + p.stockGrande + ' disp.';
 
     var meta = (p.tipo === 'blend' ? 'Blend' : 'Especia');
@@ -87,7 +87,7 @@ function renderProducts(filter) {
         (p.tags && p.tags.length ? '<div class="card-tags">' + p.tags.map(function(t){return '<span class="card-tag">' + t + '</span>';}).join('') + '</div>' : '') +
         (anyStock ? '<span class="stock-badge ' + stockClass + '">' + stockText + '</span>' : '') +
         '<div class="card-prices">' +
-          (hasChico ? '<div class="price-box"><div class="price-label">Chico</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></div>' : '') +
+          (hasChico ? '<div class="price-box"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></div>' : '') +
           (hasGrande ? '<div class="price-box"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></div>' : '') +
           (!hasChico && !hasGrande ? '<div class="price-na">Sin precio</div>' : '') +
         '</div>' +
@@ -131,11 +131,11 @@ function openDetail(pid) {
   }
 
   var pricesHtml = '';
-  if (hasChico) pricesHtml += '<div class="detail-price-card"><div class="detail-price-label">Chico</div><div class="detail-price-val">$' + p.precioChico.toLocaleString() + '</div></div>';
+  if (hasChico) pricesHtml += '<div class="detail-price-card"><div class="detail-price-label">Pequeño</div><div class="detail-price-val">$' + p.precioChico.toLocaleString() + '</div></div>';
   if (hasGrande) pricesHtml += '<div class="detail-price-card"><div class="detail-price-label">Grande</div><div class="detail-price-val">$' + p.precioGrande.toLocaleString() + '</div></div>';
 
   var stockHtml = '';
-  if (hasChico && hasGrande) stockHtml = 'Chico: ' + p.stockChico + ' disponibles \u00b7 Grande: ' + p.stockGrande + ' disponibles';
+  if (hasChico && hasGrande) stockHtml = 'Pequeño: ' + p.stockChico + ' disponibles \u00b7 Grande: ' + p.stockGrande + ' disponibles';
   else if (hasChico) stockHtml = p.stockChico + ' frascos disponibles';
   else if (hasGrande) stockHtml = p.stockGrande + ' frascos disponibles';
 
@@ -193,7 +193,7 @@ function renderCartModal() {
       var c = cart[i];
       h += '<div class="cart-item">' +
         '<div class="cart-item-info"><div class="cart-item-name">' + c.nombre + '</div>' +
-        '<div class="cart-item-detail">' + (c.talla === 'grande' ? 'Grande' : 'Chico') + ' \u00b7 $' + c.precio.toLocaleString() + ' c/u</div></div>' +
+        '<div class="cart-item-detail">' + (c.talla === 'grande' ? 'Grande' : 'Pequeño') + ' \u00b7 $' + c.precio.toLocaleString() + ' c/u</div></div>' +
         '<div class="cart-item-qty"><button onclick="changeQty(' + i + ',-1)">-</button><span>' + c.qty + '</span><button onclick="changeQty(' + i + ',1)">+</button></div>' +
         '<div class="cart-item-price">$' + (c.precio * c.qty).toLocaleString() + '</div>' +
         '<button class="cart-item-rm" onclick="removeFromCart(' + i + ')">&times;</button></div>';

@@ -12,14 +12,14 @@ const Pages = {
 
     var h = '<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr)">';
     h += '<div class="stat-card" style="border-left-color: var(--gold)"><div class="stat-value">$' + s.totalVentasHoy.toLocaleString() + '</div><div class="stat-label">Ventas Hoy</div><div class="stat-sub">' + s.ventasHoy + ' ops</div></div>';
-    h += '<div class="stat-card" style="border-left-color: var(--green)"><div class="stat-value">' + s.totalFrascos + '</div><div class="stat-label">Frascos Listos</div><div class="stat-sub">' + s.frascosChico + ' ch / ' + s.frascosGrande + ' gr</div></div>';
+    h += '<div class="stat-card" style="border-left-color: var(--green)"><div class="stat-value">' + s.totalFrascos + '</div><div class="stat-label">Frascos Listos</div><div class="stat-sub">' + s.frascosChico + ' pq / ' + s.frascosGrande + ' gr</div></div>';
     h += '<div class="stat-card" style="border-left-color: var(--blue)"><div class="stat-value">$' + s.totalVentasMes.toLocaleString() + '</div><div class="stat-label">Ventas del Mes</div><div class="stat-sub">' + s.ventasMes + ' ops</div></div>';
     h += '</div>';
 
     h += '<div class="stats-grid mt-12" style="grid-template-columns: repeat(5, 1fr)">';
     h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem">' + s.totalEspecias + '</div><div class="stat-label">Especias</div></div>';
     h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem">' + s.totalBlends + '</div><div class="stat-label">Blends</div></div>';
-    h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem;color:var(--blue)">' + s.envasesChico + '</div><div class="stat-label">Env. Chicos</div></div>';
+    h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem;color:var(--blue)">' + s.envasesChico + '</div><div class="stat-label">Env. Pequeños</div></div>';
     h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem;color:var(--blue)">' + s.envasesGrande + '</div><div class="stat-label">Env. Grandes</div></div>';
     var bolsaBajaColor = s.especiasBolsaBaja.length > 0 ? 'var(--red)' : 'var(--green)';
     var bolsaBajaNombres = s.especiasBolsaBaja.map(function(e){return e.nombre}).join(', ') || 'OK';
@@ -112,7 +112,7 @@ const Pages = {
       if (especias.length === 0) {
         h += '<div class="card"><div class="card-body"><p class="text-muted text-center" style="padding:32px">Sin especias. Crea una o importa desde Excel.</p></div></div>';
       } else {
-        h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Pala</th><th>Grs/Ch</th><th>Grs/Gr</th><th>$Chico</th><th>$Grande</th><th>Fr.Ch</th><th>Fr.Gr</th><th>Acciones</th></tr></thead><tbody>';
+        h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Pala</th><th>Grs/Ch</th><th>Grs/Gr</th><th>$Pequeño</th><th>$Grande</th><th>Fr.Ch</th><th>Fr.Gr</th><th>Acciones</th></tr></thead><tbody>';
         for (var i = 0; i < especias.length; i++) {
           var e = especias[i];
           h += '<tr>' +
@@ -141,7 +141,7 @@ const Pages = {
       if (blends.length === 0) {
         h += '<div class="card"><div class="card-body"><p class="text-muted text-center" style="padding:32px">Sin blends. Crea uno nuevo.</p></div></div>';
       } else {
-        h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Region</th><th>Ingredientes</th><th>$Chico</th><th>$Grande</th><th>Fr.Ch</th><th>Fr.Gr</th><th>Acciones</th></tr></thead><tbody>';
+        h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Region</th><th>Ingredientes</th><th>$Pequeño</th><th>$Grande</th><th>Fr.Ch</th><th>Fr.Gr</th><th>Acciones</th></tr></thead><tbody>';
         for (var i = 0; i < blends.length; i++) {
           var b = blends[i];
           var ingN = (b.ingredientes||[]).map(function(x){return x.especiaNombre||'?'}).join(', ');
@@ -207,13 +207,13 @@ const Pages = {
           '<option value="Infusiones"' + (isEdit && esp.categoria==='Infusiones' ? ' selected' : '') + '>Infusiones</option>' +
           '<option value="Cocteleria"' + (isEdit && esp.categoria==='Cocteleria' ? ' selected' : '') + '>Cocteleria</option>' +
         '</select></div>' +
-        '<div class="g2"><div class="form-group"><label>Precio Frasco Chico ($)</label><input type="number" class="input" id="f-esp-pc" value="' + (isEdit ? esp.precioChico : '') + '" placeholder="0" min="0"></div>' +
+        '<div class="g2"><div class="form-group"><label>Precio Frasco Pequeño ($)</label><input type="number" class="input" id="f-esp-pc" value="' + (isEdit ? esp.precioChico : '') + '" placeholder="0" min="0"></div>' +
         '<div class="form-group"><label>Precio Frasco Grande ($)</label><input type="number" class="input" id="f-esp-pg" value="' + (isEdit ? esp.precioGrande : '') + '" placeholder="0" min="0"></div></div>' +
-        '<div class="g2"><div class="form-group"><label>Gramos por Frasco Chico</label><input type="number" class="input" id="f-esp-gc" value="' + (isEdit ? esp.gramosChico : '') + '" placeholder="Ej: 30" min="0"></div>' +
+        '<div class="g2"><div class="form-group"><label>Gramos por Frasco Pequeño</label><input type="number" class="input" id="f-esp-gc" value="' + (isEdit ? esp.gramosChico : '') + '" placeholder="Ej: 30" min="0"></div>' +
         '<div class="form-group"><label>Gramos por Frasco Grande</label><input type="number" class="input" id="f-esp-gg" value="' + (isEdit ? esp.gramosGrande : '') + '" placeholder="Ej: 80" min="0"></div></div>' +
         '<div class="card mt-12" style="background:var(--bg);border-color:var(--gold)"><div class="card-header"><h3>Tienda</h3></div><div class="card-body">' +
         '<div class="form-group"><label>Visible en Tienda</label><select class="input" id="f-esp-tienda"><option value="0"' + (isEdit && esp.enTienda ? '' : ' selected') + '>No</option><option value="1"' + (isEdit && esp.enTienda ? ' selected' : '') + '>Si</option></select></div>' +
-        '<div class="g2"><div class="form-group"><label>Precio Tienda Chico ($)</label><input type="number" class="input" id="f-esp-tc" value="' + (isEdit ? (esp.precioTiendaChico||'') : '') + '" placeholder="0" min="0"></div>' +
+        '<div class="g2"><div class="form-group"><label>Precio Tienda Pequeño ($)</label><input type="number" class="input" id="f-esp-tc" value="' + (isEdit ? (esp.precioTiendaChico||'') : '') + '" placeholder="0" min="0"></div>' +
         '<div class="form-group"><label>Precio Tienda Grande ($)</label><input type="number" class="input" id="f-esp-tg" value="' + (isEdit ? (esp.precioTiendaGrande||'') : '') + '" placeholder="0" min="0"></div></div>' +
         '<div class="form-group"><label>Imagen</label><div class="img-upload-area" id="img-area-esp"><input type="file" accept="image/*" id="f-esp-img" style="display:none" onchange="Pages.handleImageUpload(this,\'img-area-esp\')">' +
         (isEdit && esp.imagen ? '<img src="' + esp.imagen + '" class="img-preview" id="img-preview-esp"><button class="btn btn-sm btn-red" style="margin-top:6px" onclick="Pages.removeImage(\'img-area-esp\',\'f-esp-img\')">Quitar imagen</button>' : '') +
@@ -222,7 +222,7 @@ const Pages = {
         '<div class="form-group"><label>Etiquetas de uso</label><div id="tag-area-esp">' + Pages.buildTagSelectorHtml(isEdit ? (esp.categoria||'Comidas') : 'Comidas', esp.tags || []) + '</div></div>' +
         '<div class="form-group"><label>Descripcion (opcional)</label><textarea class="input" id="f-esp-desc" rows="2" placeholder="Breve descripcion del producto para la tienda...">' + (isEdit ? (esp.descripcion||'') : '') + '</textarea></div>' +
         '<div class="form-group"><label>Uso / Preparaciones (opcional)</label><input type="text" class="input" id="f-esp-uso" value="' + (isEdit ? (esp.uso||'') : '') + '" placeholder="Ej: Carnes, Arroces, Sopas"></div>' +
-        (isEdit ? '<p class="text-xs text-muted mt-8">Stock: ' + (esp.stockBolsa||0) + 'g pala, ' + (esp.stockChico||0) + ' fr chico, ' + (esp.stockGrande||0) + ' fr grande</p>' : '') +
+        (isEdit ? '<p class="text-xs text-muted mt-8">Stock: ' + (esp.stockBolsa||0) + 'g pala, ' + (esp.stockChico||0) + ' fr pequeño, ' + (esp.stockGrande||0) + ' fr grande</p>' : '') +
       '</div><div class="modal-footer">' +
         '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
         '<button class="btn btn-gold" id="btn-save-esp">Guardar</button>' +
@@ -238,12 +238,12 @@ const Pages = {
       var data = {
         nombre: nombre,
         categoria: document.getElementById('f-esp-cat').value,
-        precioChico: Number(document.getElementById('f-esp-pc').value) || 0,
+        precioPequeño: Number(document.getElementById('f-esp-pc').value) || 0,
         precioGrande: Number(document.getElementById('f-esp-pg').value) || 0,
-        gramosChico: Number(document.getElementById('f-esp-gc').value) || 0,
+        gramosPequeño: Number(document.getElementById('f-esp-gc').value) || 0,
         gramosGrande: Number(document.getElementById('f-esp-gg').value) || 0,
         enTienda: document.getElementById('f-esp-tienda').value === '1',
-        precioTiendaChico: Number(document.getElementById('f-esp-tc').value) || 0,
+        precioTiendaPequeño: Number(document.getElementById('f-esp-tc').value) || 0,
         precioTiendaGrande: Number(document.getElementById('f-esp-tg').value) || 0,
         imagen: previewEl ? previewEl.src : '',
         descripcion: (document.getElementById('f-esp-desc') || {}).value ? document.getElementById('f-esp-desc').value.trim() : '',
@@ -276,7 +276,7 @@ const Pages = {
     var bl = (editId != null) ? ArcanoDB.getBlend(editId) : null;
     var isEdit = (bl != null);
     var especias = ArcanoDB.getEspecias();
-    var ings = isEdit ? (bl.ingredientes || []) : [{ especiaId: '', gramosChico: '', gramosGrande: '' }];
+    var ings = isEdit ? (bl.ingredientes || []) : [{ especiaId: '', gramosPequeño: '', gramosGrande: '' }];
 
     var modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -301,13 +301,13 @@ const Pages = {
           '<div class="form-group"><label>Region (opcional)</label><input type="text" class="input" id="f-bl-region" value="' + (isEdit ? (bl.region||'') : '') + '" placeholder="Ej: India"></div>' +
         '</div>' +
         '<div class="form-group"><label>Uso (opcional)</label><input type="text" class="input" id="f-bl-uso" value="' + (isEdit ? (bl.uso||'') : '') + '" placeholder="Ej: Carnes, Currys"></div>' +
-        '<div class="g2"><div class="form-group"><label>Precio Chico ($)</label><input type="number" class="input" id="f-bl-pc" value="' + (isEdit ? bl.precioChico : '') + '" placeholder="0" min="0"></div>' +
+        '<div class="g2"><div class="form-group"><label>Precio Pequeño ($)</label><input type="number" class="input" id="f-bl-pc" value="' + (isEdit ? bl.precioChico : '') + '" placeholder="0" min="0"></div>' +
         '<div class="form-group"><label>Precio Grande ($)</label><input type="number" class="input" id="f-bl-pg" value="' + (isEdit ? bl.precioGrande : '') + '" placeholder="0" min="0"></div></div>' +
         '<div class="form-group"><label>Ingredientes</label><div id="blend-ings"></div>' +
         '<button class="btn btn-sm btn-outline mt-8" id="btn-add-ing">+ Ingrediente</button></div>' +
         '<div class="card mt-12" style="background:var(--bg);border-color:var(--gold)"><div class="card-header"><h3>Tienda</h3></div><div class="card-body">' +
         '<div class="form-group"><label>Visible en Tienda</label><select class="input" id="f-bl-tienda"><option value="0"' + (isEdit && bl.enTienda ? '' : ' selected') + '>No</option><option value="1"' + (isEdit && bl.enTienda ? ' selected' : '') + '>Si</option></select></div>' +
-        '<div class="g2"><div class="form-group"><label>Precio Tienda Chico ($)</label><input type="number" class="input" id="f-bl-tc" value="' + (isEdit ? (bl.precioTiendaChico||'') : '') + '" placeholder="0" min="0"></div>' +
+        '<div class="g2"><div class="form-group"><label>Precio Tienda Pequeño ($)</label><input type="number" class="input" id="f-bl-tc" value="' + (isEdit ? (bl.precioTiendaChico||'') : '') + '" placeholder="0" min="0"></div>' +
         '<div class="form-group"><label>Precio Tienda Grande ($)</label><input type="number" class="input" id="f-bl-tg" value="' + (isEdit ? (bl.precioTiendaGrande||'') : '') + '" placeholder="0" min="0"></div></div>' +
         '<div class="form-group"><label>Imagen</label><div class="img-upload-area" id="img-area-bl"><input type="file" accept="image/*" id="f-bl-img" style="display:none" onchange="Pages.handleImageUpload(this,\'img-area-bl\')">' +
         (isEdit && bl.imagen ? '<img src="' + bl.imagen + '" class="img-preview" id="img-preview-bl"><button class="btn btn-sm btn-red" style="margin-top:6px" onclick="Pages.removeImage(\'img-area-bl\',\'f-bl-img\')">Quitar imagen</button>' : '') +
@@ -315,7 +315,7 @@ const Pages = {
         '</div></div>' +
         '<div class="form-group"><label>Etiquetas de uso</label><div id="tag-area-bl">' + Pages.buildTagSelectorHtml(isEdit ? (bl.categoria||'Comidas') : 'Comidas', bl.tags || []) + '</div></div>' +
         '<div class="form-group"><label>Descripcion (opcional)</label><textarea class="input" id="f-bl-desc" rows="2" placeholder="Breve descripcion del blend para la tienda...">' + (isEdit ? (bl.descripcion||'') : '') + '</textarea></div>' +
-        (isEdit ? '<p class="text-xs text-muted mt-8">Stock: ' + (bl.stockChico||0) + ' fr chico, ' + (bl.stockGrande||0) + ' fr grande</p>' : '') +
+        (isEdit ? '<p class="text-xs text-muted mt-8">Stock: ' + (bl.stockChico||0) + ' fr pequeño, ' + (bl.stockGrande||0) + ' fr grande</p>' : '') +
       '</div><div class="modal-footer">' +
         '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
         '<button class="btn btn-gold" id="btn-save-bl">Guardar</button>' +
@@ -336,7 +336,7 @@ const Pages = {
       var selVal = ing ? ing.especiaId : '';
       div.innerHTML =
         '<div class="form-group" style="margin:0"><label>Especia</label><select class="input ing-esp">' + espOptsHTML + '</select></div>' +
-        '<div class="form-group" style="margin:0"><label>Grs/Chico</label><input type="number" class="input ing-gc" value="' + gc + '" placeholder="0" min="0"></div>' +
+        '<div class="form-group" style="margin:0"><label>Grs/Pequeño</label><input type="number" class="input ing-gc" value="' + gc + '" placeholder="0" min="0"></div>' +
         '<div class="form-group" style="margin:0"><label>Grs/Grande</label><input type="number" class="input ing-gg" value="' + gg + '" placeholder="0" min="0"></div>' +
         '<div><button class="btn btn-sm btn-red btn-rm-ing">X</button></div>';
       if (selVal) div.querySelector('.ing-esp').value = selVal;
@@ -360,18 +360,18 @@ const Pages = {
         if (!espId) continue;
         var espObj = null;
         for (var s = 0; s < especias.length; s++) { if (especias[s].id === espId) { espObj = especias[s]; break; } }
-        ingredientes.push({ especiaId: espId, especiaNombre: espObj ? espObj.nombre : '', gramosChico: gc, gramosGrande: gg });
+        ingredientes.push({ especiaId: espId, especiaNombre: espObj ? espObj.nombre : '', gramosPequeño: gc, gramosGrande: gg });
       }
       var data = {
         nombre: nombre,
         categoria: document.getElementById('f-bl-cat').value,
         region: (document.getElementById('f-bl-region') || {}).value ? document.getElementById('f-bl-region').value.trim() : '',
         uso: (document.getElementById('f-bl-uso') || {}).value ? document.getElementById('f-bl-uso').value.trim() : '',
-        precioChico: Number(document.getElementById('f-bl-pc').value) || 0,
+        precioPequeño: Number(document.getElementById('f-bl-pc').value) || 0,
         precioGrande: Number(document.getElementById('f-bl-pg').value) || 0,
         ingredientes: ingredientes,
         enTienda: document.getElementById('f-bl-tienda').value === '1',
-        precioTiendaChico: Number(document.getElementById('f-bl-tc').value) || 0,
+        precioTiendaPequeño: Number(document.getElementById('f-bl-tc').value) || 0,
         precioTiendaGrande: Number(document.getElementById('f-bl-tg').value) || 0,
         imagen: (document.getElementById('img-preview-bl') || {}).src || '',
         descripcion: (document.getElementById('f-bl-desc') || {}).value ? document.getElementById('f-bl-desc').value.trim() : '',
@@ -411,7 +411,7 @@ const Pages = {
 
     var h = '<div class="page-actions"><button class="btn btn-gold" onclick="Pages.formEntrada()">+ Registrar Entrada</button></div>';
     h += '<div class="stats-grid mt-12" style="grid-template-columns: repeat(4, 1fr)">' +
-      '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.chico||0) + '</div><div class="stat-label">Frascos Chicos</div></div>' +
+      '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.chico||0) + '</div><div class="stat-label">Frascos Pequeños</div></div>' +
       '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.grande||0) + '</div><div class="stat-label">Frascos Grandes</div></div>' +
       '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value" style="color:var(--green)">' + (bolsas.chico||0) + '</div><div class="stat-label">Bolsas Chicas</div></div>' +
       '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value" style="color:var(--green)">' + (bolsas.grande||0) + '</div><div class="stat-label">Bolsas Grandes</div></div></div>';
@@ -434,7 +434,7 @@ const Pages = {
     h += '<div class="card"><div class="card-header"><h3>Stickers</h3></div><div class="card-body">';
     if (etiqList.length === 0) { h += '<p class="text-muted text-center text-sm">Sin productos</p>'; }
     else {
-      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Producto</th><th>Tipo</th><th>Chico</th><th>Grande</th></tr></thead><tbody>';
+      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Producto</th><th>Tipo</th><th>Pequeño</th><th>Grande</th></tr></thead><tbody>';
       for (var i = 0; i < etiqList.length; i++) {
         var et = etiqList[i];
         h += '<tr><td class="fw7">' + et.nombre + '</td><td><span class="badge ' + (et.tipo==='blend'?'badge-blue':'badge-gold') + '">' + (et.tipo==='blend'?'Blend':'Especia') + '</span></td>' +
@@ -537,11 +537,11 @@ const Pages = {
         if (t === 'especia_grs') {
           detailDiv.innerHTML = '<label>Especia</label><select class="input ent-especia"><option value="">Seleccionar</option>' + buildEspOpts() + '</select>';
         } else if (t === 'envase') {
-          detailDiv.innerHTML = '<label>Talla</label><select class="input ent-talla"><option value="chico">Chico</option><option value="grande">Grande</option></select>';
+          detailDiv.innerHTML = '<label>Talla</label><select class="input ent-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>';
         } else if (t === 'bolsa') {
           detailDiv.innerHTML = '<label>Talla</label><select class="input ent-talla"><option value="chico">Chica</option><option value="grande">Grande</option></select>';
         } else {
-          detailDiv.innerHTML = '<label>Producto</label><select class="input ent-stk-nombre"><option value="">Seleccionar</option>' + buildProductoOpts() + '</select><label class="mt-8" style="display:block">Talla</label><select class="input ent-talla"><option value="chico">Chico</option><option value="grande">Grande</option></select>';
+          detailDiv.innerHTML = '<label>Producto</label><select class="input ent-stk-nombre"><option value="">Seleccionar</option>' + buildProductoOpts() + '</select><label class="mt-8" style="display:block">Talla</label><select class="input ent-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>';
         }
       }
       tipoSel.addEventListener('change', renderDetail);
@@ -654,7 +654,7 @@ const Pages = {
       '<div class="modal-body">' +
         '<div class="form-group"><label>Tipo</label><select class="input" id="f-prod-tipo"><option value="especia">Especia</option><option value="blend">Blend</option></select></div>' +
         '<div class="form-group"><label>Producto</label><select class="input" id="f-prod-prod"><option value="">Seleccionar</option></select></div>' +
-        '<div class="g2"><div class="form-group"><label>Talla</label><select class="input" id="f-prod-talla"><option value="chico">Chico</option><option value="grande">Grande</option></select></div>' +
+        '<div class="g2"><div class="form-group"><label>Talla</label><select class="input" id="f-prod-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select></div>' +
         '<div class="form-group"><label>Cantidad de frascos</label><input type="number" class="input" id="f-prod-cant" value="1" min="1"></div></div>' +
         '<div id="f-prod-preview" class="mt-12"></div>' +
       '</div><div class="modal-footer">' +
@@ -944,7 +944,7 @@ const Pages = {
             '<div id="cam-detected-text" style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;font-style:italic"></div>' +
             '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
               '<select class="input" id="cam-prod-select" style="flex:1;min-width:140px"><option value="">Seleccionar producto</option></select>' +
-              '<select class="input" id="cam-talla-select" style="width:120px"><option value="chico">Chico</option><option value="grande">Grande</option></select>' +
+              '<select class="input" id="cam-talla-select" style="width:120px"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>' +
               '<button class="btn btn-sm btn-gold" onclick="Pages.addCamProduct()">+ Agregar</button>' +
               '<button class="btn btn-sm btn-outline" onclick="Pages.cancelCamDetect()">Seguir leyendo</button>' +
             '</div>' +
@@ -1223,7 +1223,7 @@ const Pages = {
     h += '<div class="card mt-8"><div class="card-header"><h3>Especias</h3></div><div class="card-body">';
     if (especias.length === 0) { h += '<p class="text-muted text-center">Sin especias</p>'; }
     else {
-      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Pala (grs)</th><th>Fr.Chico</th><th>Fr.Grande</th></tr></thead><tbody>';
+      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Pala (grs)</th><th>Fr.Pequeño</th><th>Fr.Grande</th></tr></thead><tbody>';
       for (var i = 0; i < especias.length; i++) {
         var e = especias[i];
         h += '<tr><td class="fw7">' + e.nombre + '</td>' +
@@ -1240,7 +1240,7 @@ const Pages = {
     h += '<div class="card mt-16"><div class="card-header"><h3>Blends</h3></div><div class="card-body">';
     if (blends.length === 0) { h += '<p class="text-muted text-center">Sin blends</p>'; }
     else {
-      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Fr.Chico</th><th>Fr.Grande</th></tr></thead><tbody>';
+      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Fr.Pequeño</th><th>Fr.Grande</th></tr></thead><tbody>';
       for (var i = 0; i < blends.length; i++) {
         var b = blends[i];
         h += '<tr><td class="fw7">' + b.nombre + '</td>' +
@@ -1255,7 +1255,7 @@ const Pages = {
     // === SECTION 2: PACKAGING ===
     h += '<h3 style="color:var(--gold);margin:24px 0 12px;font-size:1.1rem">Packaging</h3>';
     h += '<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr)">' +
-      '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.chico||0) + '</div><div class="stat-label">Frascos Chicos</div></div>' +
+      '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.chico||0) + '</div><div class="stat-label">Frascos Pequeños</div></div>' +
       '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.grande||0) + '</div><div class="stat-label">Frascos Grandes</div></div>' +
       '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value" style="color:var(--green)">' + (bolsas.chico||0) + '</div><div class="stat-label">Bolsas Chicas</div></div>' +
       '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value" style="color:var(--green)">' + (bolsas.grande||0) + '</div><div class="stat-label">Bolsas Grandes</div></div></div>';
@@ -1264,7 +1264,7 @@ const Pages = {
     h += '<div class="card mt-16"><div class="card-header"><h3>Stickers</h3></div><div class="card-body">';
     if (etiqList.length === 0) { h += '<p class="text-muted text-center">Sin stickers</p>'; }
     else {
-      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Producto</th><th>Tipo</th><th>Stk.Chico</th><th>Stk.Grande</th></tr></thead><tbody>';
+      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Producto</th><th>Tipo</th><th>Stk.Pequeño</th><th>Stk.Grande</th></tr></thead><tbody>';
       for (var i = 0; i < etiqList.length; i++) {
         var et = etiqList[i];
         h += '<tr><td class="fw7">' + et.nombre + '</td><td><span class="badge ' + (et.tipo==='blend'?'badge-blue':'badge-gold') + '">' + (et.tipo==='blend'?'Blend':'Especia') + '</span></td>' +
@@ -1284,7 +1284,7 @@ const Pages = {
       for (var i = 0; i < Math.min(ajustes.length, 50); i++) {
         var aj = ajustes[i];
         var catLabel = aj.categoria === 'especia' ? 'Especia' : aj.categoria === 'blend' ? 'Blend' : aj.categoria === 'envase' ? 'Frascos' : aj.categoria === 'bolsa' ? 'Bolsas' : 'Sticker';
-        var subLabel = aj.subtipo === 'pala' ? 'Pala' : aj.subtipo === 'chico' ? 'Chico' : 'Grande';
+        var subLabel = aj.subtipo === 'pala' ? 'Pala' : aj.subtipo === 'chico' ? 'Pequeño' : 'Grande';
         var cantColor = (aj.cantidad > 0) ? 'text-green' : 'text-red';
         var cantSign = (aj.cantidad > 0) ? '+' : '';
         var unidad = aj.subtipo === 'pala' ? 'g' : 'u';
@@ -1377,9 +1377,9 @@ const Pages = {
 
       // Subtipo options
       if (cat === 'especia') {
-        subSel.innerHTML = '<option value="pala">Pala (gramos)</option><option value="chico">Frasco Chico (unidades)</option><option value="grande">Frasco Grande (unidades)</option>';
+        subSel.innerHTML = '<option value="pala">Pala (gramos)</option><option value="chico">Frasco Pequeño (unidades)</option><option value="grande">Frasco Grande (unidades)</option>';
       } else if (cat === 'blend') {
-        subSel.innerHTML = '<option value="chico">Frasco Chico (unidades)</option><option value="grande">Frasco Grande (unidades)</option>';
+        subSel.innerHTML = '<option value="chico">Frasco Pequeño (unidades)</option><option value="grande">Frasco Grande (unidades)</option>';
       } else if (cat === 'envase') {
         subSel.innerHTML = '<option value="chico">Chico (unidades)</option><option value="grande">Grande (unidades)</option>';
       } else if (cat === 'bolsa') {
@@ -1554,7 +1554,7 @@ const Pages = {
     h += '<div class="table-wrap mt-8"><table class="table"><thead><tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>';
     for (var i = 0; i < (p.items || []).length; i++) {
       var it = p.items[i];
-      var tallaLabel = it.talla === 'grande' ? 'Grande' : 'Chico';
+      var tallaLabel = it.talla === 'grande' ? 'Grande' : 'Pequeño';
       h += '<tr><td class="fw7">' + (it.nombre || '?') + '</td><td>' + tallaLabel + '</td><td>' + (it.qty || 0) + '</td><td>$' + (it.precio || 0).toLocaleString() + '</td><td class="fw7">$' + (it.subtotal || 0).toLocaleString() + '</td></tr>';
     }
     h += '</tbody></table></div>';
@@ -1619,7 +1619,7 @@ const Pages = {
     if (productos.length === 0) {
       h += '<p class="text-muted text-center">No hay productos visibles. Activa "Tienda" en Productos > Editar.</p>';
     } else {
-      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Tipo</th><th>Cat.</th><th>Precio Chico</th><th>Precio Grande</th><th>Stock Ch</th><th>Stock Gr</th></tr></thead><tbody>';
+      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Tipo</th><th>Cat.</th><th>Precio Pequeño</th><th>Precio Grande</th><th>Stock Pq</th><th>Stock Gr</th></tr></thead><tbody>';
       for (var i = 0; i < productos.length; i++) {
         var p = productos[i];
         h += '<tr>' +
@@ -1650,7 +1650,7 @@ const Pages = {
         '<div class="form-group"><label>Archivo Excel (.xlsx)</label>' +
         '<input type="file" class="input" id="f-import-file" accept=".xlsx,.xls"></div>' +
         '<div class="g2">' +
-          '<div class="form-group"><label>Grs por Frasco Chico</label><input type="number" class="input" id="f-import-gc" value="30" min="1"></div>' +
+          '<div class="form-group"><label>Grs por Frasco Pequeño</label><input type="number" class="input" id="f-import-gc" value="30" min="1"></div>' +
           '<div class="form-group"><label>Grs por Frasco Grande</label><input type="number" class="input" id="f-import-gg" value="80" min="1"></div>' +
         '</div>' +
         '<div id="f-import-status" class="mt-12"></div>' +
@@ -2454,7 +2454,7 @@ const Pages = {
     var ctxTallas = document.getElementById('chart-tallas');
     if (ctxTallas) {
       Pages._estCharts.push(new Chart(ctxTallas, {
-        type: 'pie', data: { labels: ['Chico', 'Grande'], datasets: [{ data: [tallaMap.chico || 0, tallaMap.grande || 0], backgroundColor: ['#c9963a', '#5dade2'], borderColor: '#241209', borderWidth: 3 }] },
+        type: 'pie', data: { labels: ['Pequeño', 'Grande'], datasets: [{ data: [tallaMap.chico || 0, tallaMap.grande || 0], backgroundColor: ['#c9963a', '#5dade2'], borderColor: '#241209', borderWidth: 3 }] },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 16, boxWidth: 12 } } } }
       }));
     }
