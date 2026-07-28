@@ -238,12 +238,12 @@ const Pages = {
       var data = {
         nombre: nombre,
         categoria: document.getElementById('f-esp-cat').value,
-        precioPequeño: Number(document.getElementById('f-esp-pc').value) || 0,
+        precioChico: Number(document.getElementById('f-esp-pc').value) || 0,
         precioGrande: Number(document.getElementById('f-esp-pg').value) || 0,
-        gramosPequeño: Number(document.getElementById('f-esp-gc').value) || 0,
+        gramosChico: Number(document.getElementById('f-esp-gc').value) || 0,
         gramosGrande: Number(document.getElementById('f-esp-gg').value) || 0,
         enTienda: document.getElementById('f-esp-tienda').value === '1',
-        precioTiendaPequeño: Number(document.getElementById('f-esp-tc').value) || 0,
+        precioTiendaChico: Number(document.getElementById('f-esp-tc').value) || 0,
         precioTiendaGrande: Number(document.getElementById('f-esp-tg').value) || 0,
         imagen: previewEl ? previewEl.src : '',
         descripcion: (document.getElementById('f-esp-desc') || {}).value ? document.getElementById('f-esp-desc').value.trim() : '',
@@ -276,7 +276,7 @@ const Pages = {
     var bl = (editId != null) ? ArcanoDB.getBlend(editId) : null;
     var isEdit = (bl != null);
     var especias = ArcanoDB.getEspecias();
-    var ings = isEdit ? (bl.ingredientes || []) : [{ especiaId: '', gramosPequeño: '', gramosGrande: '' }];
+    var ings = isEdit ? (bl.ingredientes || []) : [{ especiaId: '', gramosChico: '', gramosGrande: '' }];
 
     var modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -360,18 +360,18 @@ const Pages = {
         if (!espId) continue;
         var espObj = null;
         for (var s = 0; s < especias.length; s++) { if (especias[s].id === espId) { espObj = especias[s]; break; } }
-        ingredientes.push({ especiaId: espId, especiaNombre: espObj ? espObj.nombre : '', gramosPequeño: gc, gramosGrande: gg });
+        ingredientes.push({ especiaId: espId, especiaNombre: espObj ? espObj.nombre : '', gramosChico: gc, gramosGrande: gg });
       }
       var data = {
         nombre: nombre,
         categoria: document.getElementById('f-bl-cat').value,
         region: (document.getElementById('f-bl-region') || {}).value ? document.getElementById('f-bl-region').value.trim() : '',
         uso: (document.getElementById('f-bl-uso') || {}).value ? document.getElementById('f-bl-uso').value.trim() : '',
-        precioPequeño: Number(document.getElementById('f-bl-pc').value) || 0,
+        precioChico: Number(document.getElementById('f-bl-pc').value) || 0,
         precioGrande: Number(document.getElementById('f-bl-pg').value) || 0,
         ingredientes: ingredientes,
         enTienda: document.getElementById('f-bl-tienda').value === '1',
-        precioTiendaPequeño: Number(document.getElementById('f-bl-tc').value) || 0,
+        precioTiendaChico: Number(document.getElementById('f-bl-tc').value) || 0,
         precioTiendaGrande: Number(document.getElementById('f-bl-tg').value) || 0,
         imagen: (document.getElementById('img-preview-bl') || {}).src || '',
         descripcion: (document.getElementById('f-bl-desc') || {}).value ? document.getElementById('f-bl-desc').value.trim() : '',
@@ -493,6 +493,7 @@ const Pages = {
       var o = '';
       var esps = ArcanoDB.getEspecias();
       for (var i = 0; i < esps.length; i++) o += '<option value="' + esps[i].id + '">' + esps[i].nombre + '</option>';
+      o += '<option value="__new__">+ Nueva especia...</option>';
       return o;
     }
 
@@ -502,14 +503,15 @@ const Pages = {
       var bls = ArcanoDB.getBlends();
       if (esps.length > 0) {
         o += '<optgroup label="Especias">';
-        for (var i = 0; i < esps.length; i++) o += '<option value="' + esps[i].nombre + '">' + esps[i].nombre + '</option>';
+        for (var i = 0; i < esps.length; i++) o += '<option value="especia|' + esps[i].id + '">' + esps[i].nombre + '</option>';
         o += '</optgroup>';
       }
       if (bls.length > 0) {
         o += '<optgroup label="Blends">';
-        for (var i = 0; i < bls.length; i++) o += '<option value="' + bls[i].nombre + '">' + bls[i].nombre + '</option>';
+        for (var i = 0; i < bls.length; i++) o += '<option value="blend|' + bls[i].id + '">' + bls[i].nombre + '</option>';
         o += '</optgroup>';
       }
+      o += '<option value="__new__">+ Nuevo producto...</option>';
       return o;
     }
 
@@ -535,13 +537,55 @@ const Pages = {
       function renderDetail() {
         var t = tipoSel.value;
         if (t === 'especia_grs') {
-          detailDiv.innerHTML = '<label>Especia</label><select class="input ent-especia"><option value="">Seleccionar</option>' + buildEspOpts() + '</select>';
+          detailDiv.innerHTML = '<label>Especia</label><select class="input ent-especia"><option value="">Seleccionar</option>' + buildEspOpts() + '</select><input type="text" class="input ent-especia-new" placeholder="Nombre nueva especia..." style="display:none;margin-top:6px">';
+          var espSel2 = detailDiv.querySelector('.ent-especia');
+          var newInput = detailDiv.querySelector('.ent-especia-new');
+          espSel2.addEventListener('change', function() {
+            if (this.value === '__new__') {
+              this.style.display = 'none';
+              newInput.style.display = 'block';
+              newInput.focus();
+            }
+          });
+          newInput.addEventListener('blur', function() {
+            if (!this.value.trim()) {
+              this.style.display = 'none';
+              espSel2.style.display = 'block';
+              espSel2.value = '';
+            }
+          });
+          newInput.addEventListener('keydown', function(ev) {
+            if (ev.key === 'Escape') { this.value = ''; this.blur(); }
+          });
         } else if (t === 'envase') {
           detailDiv.innerHTML = '<label>Talla</label><select class="input ent-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>';
         } else if (t === 'bolsa') {
           detailDiv.innerHTML = '<label>Talla</label><select class="input ent-talla"><option value="chico">Chica</option><option value="grande">Grande</option></select>';
         } else {
-          detailDiv.innerHTML = '<label>Producto</label><select class="input ent-stk-nombre"><option value="">Seleccionar</option>' + buildProductoOpts() + '</select><label class="mt-8" style="display:block">Talla</label><select class="input ent-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>';
+          detailDiv.innerHTML = '<label>Producto</label><select class="input ent-stk-nombre"><option value="">Seleccionar</option>' + buildProductoOpts() + '</select><input type="text" class="input ent-stk-new-nombre" placeholder="Nombre nuevo producto..." style="display:none;margin-top:6px"><select class="input ent-stk-new-tipo" style="display:none;margin-top:6px"><option value="especia">Especia</option><option value="blend">Blend</option></select><label class="mt-8" style="display:block">Talla</label><select class="input ent-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>';
+          var stkSel = detailDiv.querySelector('.ent-stk-nombre');
+          var stkNewNombre = detailDiv.querySelector('.ent-stk-new-nombre');
+          var stkNewTipo = detailDiv.querySelector('.ent-stk-new-tipo');
+          var stkTalla = detailDiv.querySelectorAll('.ent-talla')[0];
+          stkSel.addEventListener('change', function() {
+            if (this.value === '__new__') {
+              this.style.display = 'none';
+              stkNewTipo.style.display = 'block';
+              stkNewNombre.style.display = 'block';
+              stkNewNombre.focus();
+            }
+          });
+          stkNewNombre.addEventListener('blur', function() {
+            if (!this.value.trim()) {
+              this.style.display = 'none';
+              stkNewTipo.style.display = 'none';
+              stkSel.style.display = 'block';
+              stkSel.value = '';
+            }
+          });
+          stkNewNombre.addEventListener('keydown', function(ev) {
+            if (ev.key === 'Escape') { this.value = ''; this.blur(); }
+          });
         }
       }
       tipoSel.addEventListener('change', renderDetail);
@@ -570,6 +614,7 @@ const Pages = {
       var items = [];
       var total = 0;
       var esps = ArcanoDB.getEspecias();
+      var bls = ArcanoDB.getBlends();
 
       for (var i = 0; i < rows.length; i++) {
         var tipo = rows[i].querySelector('.ent-tipo').value;
@@ -579,19 +624,61 @@ const Pages = {
         var item = { tipo: tipo, cantidad: cant, costoUnitario: cost };
         total += cant * cost;
         if (tipo === 'especia_grs') {
+          var newEspInput = rows[i].querySelector('.ent-especia-new');
           var espSel = rows[i].querySelector('.ent-especia');
-          if (!espSel) { alert('Falta especia en item ' + (i+1)); return; }
-          item.especiaId = Number(espSel.value);
-          var espObj = null;
-          for (var s = 0; s < esps.length; s++) { if (esps[s].id === item.especiaId) { espObj = esps[s]; break; } }
-          item.especiaNombre = espObj ? espObj.nombre : '?';
+          if (newEspInput && newEspInput.style.display !== 'none' && newEspInput.value.trim()) {
+            var newName = newEspInput.value.trim();
+            var existingEsp = null;
+            for (var s = 0; s < esps.length; s++) { if (esps[s].nombre.toLowerCase() === newName.toLowerCase()) { existingEsp = esps[s]; break; } }
+            if (existingEsp) {
+              item.especiaId = existingEsp.id;
+              item.especiaNombre = existingEsp.nombre;
+            } else {
+              var newEsp = ArcanoDB.saveEspecia({ nombre: newName });
+              item.especiaId = newEsp.id;
+              item.especiaNombre = newEsp.nombre;
+              esps = ArcanoDB.getEspecias();
+            }
+          } else if (espSel && espSel.value && espSel.value !== '__new__') {
+            item.especiaId = Number(espSel.value);
+            var espObj = null;
+            for (var s = 0; s < esps.length; s++) { if (esps[s].id === item.especiaId) { espObj = esps[s]; break; } }
+            item.especiaNombre = espObj ? espObj.nombre : '?';
+          } else {
+            alert('Falta especia en item ' + (i+1)); return;
+          }
+          if (!item.especiaId) { alert('Falta especia en item ' + (i+1)); return; }
         } else if (tipo === 'envase') {
           item.talla = rows[i].querySelector('.ent-talla').value;
         } else if (tipo === 'bolsa') {
           item.talla = rows[i].querySelector('.ent-talla').value;
         } else if (tipo === 'sticker') {
-          item.stickerNombre = (rows[i].querySelector('.ent-stk-nombre').value || '').trim();
-          if (!item.stickerNombre) { alert('Falta nombre de sticker en item ' + (i+1)); return; }
+          var stkSel = rows[i].querySelector('.ent-stk-nombre');
+          var stkNewNombre = rows[i].querySelector('.ent-stk-new-nombre');
+          var stkNewTipo = rows[i].querySelector('.ent-stk-new-tipo');
+          if (stkSel && stkSel.style.display !== 'none') {
+            var stkVal = stkSel.value || '';
+            if (!stkVal || stkVal === '__new__') { alert('Falta producto de sticker en item ' + (i+1)); return; }
+            var stkParts = stkVal.split('|');
+            item.stickerTipo = stkParts[0];
+            var stkId = Number(stkParts[1]);
+            var stkObj = stkParts[0] === 'blend' ? ArcanoDB.getBlend(stkId) : ArcanoDB.getEspecia(stkId);
+            item.stickerNombre = stkObj ? stkObj.nombre : '?';
+          } else if (stkNewNombre && stkNewNombre.style.display !== 'none' && stkNewNombre.value.trim()) {
+            var newProdName = stkNewNombre.value.trim();
+            var newProdTipo = stkNewTipo ? stkNewTipo.value : 'especia';
+            item.stickerTipo = newProdTipo;
+            if (newProdTipo === 'blend') {
+              var newBl = ArcanoDB.saveBlend({ nombre: newProdName });
+              item.stickerNombre = newBl.nombre;
+            } else {
+              var newEsp2 = ArcanoDB.saveEspecia({ nombre: newProdName });
+              item.stickerNombre = newEsp2.nombre;
+            }
+          } else {
+            alert('Falta producto de sticker en item ' + (i+1)); return;
+          }
+          if (!item.stickerNombre) { alert('Falta producto de sticker en item ' + (i+1)); return; }
           item.talla = rows[i].querySelector('.ent-talla').value;
         }
         items.push(item);
