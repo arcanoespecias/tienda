@@ -85,6 +85,7 @@ function renderProducts(filter) {
         '<div class="card-name">' + p.nombre + '</div>' +
         '<div class="card-meta">' + meta + '</div>' +
         (p.tags && p.tags.length ? '<div class="card-tags">' + p.tags.map(function(t){return '<span class="card-tag">' + t + '</span>';}).join('') + '</div>' : '') +
+        (p.tipo === 'blend' && p.ingredientes && p.ingredientes.length > 0 ? '<div class="card-tags" style="margin-top:2px">' + p.ingredientes.map(function(ing){return '<span class="card-tag" style="background:rgba(232,184,75,0.08);border-color:rgba(232,184,75,0.2)">' + (ing.especiaNombre||'') + '</span>';}).join('') + '</div>' : '') +
         (anyStock ? '<span class="stock-badge ' + stockClass + '">' + stockText + '</span>' : '') +
         '<div class="card-prices">' +
           (hasChico ? '<div class="price-box"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></div>' : '') +
@@ -141,6 +142,17 @@ function openDetail(pid) {
 
   var descHtml = p.descripcion ? '<p class="detail-desc">' + p.descripcion + '</p>' : '';
 
+  // Mostrar ingredientes para blends
+  var ingsHtml = '';
+  if (p.tipo === 'blend' && p.ingredientes && p.ingredientes.length > 0) {
+    ingsHtml = '<div style="margin-top:12px"><div style="font-size:.8rem;font-weight:600;color:var(--gold);margin-bottom:6px">Ingredientes</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    for (var ii = 0; ii < p.ingredientes.length; ii++) {
+      var ing = p.ingredientes[ii];
+      ingsHtml += '<span style="display:inline-block;padding:4px 10px;border-radius:20px;font-size:.75rem;background:rgba(232,184,75,0.12);color:var(--gold);border:1px solid rgba(232,184,75,0.25)">' + (ing.especiaNombre || 'Especia') + '</span>';
+    }
+    ingsHtml += '</div></div>';
+  }
+
   var overlay = document.createElement('div');
   overlay.className = 'detail-overlay';
   overlay.id = 'detail-overlay';
@@ -156,6 +168,7 @@ function openDetail(pid) {
       '<h2>' + p.nombre + '</h2>' +
       (tagsHtml ? '<div class="detail-info-row">' + tagsHtml + '</div>' : '') +
       descHtml +
+      ingsHtml +
       (pricesHtml ? '<div class="detail-prices-row">' + pricesHtml + '</div>' : '') +
       (stockHtml ? '<p class="detail-stock">' + stockHtml + '</p>' : '') +
       (anyStock ? '<button class="detail-add-btn" onclick="doAddToCart(' + p.id + ');document.getElementById(\'detail-overlay\').remove()">Agregar al pedido</button>' :
