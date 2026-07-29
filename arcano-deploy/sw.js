@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arcano-v3-16';
+const CACHE_NAME = 'arcano-v3-17';
 const ASSETS = [
   '/',
   '/index.html',

@@ -88,8 +88,8 @@ function renderProducts(filter) {
         (p.tipo === 'blend' && p.ingredientes && p.ingredientes.length > 0 ? '<div class="card-tags" style="margin-top:2px">' + p.ingredientes.map(function(ing){return '<span class="card-tag" style="background:rgba(232,184,75,0.08);border-color:rgba(232,184,75,0.2)">' + (ing.especiaNombre||'') + '</span>';}).join('') + '</div>' : '') +
         (anyStock ? '<span class="stock-badge ' + stockClass + '">' + stockText + '</span>' : '') +
         '<div class="card-prices">' +
-          (hasChico ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', "chico")"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>' : '') +
-          (hasGrande ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', "grande")"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>' : '') +
+          (hasChico ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;chico&#39;)"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>' : '') +
+          (hasGrande ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;grande&#39;)"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>' : '') +
           (!hasChico && !hasGrande ? '<div class="price-na">Sin precio</div>' : '') +
         '</div>' +
         (!anyStock ? '<button class="add-btn" disabled>Sin stock</button>' : '') +
