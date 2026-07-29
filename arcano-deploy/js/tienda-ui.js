@@ -399,6 +399,10 @@ function compartirReceta(key) {
 /* === INIT === */
 var currentFilter = 'Todos';
 document.addEventListener('DOMContentLoaded', function() {
+  // Lock portrait orientation on mobile
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('portrait').catch(function() {});
+  }
   initTienda().then(function() {
     renderProducts('Todos');
     updateCartFab();
