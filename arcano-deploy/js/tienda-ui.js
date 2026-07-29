@@ -88,15 +88,22 @@ function renderProducts(filter) {
         (p.tipo === 'blend' && p.ingredientes && p.ingredientes.length > 0 ? '<div class="card-tags" style="margin-top:2px">' + p.ingredientes.map(function(ing){return '<span class="card-tag" style="background:rgba(232,184,75,0.08);border-color:rgba(232,184,75,0.2)">' + (ing.especiaNombre||'') + '</span>';}).join('') + '</div>' : '') +
         (anyStock ? '<span class="stock-badge ' + stockClass + '">' + stockText + '</span>' : '') +
         '<div class="card-prices">' +
-          (hasChico ? '<div class="price-box"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></div>' : '') +
-          (hasGrande ? '<div class="price-box"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></div>' : '') +
+          (hasChico ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', "chico")"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>' : '') +
+          (hasGrande ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', "grande")"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>' : '') +
           (!hasChico && !hasGrande ? '<div class="price-na">Sin precio</div>' : '') +
         '</div>' +
-        (anyStock ? '<button class="add-btn" onclick="doAddToCart(' + p.id + ')">Agregar al pedido</button>'
-        : '<button class="add-btn" disabled>Sin stock</button>') +
+        (!anyStock ? '<button class="add-btn" disabled>Sin stock</button>' : '') +
       '</div></div>';
   }
   grid.innerHTML = h;
+}
+
+function addToCartByIdAndSize(pid, talla) {
+  var products = getStoreProducts();
+  var product = null;
+  for (var i = 0; i < products.length; i++) { if (products[i].id === pid) { product = products[i]; break; } }
+  if (!product) return;
+  addToCart(product, talla);
 }
 
 function doAddToCart(pid) {
@@ -132,8 +139,8 @@ function openDetail(pid) {
   }
 
   var pricesHtml = '';
-  if (hasChico) pricesHtml += '<div class="detail-price-card"><div class="detail-price-label">Pequeño</div><div class="detail-price-val">$' + p.precioChico.toLocaleString() + '</div></div>';
-  if (hasGrande) pricesHtml += '<div class="detail-price-card"><div class="detail-price-label">Grande</div><div class="detail-price-val">$' + p.precioGrande.toLocaleString() + '</div></div>';
+  if (hasChico) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'chico' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Pequeño</div><div class="detail-price-val">$' + p.precioChico.toLocaleString() + '</div></button>';
+  if (hasGrande) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'grande' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Grande</div><div class="detail-price-val">$' + p.precioGrande.toLocaleString() + '</div></button>';
 
   var stockHtml = '';
   if (hasChico && hasGrande) stockHtml = 'Pequeño: ' + p.stockChico + ' disponibles \u00b7 Grande: ' + p.stockGrande + ' disponibles';
@@ -171,8 +178,6 @@ function openDetail(pid) {
       ingsHtml +
       (pricesHtml ? '<div class="detail-prices-row">' + pricesHtml + '</div>' : '') +
       (stockHtml ? '<p class="detail-stock">' + stockHtml + '</p>' : '') +
-      (anyStock ? '<button class="detail-add-btn" onclick="doAddToCart(' + p.id + ');document.getElementById(\'detail-overlay\').remove()">Agregar al pedido</button>' :
-        '<button class="detail-add-btn" disabled>Sin stock</button>') +
     '</div></div>';
 
   overlay.innerHTML = html;

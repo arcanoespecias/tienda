@@ -53,6 +53,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .card-meta { font-size: .75rem; color: var(--text-muted); margin-bottom: 10px; min-height: 16px; }
 .card-prices { display: flex; gap: 8px; margin-bottom: 10px; }
 .price-box { flex: 1; background: var(--gold-light); border-radius: 8px; padding: 8px 6px; text-align: center; }
+.price-box-btn { border: 2px solid var(--gold); cursor: pointer; transition: all .2s; color: var(--text); }
+.price-box-btn:hover { background: var(--gold); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(200,150,58,.35); }
+.price-box-btn:hover .price-label { color: rgba(255,255,255,.8); }
+.price-box-btn:hover .price-value { color: #fff; }
+.price-box-btn:active { transform: translateY(0); }
 .price-label { font-size: .65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; }
 .price-value { font-weight: 700; color: var(--gold-dark); font-size: .95rem; }
 .price-na { color: var(--text-muted); font-size: .8rem; }
@@ -143,7 +148,11 @@ textarea.form-input { min-height: 80px; resize: vertical; }
 .detail-info-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
 .detail-info-tag { background: var(--gold-light); color: var(--gold-dark); padding: 4px 12px; border-radius: 8px; font-size: .8rem; font-weight: 600; }
 .detail-prices-row { display: flex; gap: 10px; margin-bottom: 16px; }
-.detail-price-card { flex: 1; background: var(--bg); border-radius: 10px; padding: 12px; text-align: center; border: 1px solid var(--border); }
+.detail-price-card { flex: 1; background: var(--bg); border-radius: 10px; padding: 12px; text-align: center; border: 2px solid var(--gold); cursor: pointer; transition: all .2s; color: var(--text); }
+.detail-price-btn:hover { background: var(--gold); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(200,150,58,.35); }
+.detail-price-btn:hover .detail-price-label { color: rgba(255,255,255,.8); }
+.detail-price-btn:hover .detail-price-val { color: #fff; }
+.detail-price-btn:active { transform: translateY(0); }
 .detail-price-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; }
 .detail-price-val { font-size: 1.2rem; font-weight: 800; color: var(--gold-dark); }
 .detail-stock { font-size: .8rem; color: var(--text-muted); margin-bottom: 14px; }
