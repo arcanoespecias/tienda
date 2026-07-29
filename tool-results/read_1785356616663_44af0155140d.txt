@@ -1,141 +1,3 @@
-     1→/* ===================== ARCANO V3 — PAGES (FIXED) ===================== */
-     2→const Pages = {
-     3→
-     4→  /* ================================================================
-     5→     DASHBOARD
-     6→     ================================================================ */
-     7→  renderDashboard(container) {
-     8→    var s = ArcanoDB.getStats();
-     9→    var ultimasVentas = ArcanoDB.getVentas().slice(0, 5);
-    10→    var ultimasProd = ArcanoDB.getProducciones().slice(0, 5);
-    11→    var pedidosNuevos = ArcanoDB.getPedidos().filter(function(p) { return p.estado === 'nuevo'; });
-    12→
-    13→    var h = '<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr)">';
-    14→    h += '<div class="stat-card" style="border-left-color: var(--gold)"><div class="stat-value">$' + s.totalVentasHoy.toLocaleString() + '</div><div class="stat-label">Ventas Hoy</div><div class="stat-sub">' + s.ventasHoy + ' ops</div></div>';
-    15→    h += '<div class="stat-card" style="border-left-color: var(--green)"><div class="stat-value">' + s.totalFrascos + '</div><div class="stat-label">Frascos Listos</div><div class="stat-sub">' + s.frascosChico + ' pq / ' + s.frascosGrande + ' gr</div></div>';
-    16→    h += '<div class="stat-card" style="border-left-color: var(--blue)"><div class="stat-value">$' + s.totalVentasMes.toLocaleString() + '</div><div class="stat-label">Ventas del Mes</div><div class="stat-sub">' + s.ventasMes + ' ops</div></div>';
-    17→    h += '</div>';
-    18→
-    19→    h += '<div class="stats-grid mt-12" style="grid-template-columns: repeat(5, 1fr)">';
-    20→    h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem">' + s.totalEspecias + '</div><div class="stat-label">Especias</div></div>';
-    21→    h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem">' + s.totalBlends + '</div><div class="stat-label">Blends</div></div>';
-    22→    h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem;color:var(--blue)">' + s.envasesChico + '</div><div class="stat-label">Env. Pequeños</div></div>';
-    23→    h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem;color:var(--blue)">' + s.envasesGrande + '</div><div class="stat-label">Env. Grandes</div></div>';
-    24→    var bolsaBajaColor = s.especiasBolsaBaja.length > 0 ? 'var(--red)' : 'var(--green)';
-    25→    var bolsaBajaNombres = s.especiasBolsaBaja.map(function(e){return e.nombre}).join(', ') || 'OK';
-    26→    h += '<div class="stat-card"><div class="stat-value" style="font-size:1.2rem;color:' + bolsaBajaColor + '">' + s.especiasBolsaBaja.length + '</div><div class="stat-label">Pala Baja</div><div class="stat-sub">' + bolsaBajaNombres + '</div></div>';
-    27→    h += '</div>';
-    28→
-    29→    // Alertas
-    30→    if (s.stickersBajos.length > 0 || s.especiasBolsaBaja.length > 0) {
-    31→      h += '<div class="card mt-16"><div class="card-header"><h3>Alertas</h3></div><div class="card-body">';
-    32→      for (var ai = 0; ai < s.especiasBolsaBaja.length; ai++) {
-    33→        h += '<span class="badge badge-red mr-8">PALA: ' + s.especiasBolsaBaja[ai].nombre + ' ' + (s.especiasBolsaBaja[ai].stockBolsa||0) + 'g</span>';
-    34→      }
-    35→      for (var ai2 = 0; ai2 < s.stickersBajos.length; ai2++) {
-    36→        h += '<span class="badge badge-yellow mr-8">STK: ' + (s.stickersBajos[ai2].nombre||'?') + ' (' + ((s.stickersBajos[ai2].stockChico||0)+(s.stickersBajos[ai2].stockGrande||0)) + ')</span>';
-    37→      }
-    38→      h += '</div></div>';
-    39→    }
-    40→
-    41→    // Pedidos nuevos (NOTIFICACION)
-    42→    if (pedidosNuevos.length > 0) {
-    43→      h += '<div class="card mt-16" style="border-color:var(--red)"><div class="card-header"><h3 style="color:var(--red)">Pedidos Nuevos (' + pedidosNuevos.length + ')</h3></div><div class="card-body">';
-    44→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Hora</th><th>Cliente</th><th>Items</th><th>Total</th><th>Ciudad</th><th></th></tr></thead><tbody>';
-    45→      for (var pi = 0; pi < pedidosNuevos.length; pi++) {
-    46→        var ped = pedidosNuevos[pi];
-    47→        var cl = ped.cliente || {};
-    48→        var hora = ped.creado ? ped.creado.slice(11, 16) : '';
-    49→        var itemsCount = (ped.items || []).length;
-    50→        h += '<tr><td class="fw7">' + hora + '</td><td class="fw7">' + (cl.nombre || '?') + '</td><td>' + itemsCount + ' items</td><td class="text-gold fw7">$' + (ped.total || 0).toLocaleString() + '</td><td>' + (cl.ciudad || '') + '</td>' +
-    51→          '<td><button class="btn btn-sm btn-gold" onclick="Pages.verPedido(\'' + ped._key + '\')">Ver</button></td></tr>';
-    52→      }
-    53→      h += '</tbody></table></div></div></div>';
-    54→    }
-    55→
-    56→    // Ultimas ventas y producciones
-    57→    h += '<div class="g2 mt-16" style="gap:16px">';
-    58→    h += '<div class="card"><div class="card-header"><h3>Ultimas Ventas</h3></div><div class="card-body">';
-    59→    if (ultimasVentas.length === 0) {
-    60→      h += '<p class="text-muted text-center text-sm">Sin ventas</p>';
-    61→    } else {
-    62→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Total</th><th>Items</th></tr></thead><tbody>';
-    63→      for (var vi = 0; vi < ultimasVentas.length; vi++) {
-    64→        var v = ultimasVentas[vi];
-    65→        var vItems = (v.items||[]).map(function(i){return (i.productoNombre||'?')+' x'+(i.cantidad||0)}).join(', ');
-    66→        h += '<tr><td>' + (v.fecha||'') + '</td><td class="fw7 text-gold">$' + (v.total||0).toLocaleString() + '</td><td class="text-sm">' + vItems + '</td></tr>';
-    67→      }
-    68→      h += '</tbody></table></div>';
-    69→    }
-    70→    h += '</div></div>';
-    71→
-    72→    h += '<div class="card"><div class="card-header"><h3>Ultimas Producciones</h3></div><div class="card-body">';
-    73→    if (ultimasProd.length === 0) {
-    74→      h += '<p class="text-muted text-center text-sm">Sin producciones</p>';
-    75→    } else {
-    76→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Producto</th><th>Talla</th><th>Cant.</th></tr></thead><tbody>';
-    77→      for (var ui = 0; ui < ultimasProd.length; ui++) {
-    78→        var p = ultimasProd[ui];
-    79→        var tBadge = (p.talla||'chico') === 'grande' ? 'badge-gold' : 'badge-blue';
-    80→        h += '<tr><td>' + (p.fecha||'') + '</td><td class="fw7">' + (p.productoNombre||'') + '</td><td><span class="badge ' + tBadge + '">' + (p.talla||'chico') + '</span></td><td class="fw7 text-green">' + (p.cantidad||0) + '</td></tr>';
-    81→      }
-    82→      h += '</tbody></table></div>';
-    83→    }
-    84→    h += '</div></div></div>';
-    85→
-    86→    container.innerHTML = h;
-    87→  },
-    88→
-    89→  /* ================================================================
-    90→     PRODUCTOS
-    91→     ================================================================ */
-    92→  renderProductos(container) {
-    93→    var especias = ArcanoDB.getEspecias();
-    94→    var blends = ArcanoDB.getBlends();
-    95→    var tab = window._prodTab || 'especias';
-    96→
-    97→    var h = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
-    98→      '<div class="tabs" style="margin-bottom:0;border-bottom:none">' +
-    99→        `<button class="tab${tab==='especias' ? ' active' : ''}" onclick="window._prodTab='especias';App.renderPage('productos')">Especias<span class="tab-count">${especias.length}</span></button>` +
-   100→        `<button class="tab${tab==='blends' ? ' active' : ''}" onclick="window._prodTab='blends';App.renderPage('productos')">Blends<span class="tab-count">${blends.length}</span></button>` +
-   101→        `<button class="tab${tab==='uso' ? ' active' : ''}" onclick="window._prodTab='uso';App.renderPage('productos')">Etiquetas de uso</button>` +
-   102→      '</div>' +
-   103→      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-   104→        (tab==='especias' ? '<button class="btn btn-gold" onclick="Pages.formEspecia()">+ Especia</button><button class="btn btn-outline" style="border-color:var(--green);color:var(--green)" onclick="Pages.formImportarExcel()">Importar Excel</button>' : '') +
-   105→        (tab==='blends' ? '<button class="btn btn-gold" onclick="Pages.formBlend()">+ Blend</button>' : '') +
-   106→      '</div></div>';
-   107→
-   108→    h += '<div style="border-bottom:2px solid var(--border);margin:8px 0 16px"></div>';
-   109→
-   110→    // --- TAB: ESPECIAS ---
-   111→    if (tab === 'especias') {
-   112→      if (especias.length === 0) {
-   113→        h += '<div class="card"><div class="card-body"><p class="text-muted text-center" style="padding:32px">Sin especias. Crea una o importa desde Excel.</p></div></div>';
-   114→      } else {
-   115→        h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Pala</th><th>Grs/Ch</th><th>Grs/Gr</th><th>$Pequeño</th><th>$Grande</th><th>Fr.Ch</th><th>Fr.Gr</th><th>Acciones</th></tr></thead><tbody>';
-   116→        for (var i = 0; i < especias.length; i++) {
-   117→          var e = especias[i];
-   118→          h += '<tr>' +
-   119→            '<td class="fw7">' + e.nombre + '</td>' +
-   120→            '<td><span class="badge badge-gold">' + (e.categoria||'—') + '</span></td>' +
-   121→            '<td>' + (e.stockBolsa||0) + 'g</td>' +
-   122→            '<td>' + (e.gramosChico||0) + 'g</td>' +
-   123→            '<td>' + (e.gramosGrande||0) + 'g</td>' +
-   124→            '<td>$' + (e.precioChico||0).toLocaleString() + '</td>' +
-   125→            '<td>$' + (e.precioGrande||0).toLocaleString() + '</td>' +
-   126→            '<td><span class="' + ((e.stockChico||0)<=3?'text-red fw7':'text-green') + '">' + (e.stockChico||0) + '</span></td>' +
-   127→            '<td><span class="' + ((e.stockGrande||0)<=3?'text-red fw7':'text-green') + '">' + (e.stockGrande||0) + '</span></td>' +
-   128→            '<td style="white-space:nowrap">' +
-   129→              '<button class="btn btn-sm "' + (e.enTienda ? "'btn-green'" : "'btn-outline'") + ' mr-4" onclick="ArcanoDB.toggleTienda(\'especia\',' + e.id + ');App.renderPage(\'productos\')" title="Tienda">' + (e.enTienda ? "'Tienda ON'" : "'Tienda'") + '</button>' +
-   130→              '<button class="btn btn-sm btn-green mr-4" onclick="Pages.formProduccionRapida(\'especia\',' + e.id + ')">Producir</button>' +
-   131→              '<button class="btn btn-sm btn-outline mr-8" onclick="Pages.formEspecia(' + e.id + ')">Editar</button>' +
-   132→              '<button class="btn btn-sm btn-red" onclick="Pages.delEspecia(' + e.id + ')">X</button>' +
-   133→            '</td></tr>';
-   134→        }
-   135→        h += '</tbody></table></div>';
-   136→      }
-   137→    }
-   138→
    139→    // --- TAB: BLENDS ---
    140→    if (tab === 'blends') {
    141→      if (blends.length === 0) {
@@ -1998,5 +1860,143 @@
   1998→
   1999→  formUsuario(editId) {
   2000→    var users = ArcanoDB.getUsuarios();
+  2001→    var user = null;
+  2002→    for (var i = 0; i < users.length; i++) { if (users[i].id === editId) { user = users[i]; break; } }
+  2003→    var isAdmin = user && user.id === 'admin';
+  2004→
+  2005→    var modal = document.createElement('div');
+  2006→    modal.className = 'modal-overlay';
+  2007→    modal.innerHTML = '<div class="modal">' +
+  2008→      '<div class="modal-header"><h3>' + (user?'Editar':'Nuevo') + ' Usuario</h3><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">X</button></div>' +
+  2009→      '<div class="modal-body">' +
+  2010→        '<div class="form-group"><label>Nombre</label><input type="text" class="input" id="f-u-nombre" value="' + (user?user.nombre:'') + '"></div>' +
+  2011→        '<div class="form-group"><label>Rol</label><select class="input" id="f-u-rol" ' + (isAdmin?'disabled':'') + '><option value="vendedor"' + (user&&user.rol==='vendedor'?' selected':'') + '>Vendedor</option><option value="admin"' + (user&&user.rol==='admin'?' selected':'') + '>Admin</option></select></div>' +
+  2012→        '<div class="form-group"><label>PIN</label><input type="text" class="input" id="f-u-pin" value="' + (user?user.pin:'') + '" maxlength="10"></div>' +
+  2013→        '<div class="form-group"><label>Estado</label><select class="input" id="f-u-activo" ' + (isAdmin?'disabled':'') + '><option value="true"' + (user&&user.activo!==false?' selected':'') + '>Activo</option><option value="false"' + (user&&user.activo===false?' selected':'') + '>Inactivo</option></select></div>' +
+  2014→      '</div><div class="modal-footer">' +
+  2015→        '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
+  2016→        '<button class="btn btn-gold" id="btn-save-u">Guardar</button>' +
+  2017→      '</div></div>';
+  2018→    document.body.appendChild(modal);
+  2019→
+  2020→    document.getElementById('btn-save-u').addEventListener('click', function() {
+  2021→      var nombre = document.getElementById('f-u-nombre').value.trim();
+  2022→      var pin = document.getElementById('f-u-pin').value.trim();
+  2023→      if (!nombre || !pin) { alert('Nombre y PIN obligatorios'); return; }
+  2024→      var id = editId || ('user_' + Date.now());
+  2025→      ArcanoDB.saveUsuario({
+  2026→        id: id, nombre: nombre, rol: document.getElementById('f-u-rol').value,
+  2027→        pin: pin, activo: document.getElementById('f-u-activo').value === 'true', creado: new Date().toISOString()
+  2028→      });
+  2029→      modal.remove();
+  2030→      App.renderPage('usuarios');
+  2031→    });
+  2032→  },
+  2033→
+  2034→  delUsuario(id) {
+  2035→    if (id === 'admin') return;
+  2036→    if (!confirm('Eliminar usuario?')) return;
+  2037→    ArcanoDB.deleteUsuario(id);
+  2038→    App.renderPage('usuarios');
+  2039→  },
+  2040→
+  2041→  /* ================================================================
+  2042→     TAG SELECTOR HELPER
+  2043→     ================================================================ */
+  2044→  buildTagSelectorHtml(cat, selectedTags) {
+  2045→    var tags = ArcanoDB.getTagsForCategoria(cat);
+  2046→    var sel = selectedTags || [];
+  2047→    var h = '<div class="tag-selector" id="tag-selector">';
+  2048→    if (tags.length === 0) {
+  2049→      h += '<p class="text-sm text-muted">No hay etiquetas de uso para esta categoria.</p>';
+  2050→    } else {
+  2051→      for (var i = 0; i < tags.length; i++) {
+  2052→        var checked = sel.indexOf(tags[i]) >= 0 ? ' checked' : '';
+  2053→        h += '<label class="tag-chip"><input type="checkbox" value="' + tags[i] + '"' + checked + '><span>' + tags[i] + '</span></label>';
+  2054→      }
+  2055→    }
+  2056→    h += '</div>';
+  2057→    return h;
+  2058→  },
+  2059→
+  2060→  getSelectedTags() {
+  2061→    var cbs = document.querySelectorAll('#tag-selector input[type=checkbox]');
+  2062→    var tags = [];
+  2063→    for (var i = 0; i < cbs.length; i++) {
+  2064→      if (cbs[i].checked) tags.push(cbs[i].value);
+  2065→    }
+  2066→    return tags;
+  2067→  },
+  2068→
+  2069→  refreshTagSelector(prefix) {
+  2070→    var catEl = document.getElementById('f-' + prefix + '-cat');
+  2071→    var areaEl = document.getElementById('tag-area-' + prefix);
+  2072→    if (!catEl || !areaEl) return;
+  2073→    areaEl.innerHTML = Pages.buildTagSelectorHtml(catEl.value, []);
+  2074→  },
+  2075→
+  2076→  doAddTag(cat, idx) {
+  2077→    var inp = document.getElementById('new-tag-' + idx);
+  2078→    if (!inp) return;
+  2079→    var name = inp.value.trim();
+  2080→    if (!name) return;
+  2081→    if (ArcanoDB.addProductTag(cat, name)) {
+  2082→      App.renderPage('productos');
+  2083→    } else {
+  2084→      alert('La etiqueta de uso ya existe en esta categoria.');
+  2085→    }
+  2086→  },
+  2087→
+  2088→  doRemoveTag(cat, tagName) {
+  2089→    if (confirm('Eliminar etiqueta de uso "' + tagName + '"? Se quitara de los productos que la tengan.')) {
+  2090→      ArcanoDB.removeProductTag(cat, tagName);
+  2091→      App.renderPage('productos');
+  2092→    }
+  2093→  },
+  2094→
+  2095→  /* ================================================================
+  2096→     IMAGE UPLOAD HELPERS
+  2097→     ================================================================ */
+  2098→  handleImageUpload(input, areaId) {
+  2099→    var file = input.files && input.files[0];
+  2100→    if (!file) return;
+  2101→    ArcanoDB.compressImage(file, 400, 0.75, function(err, dataUrl) {
+  2102→      if (err) { alert(err); return; }
+  2103→      var area = document.getElementById(areaId);
+  2104→      var placeholder = area.querySelector('.img-upload-placeholder');
+  2105→      if (placeholder) placeholder.style.display = 'none';
+  2106→      var existing = document.getElementById('img-preview-' + areaId.split('-').pop());
+  2107→      if (existing) existing.remove();
+  2108→      var removeBtn = area.querySelector('.btn-red');
+  2109→      if (removeBtn) removeBtn.remove();
+  2110→      var img = document.createElement('img');
+  2111→      img.src = dataUrl;
+  2112→      img.className = 'img-preview';
+  2113→      img.id = 'img-preview-' + areaId.split('-').pop();
+  2114→      area.insertBefore(img, placeholder);
+  2115→      var rmBtn = document.createElement('button');
+  2116→      rmBtn.className = 'btn btn-sm btn-red';
+  2117→      rmBtn.style.marginTop = '6px';
+  2118→      rmBtn.textContent = 'Quitar imagen';
+  2119→      rmBtn.onclick = function() { Pages.removeImage(areaId, input.id); };
+  2120→      area.insertBefore(rmBtn, placeholder);
+  2121→    });
+  2122→  },
+  2123→
+  2124→  removeImage(areaId, inputId) {
+  2125→    var area = document.getElementById(areaId);
+  2126→    var preview = area.querySelector('.img-preview');
+  2127→    if (preview) preview.remove();
+  2128→    var btn = area.querySelector('.btn-red');
+  2129→    if (btn) btn.remove();
+  2130→    var placeholder = area.querySelector('.img-upload-placeholder');
+  2131→    if (placeholder) placeholder.style.display = '';
+  2132→    var inp = document.getElementById(inputId);
+  2133→    if (inp) inp.value = '';
+  2134→  },
+  2135→
+  2136→  /* ================================================================
+  2137→     RECETAS IA  (Groq API — modelo opensource Llama 3.3 70B)
+  2138→     ================================================================ */
 
-[showing lines 1-2000 of 2570; use offset=2001 with limit to continue reading]
+[showing lines 139-2138 of 2570; use offset=2139 with limit to continue reading]
