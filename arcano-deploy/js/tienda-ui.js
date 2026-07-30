@@ -309,6 +309,43 @@ function selectRecetaCat(cat) {
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.cat === cat);
   renderRecetas();
 }
+/* === ARCANO PRODUCT LINKER (recipes) === */
+var _arcanoLinkData = null;
+
+function _getArcanoLinkData() {
+  if (_arcanoLinkData) return _arcanoLinkData;
+  var products = getStoreProducts();
+  var map = {};
+  for (var i = 0; i < products.length; i++) {
+    if (products[i].nombre) map[products[i].nombre] = products[i].id;
+  }
+  var names = Object.keys(map);
+  if (names.length === 0) { _arcanoLinkData = { regex: null, map: map }; return _arcanoLinkData; }
+  names.sort(function(a, b) { return b.length - a.length; });
+  var escaped = [];
+  for (var i = 0; i < names.length; i++) {
+    escaped.push(names[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  }
+  _arcanoLinkData = {
+    regex: new RegExp('(^|[\\s,.:;!?])(' + escaped.join('|') + ')(?=[\\s,.:;!?]|$)', 'gi'),
+    map: map
+  };
+  return _arcanoLinkData;
+}
+
+function _linkArcanoProducts(text) {
+  var data = _getArcanoLinkData();
+  if (!data.regex) return text;
+  return text.replace(data.regex, function(full, before, name) {
+    var pid = null;
+    for (var k in data.map) {
+      if (k.toLowerCase() === name.toLowerCase()) { pid = data.map[k]; break; }
+    }
+    if (!pid) return full;
+    return before + '<span class=\'arcano-link\' onclick=\'event.stopPropagation();closeSidebar();openDetail(' + pid + ')\'>' + name + '</span>';
+  });
+}
+
 function renderRecetas() {
   var recetas = getRecetas();
   var filtered = [];
@@ -321,13 +358,13 @@ function renderRecetas() {
     var ingredientes = '';
     if (r.ingredientes && r.ingredientes.length) {
       ingredientes = '<div class="recipe-sb-label">Ingredientes</div><ul class="recipe-sb-list">';
-      for (var j = 0; j < r.ingredientes.length; j++) ingredientes += '<li>' + r.ingredientes[j] + '</li>';
+      for (var j = 0; j < r.ingredientes.length; j++) ingredientes += '<li>' + _linkArcanoProducts(r.ingredientes[j]) + '</li>';
       ingredientes += '</ul>';
     }
     var pasos = '';
     if (r.pasos && r.pasos.length) {
       pasos = '<div class="recipe-sb-label">Preparaci\u00f3n</div><ol class="recipe-sb-steps">';
-      for (var k = 0; k < r.pasos.length; k++) pasos += '<li>' + r.pasos[k] + '</li>';
+      for (var k = 0; k < r.pasos.length; k++) pasos += '<li>' + _linkArcanoProducts(r.pasos[k]) + '</li>';
       pasos += '</ol>';
     }
     h += '<div class="recipe-card-sb" id="recipe-' + r._key + '">' +
@@ -336,7 +373,7 @@ function renderRecetas() {
       '<div class="recipe-card-sb-meta">' + (r.tiempo || '') + (r.porciones ? ' \u00b7 ' + r.porciones + ' porciones' : '') + '</div></div>' +
       '<div class="recipe-card-sb-arrow">\u25BC</div></div>' +
       '<div class="recipe-card-sb-body"><div class="recipe-card-sb-inner">' +
-      (r.descripcion ? '<p class="recipe-sb-desc">' + r.descripcion + '</p>' : '') +
+      (r.descripcion ? '<p class="recipe-sb-desc">' + _linkArcanoProducts(r.descripcion) + '</p>' : '') +
       ingredientes + pasos +
       '<button class="recipe-share-btn" onclick="event.stopPropagation();compartirReceta(\'' + r._key + '\')">Compartir receta</button>' +
       '</div></div></div>';
