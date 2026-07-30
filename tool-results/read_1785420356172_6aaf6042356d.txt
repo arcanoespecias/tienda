@@ -1,0 +1,912 @@
+  2430→    if (!confirm('Eliminar esta receta?')) return;
+  2431→    firebase.database().ref('arcano/db/recetas/' + key).remove(function() {
+  2432→      Pages._loadRecetasAdmin();
+  2433→    });
+  2434→  },
+  2435→
+  2436→  generarReceta: function() {
+  2437→    var keyInput = document.getElementById('ra-groq-key');
+  2438→    var catSelect = document.getElementById('ra-categoria');
+  2439→    var temaInput = document.getElementById('ra-tema');
+  2440→    var idiomaSelect = document.getElementById('ra-idioma');
+  2441→    var btn = document.getElementById('ra-gen-btn');
+  2442→    var status = document.getElementById('ra-gen-status');
+  2443→
+  2444→    var apiKey = keyInput.value.trim();
+  2445→    var categoria = catSelect.value;
+  2446→    var tema = temaInput.value.trim();
+  2447→    var idioma = idiomaSelect.value;
+  2448→
+  2449→    if (!apiKey) { alert('Ingresa tu Groq API Key'); keyInput.focus(); return; }
+  2450→    localStorage.setItem('arcano_groq_key', apiKey);
+  2451→
+  2452→    // Build product context
+  2453→    var productos = ArcanoDB.getTiendaProductos();
+  2454→    var nombres = [];
+  2455→    for (var i = 0; i < productos.length; i++) nombres.push(productos[i].nombre);
+  2456→    var productContext = nombres.length > 0 ? nombres.join(', ') : 'especias y blends variados';
+  2457→
+  2458→    var langInstr = idioma === 'en'
+  2459→      ? 'Respond ONLY in English. All fields (titulo, descripcion, ingredientes, pasos) must be in English.'
+  2460→      : 'Responde SOLO en espanol. Todos los campos (titulo, descripcion, ingredientes, pasos) deben estar en espanol.';
+  2461→
+  2462→    var temaInstr = tema
+  2463→      ? 'El tema especifico es: ' + tema + '.'
+  2464→      : 'Inventa un tema creativo y apetitoso.';
+  2465→
+  2466→    var systemPrompt =
+  2467→      'Eres un chef experto en especias y blends artesanales de la marca Arcano Especias. ' +
+  2468→      'Tu especialidad es crear recetas deliciosas que resalten los sabores de las especias. ' +
+  2469→      'Los productos disponibles son: ' + productContext + '. ' +
+  2470→      'Si es posible, usa al menos uno de estos productos en la receta. ' +
+  2471→      langInstr;
+  2472→
+  2473→    var userPrompt =
+  2474→      'Genera una receta de categoria "' + categoria + '". ' + temaInstr + '\n\n' +
+  2475→      'Responde EXCLUSIVAMENTE con un JSON valido (sin markdown, sin backticks, sin texto antes o despues) con esta estructura exacta:\n' +
+  2476→      '{"titulo": "...", "descripcion": "... (2-3 oraciones)", "categoria": "' + categoria + '", ' +
+  2477→      '"tiempo": "... (ej: 30 min)", "porciones": "... (ej: 4 porciones)", ' +
+  2478→      '"ingredientes": ["1 cucharadita de comino", "200g de pollo", ...], ' +
+  2479→      '"pasos": ["Paso 1: ...", "Paso 2: ...", ...]}\n\n' +
+  2480→      'La receta debe ser practica, deliciosa y usar especias de forma creativa. ' +
+  2481→      'Entre 4 y 8 ingredientes, entre 4 y 6 pasos.';
+  2482→
+  2483→    btn.disabled = true;
+  2484→    btn.textContent = 'Generando...';
+  2485→    status.textContent = 'Consultando Llama 3.3 70B via Groq...';
+  2486→
+  2487→    fetch('https://api.groq.com/openai/v1/chat/completions', {
+  2488→      method: 'POST',
+  2489→      headers: {
+  2490→        'Authorization': 'Bearer ' + apiKey,
+  2491→        'Content-Type': 'application/json'
+  2492→      },
+  2493→      body: JSON.stringify({
+  2494→        model: 'llama-3.3-70b-versatile',
+  2495→        temperature: 0.8,
+  2496→        max_tokens: 1024,
+  2497→        messages: [
+  2498→          { role: 'system', content: systemPrompt },
+  2499→          { role: 'user', content: userPrompt }
+  2500→        ]
+  2501→      })
+  2502→    })
+  2503→    .then(function(res) {
+  2504→      if (!res.ok) return res.json().then(function(e) { throw new Error((e.error && e.error.message) || 'Error ' + res.status); });
+  2505→      return res.json();
+  2506→    })
+  2507→    .then(function(data) {
+  2508→      var content = data.choices[0].message.content.trim();
+  2509→      // Strip markdown code blocks if present
+  2510→      content = content.replace(/^```json?\s*/i, '').replace(/\s*```$/, '');
+  2511→      var receta = JSON.parse(content);
+  2512→
+  2513→      // Validate structure
+  2514→      if (!receta.titulo) throw new Error('La receta no tiene titulo');
+  2515→      if (!Array.isArray(receta.ingredientes)) throw new Error('ingredientes debe ser un array');
+  2516→      if (!Array.isArray(receta.pasos)) throw new Error('pasos debe ser un array');
+  2517→
+  2518→      // Save to Firebase
+  2519→      receta.fecha = new Date().toISOString().slice(0, 10);
+  2520→      if (!receta.categoria) receta.categoria = categoria;
+  2521→      firebase.database().ref('arcano/db/recetas').push(receta, function(err) {
+  2522→        if (err) {
+  2523→          status.textContent = 'Error al guardar: ' + (err.message || err);
+  2524→        } else {
+  2525→          status.innerHTML = '<span style="color:var(--green)">Receta guardada: ' + receta.titulo + '</span>';
+  2526→          Pages._loadRecetasAdmin();
+  2527→        }
+  2528→        btn.disabled = false;
+  2529→        btn.textContent = 'Generar Receta con IA';
+  2530→      });
+  2531→    })
+  2532→    .catch(function(err) {
+  2533→      status.innerHTML = '<span style="color:var(--red)">Error: ' + err.message + '</span>';
+  2534→      btn.disabled = false;
+  2535→      btn.textContent = 'Generar Receta con IA';
+  2536→    });
+  2537→  },
+  2538→
+  2539→  /* ================================================================
+  2540→     ESTADISTICAS DE VENTAS (Chart.js)
+  2541→     ================================================================ */
+  2542→  _estPeriod: null,
+  2543→  _estTab: null,
+  2544→  _estCharts: [],
+  2545→
+  2546→  renderEstadisticas: function(container) {
+  2547→    var ventas = ArcanoDB.getVentas();
+  2548→    var pedidos = ArcanoDB.getPedidos();
+  2549→    var producciones = ArcanoDB.getProducciones();
+  2550→    var entradas = ArcanoDB.getEntradas();
+  2551→    var especias = ArcanoDB.getEspecias();
+  2552→    var blends = ArcanoDB.getBlends();
+  2553→
+  2554→    // === COMBINE ALL SALES ===
+  2555→    var allSales = [];
+  2556→    for (var vi = 0; vi < ventas.length; vi++) {
+  2557→      var v = ventas[vi];
+  2558→      var vItems = [];
+  2559→      if (v.items) { for (var vi2 = 0; vi2 < v.items.length; vi2++) { var it = v.items[vi2]; vItems.push({ nombre: it.productoNombre || '?', tipo: it.tipo || 'especia', talla: it.talla || 'chico', cantidad: it.cantidad || 0, precio: it.precioUnitario || 0, subtotal: it.subtotal || 0 }); } }
+  2560→      allSales.push({ fecha: v.fecha || '', creado: v.creado || '', total: v.total || 0, items: vItems, source: 'admin' });
+  2561→    }
+  2562→    for (var pi = 0; pi < pedidos.length; pi++) {
+  2563→      var p = pedidos[pi];
+  2564→      if (p.estado === 'cancelado') continue;
+  2565→      var pItems = [];
+  2566→      if (p.items) { for (var pi2 = 0; pi2 < p.items.length; pi2++) { var pit = p.items[pi2]; pItems.push({ nombre: pit.nombre || '?', tipo: pit.tipo || 'especia', talla: pit.talla || 'chico', cantidad: pit.qty || pit.cantidad || 0, precio: pit.precio || 0, subtotal: pit.subtotal || 0 }); } }
+  2567→      var pFecha = p.creado ? p.creado.slice(0, 10) : '';
+  2568→      allSales.push({ fecha: pFecha, creado: p.creado || '', total: p.total || 0, items: pItems, source: 'tienda', cliente: (p.cliente || {}).nombre || '', ciudad: (p.cliente || {}).ciudad || '' });
+  2569→    }
+  2570→    allSales.sort(function(a, b) { return (b.fecha || '').localeCompare(a.fecha || ''); });
+  2571→
+  2572→    if (!Pages._estTab) Pages._estTab = 'ventas';
+  2573→
+  2574→    var h = '<div class="est-tabs">';
+  2575→    h += '<button class="est-tab' + (Pages._estTab === 'ventas' ? ' active' : '') + '" onclick="Pages._estTab=\'ventas\';App.renderPage(\'estadisticas\')">Ventas</button>';
+  2576→    h += '<button class="est-tab' + (Pages._estTab === 'costos' ? ' active' : '') + '" onclick="Pages._estTab=\'costos\';App.renderPage(\'estadisticas\')">Costos y Margen</button>';
+  2577→    h += '<button class="est-tab' + (Pages._estTab === 'produccion' ? ' active' : '') + '" onclick="Pages._estTab=\'produccion\';App.renderPage(\'estadisticas\')">Produccion</button>';
+  2578→    h += '<button class="est-tab' + (Pages._estTab === 'pedidos' ? ' active' : '') + '" onclick="Pages._estTab=\'pedidos\';App.renderPage(\'estadisticas\')">Pedidos Tienda</button>';
+  2579→    h += '<button class="est-tab' + (Pages._estTab === 'inventario' ? ' active' : '') + '" onclick="Pages._estTab=\'inventario\';App.renderPage(\'estadisticas\')">Inventario</button>';
+  2580→    h += '</div>';
+  2581→    h += '<div id="est-content"></div>';
+  2582→    container.innerHTML = h;
+  2583→
+  2584→    var data;
+  2585→    if (Pages._estTab === 'ventas' || Pages._estTab === 'costos' || Pages._estTab === 'produccion' || Pages._estTab === 'inventario') {
+  2586→      data = allSales;
+  2587→    } else {
+  2588→      data = allSales.filter(function(s) { return s.source === 'tienda'; });
+  2589→    }
+  2590→
+  2591→    if (Pages._estTab === 'ventas') Pages._renderVentas(data, container.querySelector('#est-content'));
+  2592→    else if (Pages._estTab === 'costos') Pages._renderCostos(data, container.querySelector('#est-content'), entradas, especias, blends, producciones);
+  2593→    else if (Pages._estTab === 'produccion') Pages._renderProduccion(data, container.querySelector('#est-content'), producciones);
+  2594→    else if (Pages._estTab === 'pedidos') Pages._renderPedidosTienda(data, container.querySelector('#est-content'));
+  2595→    else if (Pages._estTab === 'inventario') Pages._renderInventario(container.querySelector('#est-content'), especias, blends);
+  2596→  },
+  2597→
+  2598→  /* ================================================================
+  2599→     VENTAS TAB
+  2600→     ================================================================ */
+  2601→  _renderVentas: function(data, el) {
+  2602→    if (!el) return;
+  2603→    var totalIngresos = 0, totalOps = 0, totalUnidades = 0;
+  2604→    var prodMap = {}, tipoMap = {}, tallaMap = {}, diaMap = {}, monthMap = {}, ciudadMap = {}, sourceMap = {};
+  2605→    for (var d = 0; d < data.length; d++) {
+  2606→      var s = data[d];
+  2607→      totalIngresos += (s.total || 0);
+  2608→      totalOps++;
+  2609→      sourceMap[s.source] = (sourceMap[s.source] || 0) + 1;
+  2610→      var opUnidades = 0;
+  2611→      if (s.items) { for (var it = 0; it < s.items.length; it++) {
+  2612→        var item = s.items[it];
+  2613→        totalUnidades += (item.cantidad || 0);
+  2614→        opUnidades += (item.cantidad || 0);
+  2615→        var key = item.nombre + '|' + item.tipo + '|' + item.talla;
+  2616→        if (!prodMap[key]) prodMap[key] = { nombre: item.nombre, tipo: item.tipo, talla: item.talla, unidades: 0, ingreso: 0 };
+  2617→        prodMap[key].unidades += (item.cantidad || 0);
+  2618→        prodMap[key].ingreso += (item.subtotal || 0);
+  2619→        tipoMap[item.tipo] = (tipoMap[item.tipo] || 0) + (item.cantidad || 0);
+  2620→        tallaMap[item.talla || 'chico'] = (tallaMap[item.talla || 'chico'] || 0) + (item.cantidad || 0);
+  2621→      }}
+  2622→      if (s.fecha) {
+  2623→        if (!diaMap[s.fecha]) diaMap[s.fecha] = { ops: 0, unidades: 0, ingresos: 0 };
+  2624→        diaMap[s.fecha].ops++;
+  2625→        diaMap[s.fecha].unidades += opUnidades;
+  2626→        diaMap[s.fecha].ingresos += (s.total || 0);
+  2627→        var mn = s.fecha.substring(0, 7);
+  2628→        if (!monthMap[mn]) monthMap[mn] = { ops: 0, unidades: 0, ingresos: 0 };
+  2629→        monthMap[mn].ops++;
+  2630→        monthMap[mn].unidades += opUnidades;
+  2631→        monthMap[mn].ingresos += (s.total || 0);
+  2632→      }
+  2633→      if (s.ciudad) {
+  2634→        if (!ciudadMap[s.ciudad]) ciudadMap[s.ciudad] = { ops: 0, ingresos: 0 };
+  2635→        ciudadMap[s.ciudad].ops++;
+  2636→        ciudadMap[s.ciudad].ingresos += (s.total || 0);
+  2637→      }
+  2638→    }
+  2639→    var prodArr = Object.values(prodMap).sort(function(a, b) { return b.ingreso - a.ingreso; });
+  2640→
+  2641→    // Calculate day-on-day trend
+  2642→    var diasSorted = Object.keys(diaMap).sort();
+  2643→    var ingresosAyer = 0;
+  2644→    if (diasSorted.length >= 2) { ingresosAyer = diaMap[diasSorted[diasSorted.length - 2]].ingresos || 0; }
+  2645→    var ingresosHoy = diasSorted.length > 0 ? diaMap[diasSorted[diasSorted.length - 1]].ingresos : 0;
+  2646→    var tendenciaDiaria = ingresosAyer > 0 ? Math.round(((ingresosHoy - ingresosAyer) / ingresosAyer) * 100) : 0;
+  2647→    var tendSign = tendenciaDiaria >= 0 ? '+' : '';
+  2648→
+  2649→    // Monthly comparison
+  2650→    var mesesSorted = Object.keys(monthMap).sort();
+  2651→    var mesActual = new Date().toISOString().slice(0, 7);
+  2652→    var mesAnterior = mesesSorted.length >= 2 ? mesesSorted[mesesSorted.length - 2] : '';
+  2653→    var ingresosMesActual = (monthMap[mesActual] || {}).ingresos || 0;
+  2654→    var ingresosMesAnterior = mesAnterior ? (monthMap[mesAnterior] || {}).ingresos || 0 : 0;
+  2655→    var tendenciaMensual = ingresosMesAnterior > 0 ? Math.round(((ingresosMesActual - ingresosMesAnterior) / ingresosMesAnterior) * 100) : 0;
+  2656→    var tendMSign = tendenciaMensual >= 0 ? '+' : '';
+  2657→
+  2658→    var h = '';
+  2659→    // KPIs
+  2660→    h += '<div class="est-kpi-grid">';
+  2661→    h += '<div class="est-kpi"><div class="est-kpi-value">$' + totalIngresos.toLocaleString() + '</div><div class="est-kpi-label">Ingresos Totales</div><div class="est-kpi-sub">' + totalOps + ' operaciones</div></div>';
+  2662→    h += '<div class="est-kpi"><div class="est-kpi-value">' + totalUnidades + '</div><div class="est-kpi-label">Unidades Vendidas</div><div class="est-kpi-sub">' + prodArr.length + ' productos distintos</div></div>';
+  2663→    h += '<div class="est-kpi"><div class="est-kpi-value">$' + (totalOps > 0 ? Math.round(totalIngresos / totalOps) : 0).toLocaleString() + '</div><div class="est-kpi-label">Ticket Promedio</div><div class="est-kpi-sub">por operacion</div></div>';
+  2664→    h += '<div class="est-kpi ' + (tendenciaDiaria >= 0 ? 'up' : 'down') + '"><div class="est-kpi-value">' + tendSign + tendenciaDiaria + '%</div><div class="est-kpi-label">Tendencia Dia</div><div class="est-kpi-sub">vs dia anterior</div></div>';
+  2665→    h += '</div>';
+  2666→
+  2667→    // Monthly comparison bar
+  2668→    h += '<div class="card mt-16"><div class="card-header"><h3>Comparacion Mensual</h3></div><div class="card-body">';
+  2669→    h += '<div class="est-kpi-grid" style="grid-template-columns:1fr 1fr 1fr">';
+  2670→    h += '<div class="est-kpi"><div class="est-kpi-value">$' + ingresosMesActual.toLocaleString() + '</div><div class="est-kpi-label">Mes Actual (' + mesActual + ')</div><div class="est-kpi-sub">' + ((monthMap[mesActual] || {}).ops || 0) + ' ops / ' + ((monthMap[mesActual] || {}).unidades || 0) + ' uds</div></div>';
+  2671→    h += '<div class="est-kpi"><div class="est-kpi-value">$' + ingresosMesAnterior.toLocaleString() + '</div><div class="est-kpi-label">Mes Anterior (' + mesAnterior + ')</div><div class="est-kpi-sub">' + (mesAnterior ? ((monthMap[mesAnterior] || {}).ops || 0) + ' ops / ' + ((monthMap[mesAnterior] || {}).unidades || 0) + ' uds' : 'sin datos') + '</div></div>';
+  2672→    h += '<div class="est-kpi ' + (tendenciaMensual >= 0 ? 'up' : 'down') + '"><div class="est-kpi-value">' + tendMSign + tendenciaMensual + '%</div><div class="est-kpi-label">Variacion Mensual</div><div class="est-kpi-sub">' + (ingresosMesActual >= ingresosMesAnterior ? 'crecimiento' : 'caida') + '</div></div>';
+  2673→    h += '</div></div></div>';
+  2674→
+  2675→    // Source breakdown (admin vs tienda)
+  2676→    h += '<div class="card mt-16"><div class="card-header"><h3>Canal de Venta</h3></div><div class="card-body">';
+  2677→    h += '<div class="stats-grid" style="grid-template-columns:1fr 1fr">';
+  2678→    var adminIngreso = 0, tiendaIngreso = 0;
+  2679→    for (var d = 0; d < data.length; d++) {
+  2680→      if (data[d].source === 'admin') adminIngreso += data[d].total || 0;
+  2681→      else tiendaIngreso += data[d].total || 0;
+  2682→    }
+  2683→    var totalCh = adminIngreso + tiendaIngreso;
+  2684→    h += '<div class="stat-card" style="border-left-color:var(--gold)"><div class="stat-value">$' + adminIngreso.toLocaleString() + '</div><div class="stat-label">Ventas Admin (Fisico)</div><div class="stat-sub">' + (sourceMap.admin || 0) + ' ops' + (totalCh > 0 ? ' (' + Math.round(adminIngreso/totalCh*100) + '%)' : '') + '</div></div>';
+  2685→    h += '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value">$' + tiendaIngreso.toLocaleString() + '</div><div class="stat-label">Pedidos Tienda Online</div><div class="stat-sub">' + (sourceMap.tienda || 0) + ' ops' + (totalCh > 0 ? ' (' + Math.round(tiendaIngreso/totalCh*100) + '%)' : '') + '</div></div>';
+  2686→    h += '</div></div></div>';
+  2687→
+  2688→    // Charts
+  2689→    h += '<div class="est-charts-grid">';
+  2690→    h += '<div class="est-chart-card"><h4>Ingresos Diarios</h4><div class="est-chart-wrap"><canvas id="chart-daily"></canvas></div></div>';
+  2691→    h += '<div class="est-chart-card"><h4>Ingresos Mensuales</h4><div class="est-chart-wrap"><canvas id="chart-monthly"></canvas></div></div>';
+  2692→    h += '</div>';
+  2693→
+  2694→    h += '<div class="est-charts-grid">';
+  2695→    h += '<div class="est-chart-card"><h4>Tipo de Producto</h4><div class="est-chart-wrap"><canvas id="chart-types"></canvas></div></div>';
+  2696→    h += '<div class="est-chart-card"><h4>Venta por Talla</h4><div class="est-chart-wrap"><canvas id="chart-tallas"></canvas></div></div>';
+  2697→    h += '</div>';
+  2698→
+  2699→    h += '<div class="est-charts-grid">';
+  2700→    h += '<div class="est-chart-card"><h4>Top 10 Productos por Ingreso</h4><div class="est-chart-wrap est-chart-full"><canvas id="chart-products"></canvas></div></div>';
+  2701→    h += '<div class="est-chart-card"><h4>Ingresos por Ciudad</h4><div class="est-chart-wrap"><canvas id="chart-ciudad"></canvas></div></div>';
+  2702→    h += '</div>';
+  2703→
+  2704→    // Top products table
+  2705→    h += '<div class="card mt-16"><div class="card-header"><h3>Top Productos por Ingreso</h3></div><div class="card-body">';
+  2706→    if (prodArr.length > 0) {
+  2707→      h += '<div class="table-wrap"><table class="est-detail-table"><thead><tr><th>Producto</th><th>Tipo</th><th>Talla</th><th>Unidades</th><th>Ingreso</th><th>Participacion</th></tr></thead><tbody>';
+  2708→      for (var pi = 0; pi < Math.min(prodArr.length, 20); pi++) {
+  2709→        var pp = prodArr[pi];
+  2710→        var pct = totalIngresos > 0 ? (pp.ingreso / totalIngresos * 100).toFixed(1) : '0';
+  2711→        h += '<tr><td class="fw7">' + pp.nombre + '</td><td><span class="badge ' + (pp.tipo === 'blend' ? 'badge-blue' : 'badge-gold') + '">' + (pp.tipo === 'blend' ? 'Blend' : 'Especia') + '</span></td><td>' + pp.talla + '</td><td>' + pp.unidades + '</td><td class="fw7" style="color:var(--gold)">$' + pp.ingreso.toLocaleString() + '</td><td>' + pct + '%</td></tr>';
+  2712→      }
+  2713→      h += '</tbody></table></div>';
+  2714→    } else { h += '<p class="text-muted text-center">Sin datos</p>'; }
+  2715→    h += '</div></div>';
+  2716→
+  2717→    // Daily breakdown
+  2718→    var diasArr = Object.keys(diaMap).sort().reverse();
+  2719→    if (diasArr.length > 0) {
+  2720→      h += '<div class="card mt-16"><div class="card-header"><h3>Desglose por Dia</h3></div><div class="card-body">';
+  2721→      h += '<div class="table-wrap"><table class="est-detail-table"><thead><tr><th>Fecha</th><th>Ops</th><th>Unidades</th><th>Ingreso</th><th>Ticket Prom.</th><th>Barra</th></tr></thead><tbody>';
+  2722→      var maxDiaIng = 0;
+  2723→      for (var di = 0; di < diasArr.length; di++) { if (diaMap[diasArr[di]].ingresos > maxDiaIng) maxDiaIng = diaMap[diasArr[di]].ingresos; }
+  2724→      for (var di2 = 0; di2 < diasArr.length; di2++) {
+  2725→        var dk = diasArr[di2]; var dv = diaMap[dk];
+  2726→        var dBarW = maxDiaIng > 0 ? (dv.ingresos / maxDiaIng * 100).toFixed(0) : 0;
+  2727→        var ticketP = dv.ops > 0 ? Math.round(dv.ingresos / dv.ops) : 0;
+  2728→        h += '<tr><td class="fw7">' + dk + '</td><td>' + dv.ops + '</td><td>' + dv.unidades + '</td><td class="fw7" style="color:var(--gold)">$' + dv.ingresos.toLocaleString() + '</td><td>$' + ticketP.toLocaleString() + '</td><td><div class="est-bar-inline"><div class="est-bar-track"><div class="est-bar-fill" style="width:' + dBarW + '%;background:var(--gold)"></div></div></div></td></tr>';
+  2729→      }
+  2730→      h += '</tbody></table></div></div></div>';
+  2731→    }
+  2732→
+  2733→    el.innerHTML = h;
+  2734→
+  2735→    // === CHARTS ===
+  2736→    if (Pages._estCharts) { for (var ci = 0; ci < Pages._estCharts.length; ci++) { try { Pages._estCharts[ci].destroy(); } catch (e) {} } }
+  2737→    Pages._estCharts = [];
+  2738→    Chart.defaults.color = '#9a8a78';
+  2739→    Chart.defaults.borderColor = '#3a2218';
+  2740→    Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  2741→
+  2742→    var gOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 12, padding: 12 } } }, scales: { y: { ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.5)' } }, x: { grid: { display: false } } } };
+  2743→
+  2744→    // Daily line
+  2745→    var dailyLabels = [], dailyData = [], dailyOpsData = [];
+  2746→    for (var dd = 0; dd < diasSorted.length; dd++) { dailyLabels.push(diasSorted[dd].slice(5)); dailyData.push(diaMap[diasSorted[dd]].ingresos); dailyOpsData.push(diaMap[diasSorted[dd]].ops); }
+  2747→    var ctxD = document.getElementById('chart-daily');
+  2748→    if (ctxD) {
+  2749→      Pages._estCharts.push(new Chart(ctxD, {
+  2750→        type: 'line',
+  2751→        data: { labels: dailyLabels, datasets: [
+  2752→          { label: 'Ingresos ($)', data: dailyData, borderColor: '#e8b84b', backgroundColor: 'rgba(232,184,75,0.1)', fill: true, tension: 0.3, pointRadius: 3, yAxisID: 'y' },
+  2753→          { label: 'Operaciones', data: dailyOpsData, borderColor: '#5dade2', backgroundColor: 'rgba(93,173,226,0.1)', fill: false, tension: 0.3, pointRadius: 2, yAxisID: 'y1' }
+  2754→        ] },
+  2755→        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { boxWidth: 12, padding: 16 } } }, scales: { y: { position: 'left', ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.5)' } }, y1: { position: 'right', ticks: { stepSize: 1 }, grid: { drawOnChartArea: false } }, x: { grid: { color: 'rgba(58,34,24,0.3)' } } } }
+  2756→      }));
+  2757→    }
+  2758→
+  2759→    // Monthly bar
+  2760→    var mLabels = [], mData = [], mOpsData = [];
+  2761→    for (var mi = 0; mi < mesesSorted.length; mi++) { mLabels.push(mesesSorted[mi]); mData.push(monthMap[mesesSorted[mi]].ingresos); mOpsData.push(monthMap[mesesSorted[mi]].ops); }
+  2762→    var ctxM = document.getElementById('chart-monthly');
+  2763→    if (ctxM) {
+  2764→      Pages._estCharts.push(new Chart(ctxM, {
+  2765→        type: 'bar', data: { labels: mLabels, datasets: [
+  2766→          { label: 'Ingresos ($)', data: mData, backgroundColor: 'rgba(232,184,75,0.7)', borderColor: '#e8b84b', borderWidth: 1, borderRadius: 6, yAxisID: 'y' },
+  2767→          { label: 'Operaciones', data: mOpsData, type: 'line', borderColor: '#5dade2', backgroundColor: 'transparent', pointRadius: 3, yAxisID: 'y1' }
+  2768→        ] },
+  2769→        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { boxWidth: 12, padding: 16 } } }, scales: { y: { position: 'left', ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.5)' } }, y1: { position: 'right', ticks: { stepSize: 1 }, grid: { drawOnChartArea: false } }, x: { grid: { display: false } } } }
+  2770→      }));
+  2771→    }
+  2772→
+  2773→    // Types doughnut
+  2774→    var ctxT = document.getElementById('chart-types');
+  2775→    if (ctxT) {
+  2776→      Pages._estCharts.push(new Chart(ctxT, {
+  2777→        type: 'doughnut', data: { labels: ['Especias', 'Blends'], datasets: [{ data: [tipoMap.especia || 0, tipoMap.blend || 0], backgroundColor: ['#e8b84b', '#5dade2'], borderColor: '#241209', borderWidth: 3 }] },
+  2778→        options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { padding: 16, boxWidth: 12 } } } }
+  2779→      }));
+  2780→    }
+  2781→
+  2782→    // Tallas pie
+  2783→    var ctxTa = document.getElementById('chart-tallas');
+  2784→    if (ctxTa) {
+  2785→      Pages._estCharts.push(new Chart(ctxTa, {
+  2786→        type: 'pie', data: { labels: ['Pequeno', 'Grande'], datasets: [{ data: [tallaMap.chico || 0, tallaMap.grande || 0], backgroundColor: ['#c9963a', '#5dade2'], borderColor: '#241209', borderWidth: 3 }] },
+  2787→        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 16, boxWidth: 12 } } } }
+  2788→      }));
+  2789→    }
+  2790→
+  2791→    // Top 10 horizontal bar
+  2792→    var top10 = prodArr.slice(0, 10);
+  2793→    var ctxP = document.getElementById('chart-products');
+  2794→    if (ctxP) {
+  2795→      var pL = [], pI = [], pC = [];
+  2796→      for (var tp = 0; tp < top10.length; tp++) { pL.push(top10[tp].nombre); pI.push(top10[tp].ingreso); pC.push(top10[tp].tipo === 'blend' ? '#5dade2' : '#e8b84b'); }
+  2797→      Pages._estCharts.push(new Chart(ctxP, { type: 'bar', data: { labels: pL, datasets: [{ label: 'Ingreso ($)', data: pI, backgroundColor: pC, borderRadius: 4, barThickness: 18 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.5)' } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } } } }));
+  2798→    }
+  2799→
+  2800→    // City bar
+  2801→    var ctxC = document.getElementById('chart-ciudad');
+  2802→    if (ctxC) {
+  2803→      var ciudades = Object.keys(ciudadMap).sort(function(a, b) { return ciudadMap[b].ingresos - ciudadMap[a].ingresos; });
+  2804→      var cL = [], cD = [];
+  2805→      for (var ci2 = 0; ci2 < ciudades.length; ci2++) { cL.push(ciudades[ci2]); cD.push(ciudadMap[ciudades[ci2]].ingresos); }
+  2806→      Pages._estCharts.push(new Chart(ctxC, { type: 'bar', data: { labels: cL, datasets: [{ label: 'Ingresos ($)', data: cD, backgroundColor: 'rgba(39,174,96,0.7)', borderColor: '#27ae60', borderWidth: 1, borderRadius: 6 }] }, options: Object.assign({}, gOpts) }));
+  2807→    }
+  2808→
+  2809→    var canvases = el.querySelectorAll('.est-chart-wrap');
+  2810→    for (var ch = 0; ch < canvases.length; ch++) { canvases[ch].style.height = canvases[ch].classList.contains('est-chart-full') ? '300px' : '260px'; }
+  2811→  },
+  2812→
+  2813→  /* ================================================================
+  2814→     COSTOS Y MARGEN TAB
+  2815→     ================================================================ */
+  2816→  _renderCostos: function(data, el, entradas, especias, blends, producciones) {
+  2817→    if (!el) return;
+  2818→
+  2819→    // 1. Total cost of purchases (entradas)
+  2820→    var totalCostoCompras = 0;
+  2821→    var costoByTipo = { especia_grs: 0, envase: 0, bolsa: 0, sticker: 0 };
+  2822→    var proveedorMap = {};
+  2823→    var compraMonthMap = {};
+  2824→    for (var ei = 0; ei < entradas.length; ei++) {
+  2825→      var ent = entradas[ei];
+  2826→      var entTotal = Number(ent.total) || 0;
+  2827→      totalCostoCompras += entTotal;
+  2828→      var prov = (ent.proveedor || 'Sin proveedor').trim();
+  2829→      if (!prov) prov = 'Sin proveedor';
+  2830→      if (!proveedorMap[prov]) proveedorMap[prov] = { total: 0, ops: 0 };
+  2831→      proveedorMap[prov].total += entTotal;
+  2832→      proveedorMap[prov].ops++;
+  2833→      if (ent.fecha) {
+  2834→        var mn = ent.fecha.substring(0, 7);
+  2835→        if (!compraMonthMap[mn]) compraMonthMap[mn] = 0;
+  2836→        compraMonthMap[mn] += entTotal;
+  2837→      }
+  2838→      if (ent.items) {
+  2839→        for (var ij = 0; ij < ent.items.length; ij++) {
+  2840→          var it = ent.items[ij];
+  2841→          var t = it.tipo || 'especia_grs';
+  2842→          costoByTipo[t] = (costoByTipo[t] || 0) + ((Number(it.cantidad) || 0) * (Number(it.costoUnitario) || 0));
+  2843→        }
+  2844→      }
+  2845→    }
+  2846→
+  2847→    // 2. Total ingresos
+  2848→    var totalIngresos = 0;
+  2849→    for (var si = 0; si < data.length; si++) totalIngresos += (data[si].total || 0);
+  2850→
+  2851→    // 3. Margen
+  2852→    var margenBruto = totalIngresos - totalCostoCompras;
+  2853→    var margenPct = totalIngresos > 0 ? (margenBruto / totalIngresos * 100).toFixed(1) : '0';
+  2854→
+  2855→    // 4. Per-product margin (income vs estimated material cost from produccion)
+  2856→    var prodVentaMap = {}, prodCostoMap = {};
+  2857→    for (var di = 0; di < data.length; di++) {
+  2858→      var s = data[di];
+  2859→      if (s.items) { for (var ii = 0; ii < s.items.length; ii++) {
+  2860→        var item = s.items[ii];
+  2861→        var pk = item.nombre + '|' + item.tipo;
+  2862→        if (!prodVentaMap[pk]) prodVentaMap[pk] = 0;
+  2863→        prodVentaMap[pk] += (item.subtotal || 0);
+  2864→      }}
+  2865→    }
+  2866→    // From entradas, calculate cost per gram for each especia
+  2867→    var costoPorGramo = {};
+  2868→    var gramosComprados = {};
+  2869→    for (var ei2 = 0; ei2 < entradas.length; ei2++) {
+  2870→      var ent2 = entradas[ei2];
+  2871→      if (ent2.items) { for (var ij2 = 0; ij2 < ent2.items.length; ij2++) {
+  2872→        var it2 = ent2.items[ij2];
+  2873→        if (it2.tipo === 'especia_grs' && it2.especiaNombre) {
+  2874→          var nombre = it2.especiaNombre;
+  2875→          var grs = Number(it2.cantidad) || 0;
+  2876→          var cost = grs * (Number(it2.costoUnitario) || 0);
+  2877→          costoPorGramo[nombre] = (costoPorGramo[nombre] || 0) + cost;
+  2878→          gramosComprados[nombre] = (gramosComprados[nombre] || 0) + grs;
+  2879→        }
+  2880→      }}
+  2881→    }
+  2882→    var costoGrPorEsp = {};
+  2883→    var espNames = Object.keys(gramosComprados);
+  2884→    for (var gn = 0; gn < espNames.length; gn++) {
+  2885→      if (gramosComprados[espNames[gn]] > 0) {
+  2886→        costoGrPorEsp[espNames[gn]] = costoPorGramo[espNames[gn]] / gramosComprados[espNames[gn]];
+  2887→      }
+  2888→    }
+  2889→
+  2890→    // Build blend cost from ingredients
+  2891→    var costoBlendMap = {};
+  2892→    for (var bi = 0; bi < blends.length; bi++) {
+  2893→      var bl = blends[bi];
+  2894→      var ings = bl.ingredientes || [];
+  2895→      var costChico = 0, costGrande = 0;
+  2896→      for (var ig = 0; ig < ings.length; ig++) {
+  2897→        var ing = ings[ig];
+  2898→        var cpg = costoGrPorEsp[ing.especiaNombre] || 0;
+  2899→        costChico += (Number(ing.gramosChico) || 0) * cpg;
+  2900→        costGrande += (Number(ing.gramosGrande) || 0) * cpg;
+  2901→      }
+  2902→      // Add envase + bolsa + sticker cost per unit
+  2903→      costoBlendMap['blend|' + bl.nombre] = { chico: costChico, grande: costGrande };
+  2904→    }
+  2905→    for (var ei3 = 0; ei3 < especias.length; ei3++) {
+  2906→      var esp = especias[ei3];
+  2907→      var cpg2 = costoGrPorEsp[esp.nombre] || 0;
+  2908→      costoBlendMap['especia|' + esp.nombre] = { chico: (Number(esp.gramosChico) || 0) * cpg2, grande: (Number(esp.gramosGrande) || 0) * cpg2 };
+  2909→    }
+  2910→
+  2911→    // 5. Production volume stats
+  2912→    var totalFrascosProd = 0, totalGrsProd = 0, prodByMonth = {};
+  2913→    for (var pri = 0; pri < producciones.length; pri++) {
+  2914→      var pr = producciones[pri];
+  2915→      totalFrascosProd += (pr.cantidad || 0);
+  2916→      totalGrsProd += (pr.gramosTotal || 0);
+  2917→      if (pr.fecha) {
+  2918→        var pmn = pr.fecha.substring(0, 7);
+  2919→        if (!prodByMonth[pmn]) prodByMonth[pmn] = { frascos: 0, gramos: 0, ops: 0 };
+  2920→        prodByMonth[pmn].frascos += (pr.cantidad || 0);
+  2921→        prodByMonth[pmn].gramos += (pr.gramosTotal || 0);
+  2922→        prodByMonth[pmn].ops++;
+  2923→      }
+  2924→    }
+  2925→
+  2926→    var h = '';
+  2927→    // KPIs
+  2928→    h += '<div class="est-kpi-grid">';
+  2929→    h += '<div class="est-kpi"><div class="est-kpi-value">$' + totalIngresos.toLocaleString() + '</div><div class="est-kpi-label">Ingresos Totales</div><div class="est-kpi-sub">por todas las ventas</div></div>';
+  2930→    h += '<div class="est-kpi"><div class="est-kpi-value" style="color:var(--red)">$' + totalCostoCompras.toLocaleString() + '</div><div class="est-kpi-label">Costo Compras</div><div class="est-kpi-sub">materia prima + packaging</div></div>';
+  2931→    h += '<div class="est-kpi ' + (margenBruto >= 0 ? 'up' : 'down') + '"><div class="est-kpi-value">$' + margenBruto.toLocaleString() + '</div><div class="est-kpi-label">Margen Bruto</div><div class="est-kpi-sub">' + margenPct + '%</div></div>';
+  2932→    h += '<div class="est-kpi"><div class="est-kpi-value">' + totalFrascosProd + '</div><div class="est-kpi-label">Frascos Producidos</div><div class="est-kpi-sub">' + totalGrsProd.toLocaleString() + ' grs en total</div></div>';
+  2933→    h += '</div>';
+  2934→
+  2935→    // Cost breakdown by type
+  2936→    h += '<div class="card mt-16"><div class="card-header"><h3>Desglose de Costos por Tipo</h3></div><div class="card-body">';
+  2937→    h += '<div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">';
+  2938→    h += '<div class="stat-card" style="border-left-color:var(--gold)"><div class="stat-value">$' + (costoByTipo.especia_grs || 0).toLocaleString() + '</div><div class="stat-label">Materia Prima</div></div>';
+  2939→    h += '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value">$' + (costoByTipo.envase || 0).toLocaleString() + '</div><div class="stat-label">Frascos (Envases)</div></div>';
+  2940→    h += '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value">$' + (costoByTipo.bolsa || 0).toLocaleString() + '</div><div class="stat-label">Bolsas</div></div>';
+  2941→    h += '<div class="stat-card" style="border-left-color:var(--yellow)"><div class="stat-value">$' + (costoByTipo.sticker || 0).toLocaleString() + '</div><div class="stat-label">Stickers/Etiquetas</div></div>';
+  2942→    h += '</div></div></div>';
+  2943→
+  2944→    // Proveedor table
+  2945→    var provArr = Object.keys(proveedorMap).sort(function(a, b) { return proveedorMap[b].total - proveedorMap[a].total; });
+  2946→    if (provArr.length > 0) {
+  2947→      h += '<div class="card mt-16"><div class="card-header"><h3>Compras por Proveedor</h3></div><div class="card-body">';
+  2948→      h += '<div class="table-wrap"><table class="est-detail-table"><thead><tr><th>Proveedor</th><th>Ordenes</th><th>Total Comprado</th><th>Participacion</th></tr></thead><tbody>';
+  2949→      for (var pvi = 0; pvi < provArr.length; pvi++) {
+  2950→        var pv = provArr[pvi]; var pd = proveedorMap[pv];
+  2951→        var pvPct = totalCostoCompras > 0 ? (pd.total / totalCostoCompras * 100).toFixed(1) : '0';
+  2952→        h += '<tr><td class="fw7">' + pv + '</td><td>' + pd.ops + '</td><td class="fw7" style="color:var(--red)">$' + pd.total.toLocaleString() + '</td><td>' + pvPct + '%</td></tr>';
+  2953→      }
+  2954→      h += '</tbody></table></div></div></div>';
+  2955→    }
+  2956→
+  2957→    // Charts
+  2958→    h += '<div class="est-charts-grid">';
+  2959→    h += '<div class="est-chart-card"><h4>Ingresos vs Costos Mensual</h4><div class="est-chart-wrap"><canvas id="chart-cost-mensual"></canvas></div></div>';
+  2960→    h += '<div class="est-chart-card"><h4>Distribucion de Costos</h4><div class="est-chart-wrap"><canvas id="chart-cost-dist"></canvas></div></div>';
+  2961→    h += '</div>';
+  2962→
+  2963→    // Per-product margin table
+  2964→    h += '<div class="card mt-16"><div class="card-header"><h3>Margen Estimado por Producto</h3></div><div class="card-body"><p class="text-sm text-muted mb-8">Costo de materia prima estimado segun precio de compra por gramo. No incluye envases/bolsas/stickers.</p>';
+  2965→    var allProducts = [];
+  2966→    for (var vk = 0; vk < Object.keys(prodVentaMap).length; vk++) {
+  2967→      var pk2 = Object.keys(prodVentaMap)[vk];
+  2968→      var parts = pk2.split('|');
+  2969→      var pNombre = parts.slice(1).join('|');
+  2970→      var pTipo = parts[0];
+  2971→      var pIngreso = prodVentaMap[pk2];
+  2972→      var costoEst = costoBlendMap[pk2] || { chico: 0, grande: 0 };
+  2973→      allProducts.push({ nombre: pNombre, tipo: pTipo, ingreso: pIngreso, costoEst: costoEst.chico + costoEst.grande });
+  2974→    }
+  2975→    allProducts.sort(function(a, b) { return b.ingreso - a.ingreso; });
+  2976→    if (allProducts.length > 0) {
+  2977→      h += '<div class="table-wrap"><table class="est-detail-table"><thead><tr><th>Producto</th><th>Tipo</th><th>Ingreso</th><th>Costo M.P.</th><th>Margen</th><th>% Margen</th></tr></thead><tbody>';
+  2978→      for (var api = 0; api < Math.min(allProducts.length, 20); api++) {
+  2979→        var ap = allProducts[api];
+  2980→        var apMargen = ap.ingreso - ap.costoEst;
+  2981→        var apPct = ap.ingreso > 0 ? (apMargen / ap.ingreso * 100).toFixed(1) : '0';
+  2982→        var apColor = apMargen >= 0 ? 'var(--green)' : 'var(--red)';
+  2983→        h += '<tr><td class="fw7">' + ap.nombre + '</td><td><span class="badge ' + (ap.tipo === 'blend' ? 'badge-blue' : 'badge-gold') + '">' + (ap.tipo === 'blend' ? 'Blend' : 'Especia') + '</span></td><td style="color:var(--gold)">$' + ap.ingreso.toLocaleString() + '</td><td style="color:var(--red)">$' + ap.costoEst.toLocaleString() + '</td><td style="color:' + apColor + '">$' + apMargen.toLocaleString() + '</td><td style="color:' + apColor + '">' + apPct + '%</td></tr>';
+  2984→      }
+  2985→      h += '</tbody></table></div>';
+  2986→    } else { h += '<p class="text-muted text-center">Sin datos suficientes</p>'; }
+  2987→    h += '</div></div>';
+  2988→
+  2989→    el.innerHTML = h;
+  2990→
+  2991→    // Charts
+  2992→    if (Pages._estCharts) { for (var ci = 0; ci < Pages._estCharts.length; ci++) { try { Pages._estCharts[ci].destroy(); } catch (e) {} } }
+  2993→    Pages._estCharts = [];
+  2994→    Chart.defaults.color = '#9a8a78';
+  2995→    Chart.defaults.borderColor = '#3a2218';
+  2996→    Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  2997→
+  2998→    // Ingresos vs Costos Mensual
+  2999→    var allMonths = new Set(Object.keys(compraMonthMap));
+  3000→    var ventasMonthMap = {};
+  3001→    for (var vi = 0; vi < data.length; vi++) {
+  3002→      if (data[vi].fecha) {
+  3003→        var vmn = data[vi].fecha.substring(0, 7);
+  3004→        ventasMonthMap[vmn] = (ventasMonthMap[vmn] || 0) + (data[vi].total || 0);
+  3005→      }
+  3006→    }
+  3007→    Object.keys(ventasMonthMap).forEach(function(m) { allMonths.add(m); });
+  3008→    var mSort = Array.from(allMonths).sort();
+  3009→    var cmLabels = [], cmIngresos = [], cmCostos = [], cmMargen = [];
+  3010→    for (var cm = 0; cm < mSort.length; cm++) {
+  3011→      cmLabels.push(mSort[cm]);
+  3012→      var v = ventasMonthMap[mSort[cm]] || 0;
+  3013→      var c = compraMonthMap[mSort[cm]] || 0;
+  3014→      cmIngresos.push(v); cmCostos.push(c); cmMargen.push(v - c);
+  3015→    }
+  3016→    var ctxCM = document.getElementById('chart-cost-mensual');
+  3017→    if (ctxCM) {
+  3018→      Pages._estCharts.push(new Chart(ctxCM, {
+  3019→        type: 'bar', data: { labels: cmLabels, datasets: [
+  3020→          { label: 'Ingresos', data: cmIngresos, backgroundColor: 'rgba(232,184,75,0.7)', borderRadius: 4 },
+  3021→          { label: 'Costos', data: cmCostos, backgroundColor: 'rgba(231,76,60,0.7)', borderRadius: 4 },
+  3022→          { label: 'Margen', data: cmMargen, type: 'line', borderColor: '#27ae60', backgroundColor: 'transparent', pointRadius: 4, borderWidth: 2 }
+  3023→        ] },
+  3024→        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { boxWidth: 12, padding: 16 } } }, scales: { y: { ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.5)' } }, x: { grid: { display: false } } } }
+  3025→      }));
+  3026→    }
+  3027→
+  3028→    // Cost distribution doughnut
+  3029→    var ctxCD = document.getElementById('chart-cost-dist');
+  3030→    if (ctxCD) {
+  3031→      Pages._estCharts.push(new Chart(ctxCD, {
+  3032→        type: 'doughnut', data: { labels: ['Materia Prima', 'Envases', 'Bolsas', 'Stickers'], datasets: [{ data: [costoByTipo.especia_grs || 0, costoByTipo.envase || 0, costoByTipo.bolsa || 0, costoByTipo.sticker || 0], backgroundColor: ['#e8b84b', '#5dade2', '#27ae60', '#f0c040'], borderColor: '#241209', borderWidth: 3 }] },
+  3033→        options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { padding: 16, boxWidth: 12 } } } }
+  3034→      }));
+  3035→    }
+  3036→
+  3037→    var canvases = el.querySelectorAll('.est-chart-wrap');
+  3038→    for (var ch = 0; ch < canvases.length; ch++) { canvases[ch].style.height = '280px'; }
+  3039→  },
+  3040→
+  3041→  /* ================================================================
+  3042→     PRODUCCION TAB
+  3043→     ================================================================ */
+  3044→  _renderProduccion: function(data, el, producciones) {
+  3045→    if (!el) return;
+  3046→    var totalFrascos = 0, totalGramos = 0;
+  3047→    var tipoProdMap = {}, tallaProdMap = {}, prodProdMap = {}, prodMonthMap = {}, envasesConsumidos = 0, bolsasConsumidas = 0, stickersConsumidos = 0;
+  3048→    for (var i = 0; i < producciones.length; i++) {
+  3049→      var pr = producciones[i];
+  3050→      totalFrascos += (pr.cantidad || 0);
+  3051→      totalGramos += (pr.gramosTotal || 0);
+  3052→      envasesConsumidos += (pr.envasesConsumidos || 0);
+  3053→      bolsasConsumidas += (pr.bolsasConsumidas || 0);
+  3054→      stickersConsumidos += (pr.stickersConsumidos || 0);
+  3055→      tipoProdMap[pr.tipo] = (tipoProdMap[pr.tipo] || 0) + (pr.cantidad || 0);
+  3056→      tallaProdMap[pr.talla || 'chico'] = (tallaProdMap[pr.talla || 'chico'] || 0) + (pr.cantidad || 0);
+  3057→      var pk = (pr.productoNombre || '?') + '|' + (pr.tipo || 'especia') + '|' + (pr.talla || 'chico');
+  3058→      if (!prodProdMap[pk]) prodProdMap[pk] = { nombre: pr.productoNombre, tipo: pr.tipo, talla: pr.talla, frascos: 0, gramos: 0, ops: 0 };
+  3059→      prodProdMap[pk].frascos += (pr.cantidad || 0);
+  3060→      prodProdMap[pk].gramos += (pr.gramosTotal || 0);
+  3061→      prodProdMap[pk].ops++;
+  3062→      if (pr.fecha) {
+  3063→        var mn = pr.fecha.substring(0, 7);
+  3064→        if (!prodMonthMap[mn]) prodMonthMap[mn] = { frascos: 0, gramos: 0, ops: 0 };
+  3065→        prodMonthMap[mn].frascos += (pr.cantidad || 0);
+  3066→        prodMonthMap[mn].gramos += (pr.gramosTotal || 0);
+  3067→        prodMonthMap[mn].ops++;
+  3068→      }
+  3069→    }
+  3070→    var prodArr = Object.values(prodProdMap).sort(function(a, b) { return b.frascos - a.frascos; });
+  3071→
+  3072→    var h = '';
+  3073→    h += '<div class="est-kpi-grid">';
+  3074→    h += '<div class="est-kpi"><div class="est-kpi-value">' + totalFrascos + '</div><div class="est-kpi-label">Frascos Producidos</div><div class="est-kpi-sub">' + producciones.length + ' operaciones</div></div>';
+  3075→    h += '<div class="est-kpi"><div class="est-kpi-value">' + totalGramos.toLocaleString() + 'g</div><div class="est-kpi-label">Materia Prima Usada</div><div class="est-kpi-sub">gramos en total</div></div>';
+  3076→    h += '<div class="est-kpi"><div class="est-kpi-value">' + envasesConsumidos + '</div><div class="est-kpi-label">Envases Consumidos</div><div class="est-kpi-sub">frascos usados</div></div>';
+  3077→    h += '<div class="est-kpi"><div class="est-kpi-value">' + stickersConsumidos + '</div><div class="est-kpi-label">Stickers Usados</div><div class="est-kpi-sub">etiquetas aplicadas</div></div>';
+  3078→    h += '<div class="est-kpi"><div class="est-kpi-value">' + bolsasConsumidas + '</div><div class="est-kpi-label">Bolsas Usadas</div><div class="est-kpi-sub">empaques</div></div>';
+  3079→    h += '</div>';
+  3080→
+  3081→    // Charts
+  3082→    h += '<div class="est-charts-grid">';
+  3083→    h += '<div class="est-chart-card"><h4>Produccion Mensual (Frascos)</h4><div class="est-chart-wrap"><canvas id="chart-prod-monthly"></canvas></div></div>';
+  3084→    h += '<div class="est-chart-card"><h4>Tipo y Talla</h4><div class="est-chart-wrap"><canvas id="chart-prod-tipo"></canvas></div></div>';
+  3085→    h += '</div>';
+  3086→
+  3087→    // Production table
+  3088→    h += '<div class="card mt-16"><div class="card-header"><h3>Produccion por Producto</h3></div><div class="card-body">';
+  3089→    if (prodArr.length > 0) {
+  3090→      h += '<div class="table-wrap"><table class="est-detail-table"><thead><tr><th>Producto</th><th>Tipo</th><th>Talla</th><th>Frascos</th><th>Gramos</th><th>Ops</th></tr></thead><tbody>';
+  3091→      for (var pi = 0; pi < prodArr.length; pi++) {
+  3092→        var pp = prodArr[pi];
+  3093→        h += '<tr><td class="fw7">' + pp.nombre + '</td><td><span class="badge ' + (pp.tipo === 'blend' ? 'badge-blue' : 'badge-gold') + '">' + (pp.tipo === 'blend' ? 'Blend' : 'Especia') + '</span></td><td>' + pp.talla + '</td><td class="fw7">' + pp.frascos + '</td><td>' + pp.gramos.toLocaleString() + 'g</td><td>' + pp.ops + '</td></tr>';
+  3094→      }
+  3095→      h += '</tbody></table></div>';
+  3096→    } else { h += '<p class="text-muted text-center">Sin producciones</p>'; }
+  3097→    h += '</div></div>';
+  3098→
+  3099→    el.innerHTML = h;
+  3100→
+  3101→    if (Pages._estCharts) { for (var ci = 0; ci < Pages._estCharts.length; ci++) { try { Pages._estCharts[ci].destroy(); } catch (e) {} } }
+  3102→    Pages._estCharts = [];
+  3103→    Chart.defaults.color = '#9a8a78'; Chart.defaults.borderColor = '#3a2218'; Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  3104→
+  3105→    var pmSorted = Object.keys(prodMonthMap).sort();
+  3106→    var pmL = [], pmF = [], pmG = [];
+  3107→    for (var mi = 0; mi < pmSorted.length; mi++) { pmL.push(pmSorted[mi]); pmF.push(prodMonthMap[pmSorted[mi]].frascos); pmG.push(prodMonthMap[pmSorted[mi]].gramos); }
+  3108→    var ctxPM = document.getElementById('chart-prod-monthly');
+  3109→    if (ctxPM) {
+  3110→      Pages._estCharts.push(new Chart(ctxPM, { type: 'bar', data: { labels: pmL, datasets: [
+  3111→        { label: 'Frascos', data: pmF, backgroundColor: 'rgba(232,184,75,0.7)', borderRadius: 4, yAxisID: 'y' },
+  3112→        { label: 'Gramos', data: pmG, type: 'line', borderColor: '#5dade2', backgroundColor: 'transparent', pointRadius: 3, yAxisID: 'y1' }
+  3113→      ] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { boxWidth: 12, padding: 16 } } }, scales: { y: { position: 'left', title: { display: true, text: 'Frascos' }, grid: { color: 'rgba(58,34,24,0.5)' } }, y1: { position: 'right', title: { display: true, text: 'Gramos' }, grid: { drawOnChartArea: false } }, x: { grid: { display: false } } } } }));
+  3114→    }
+  3115→
+  3116→    var ctxPT = document.getElementById('chart-prod-tipo');
+  3117→    if (ctxPT) {
+  3118→      Pages._estCharts.push(new Chart(ctxPT, { type: 'bar', data: { labels: ['Especia-Chico', 'Especia-Grande', 'Blend-Chico', 'Blend-Grande'], datasets: [{ label: 'Frascos', data: [tipoProdMap.especia_chico || 0, tipoProdMap.especia_grande || 0, tipoProdMap.blend_chico || 0, tipoProdMap.blend_grande || 0], backgroundColor: ['#e8b84b', '#c9963a', '#5dade2', '#3498db'], borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: 'rgba(58,34,24,0.5)' } }, x: { grid: { display: false } } } } }));
+  3119→    }
+  3120→
+  3121→    var canvases = el.querySelectorAll('.est-chart-wrap');
+  3122→    for (var ch = 0; ch < canvases.length; ch++) { canvases[ch].style.height = '280px'; }
+  3123→  },
+  3124→
+  3125→  /* ================================================================
+  3126→     PEDIDOS TIENDA TAB
+  3127→     ================================================================ */
+  3128→  _renderPedidosTienda: function(data, el) {
+  3129→    if (!el) return;
+  3130→    var total = 0, ops = 0, ciudades = {}, estadoMap = {}, dayMap = {}, prodMap = {};
+  3131→    for (var i = 0; i < data.length; i++) {
+  3132→      var s = data[i];
+  3133→      total += (s.total || 0); ops++;
+  3134→      estadoMap[s.estado || 'nuevo'] = (estadoMap[s.estado || 'nuevo'] || 0) + 1;
+  3135→      if (s.ciudad) { if (!ciudades[s.ciudad]) ciudades[s.ciudad] = { ops: 0, ingreso: 0 }; ciudades[s.ciudad].ops++; ciudades[s.ciudad].ingreso += (s.total || 0); }
+  3136→      if (s.fecha) { if (!dayMap[s.fecha]) dayMap[s.fecha] = { ops: 0, ingreso: 0 }; dayMap[s.fecha].ops++; dayMap[s.fecha].ingreso += (s.total || 0); }
+  3137→      if (s.items) { for (var j = 0; j < s.items.length; j++) {
+  3138→        var it = s.items[j]; var pk = it.nombre + '|' + (it.talla || 'chico');
+  3139→        if (!prodMap[pk]) prodMap[pk] = { nombre: it.nombre, talla: it.talla, uds: 0, ingreso: 0 };
+  3140→        prodMap[pk].uds += (it.cantidad || 0); prodMap[pk].ingreso += (it.subtotal || 0);
+  3141→      }}
+  3142→    }
+  3143→    var prodArr = Object.values(prodMap).sort(function(a, b) { return b.ingreso - a.ingreso; });
+  3144→    var cityArr = Object.keys(ciudades).sort(function(a, b) { return ciudades[b].ingreso - ciudades[a].ingreso; });
+  3145→
+  3146→    var h = '<div class="est-kpi-grid">';
+  3147→    h += '<div class="est-kpi"><div class="est-kpi-value">$' + total.toLocaleString() + '</div><div class="est-kpi-label">Ingresos Tienda</div><div class="est-kpi-sub">' + ops + ' pedidos</div></div>';
+  3148→    h += '<div class="est-kpi"><div class="est-kpi-value">$' + (ops > 0 ? Math.round(total / ops) : 0).toLocaleString() + '</div><div class="est-kpi-label">Ticket Promedio</div><div class="est-kpi-sub">por pedido</div></div>';
+  3149→    h += '<div class="est-kpi"><div class="est-kpi-value">' + cityArr.length + '</div><div class="est-kpi-label">Ciudades</div><div class="est-kpi-sub">destino de envios</div></div>';
+  3150→    h += '<div class="est-kpi"><div class="est-kpi-value">' + (estadoMap.entregado || 0) + '</div><div class="est-kpi-label">Entregados</div><div class="est-kpi-sub">de ' + ops + ' total</div></div>';
+  3151→    h += '</div>';
+  3152→
+  3153→    // Estado breakdown
+  3154→    var estColors = { nuevo: 'badge-red', confirmado: 'badge-yellow', preparando: 'badge-blue', enviado: 'badge-gold', entregado: 'badge-green', cancelado: 'badge-red' };
+  3155→    var estLabels = { nuevo: 'Nuevos', confirmado: 'Confirmados', preparando: 'Preparando', enviado: 'Enviados', entregado: 'Entregados', cancelado: 'Cancelados' };
+  3156→    h += '<div class="card mt-16"><div class="card-header"><h3>Estado de Pedidos</h3></div><div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap">';
+  3157→    var estKeys = Object.keys(estadoMap).sort();
+  3158→    for (var ei = 0; ei < estKeys.length; ei++) {
+  3159→      var ek = estKeys[ei];
+  3160→      h += '<div style="text-align:center;padding:12px 16px;background:var(--bg);border-radius:8px;min-width:80px"><div style="font-size:1.4rem;font-weight:800;color:var(--text)">' + estadoMap[ek] + '</div><div style="font-size:.72rem;color:var(--text2);margin-top:2px">' + (estLabels[ek] || ek) + '</div></div>';
+  3161→    }
+  3162→    h += '</div></div>';
+  3163→
+  3164→    // Charts
+  3165→    h += '<div class="est-charts-grid">';
+  3166→    h += '<div class="est-chart-card"><h4>Pedidos por Dia</h4><div class="est-chart-wrap"><canvas id="chart-ped-daily"></canvas></div></div>';
+  3167→    h += '<div class="est-chart-card"><h4>Top 8 Productos</h4><div class="est-chart-wrap"><canvas id="chart-ped-prods"></canvas></div></div>';
+  3168→    h += '</div>';
+  3169→
+  3170→    // City table
+  3171→    if (cityArr.length > 0) {
+  3172→      h += '<div class="card mt-16"><div class="card-header"><h3>Ingresos por Ciudad</h3></div><div class="card-body">';
+  3173→      h += '<div class="table-wrap"><table class="est-detail-table"><thead><tr><th>Ciudad</th><th>Pedidos</th><th>Ingreso</th><th>Promedio</th></tr></thead><tbody>';
+  3174→      for (var ci = 0; ci < cityArr.length; ci++) {
+  3175→        var cd = ciudades[cityArr[ci]];
+  3176→        h += '<tr><td class="fw7">' + cityArr[ci] + '</td><td>' + cd.ops + '</td><td class="fw7" style="color:var(--gold)">$' + cd.ingreso.toLocaleString() + '</td><td>$' + (cd.ops > 0 ? Math.round(cd.ingreso / cd.ops) : 0).toLocaleString() + '</td></tr>';
+  3177→      }
+  3178→      h += '</tbody></table></div></div></div>';
+  3179→    }
+  3180→
+  3181→    el.innerHTML = h;
+  3182→
+  3183→    if (Pages._estCharts) { for (var ci = 0; ci < Pages._estCharts.length; ci++) { try { Pages._estCharts[ci].destroy(); } catch (e) {} } }
+  3184→    Pages._estCharts = [];
+  3185→    Chart.defaults.color = '#9a8a78'; Chart.defaults.borderColor = '#3a2218'; Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  3186→
+  3187→    var daySorted = Object.keys(dayMap).sort();
+  3188→    var ctxPD = document.getElementById('chart-ped-daily');
+  3189→    if (ctxPD) {
+  3190→      var dl = [], dd = [], do2 = [];
+  3191→      for (var di = 0; di < daySorted.length; di++) { dl.push(daySorted[di].slice(5)); dd.push(dayMap[daySorted[di]].ingreso); do2.push(dayMap[daySorted[di]].ops); }
+  3192→      Pages._estCharts.push(new Chart(ctxPD, { type: 'bar', data: { labels: dl, datasets: [
+  3193→        { label: 'Ingreso ($)', data: dd, backgroundColor: 'rgba(232,184,75,0.7)', borderRadius: 4, yAxisID: 'y' },
+  3194→        { label: 'Pedidos', data: do2, type: 'line', borderColor: '#5dade2', backgroundColor: 'transparent', pointRadius: 3, yAxisID: 'y1' }
+  3195→      ] }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { labels: { boxWidth: 12, padding: 16 } } }, scales: { y: { position: 'left', ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.5)' } }, y1: { position: 'right', ticks: { stepSize: 1 }, grid: { drawOnChartArea: false } }, x: { grid: { display: false } } } } }));
+  3196→    }
+  3197→
+  3198→    var ctxPP = document.getElementById('chart-ped-prods');
+  3199→    if (ctxPP && prodArr.length > 0) {
+  3200→      var top8 = prodArr.slice(0, 8);
+  3201→      var pl = [], pd2 = [], pc = [];
+  3202→      for (var pi = 0; pi < top8.length; pi++) { pl.push(top8[pi].nombre); pd2.push(top8[pi].ingreso); pc.push('#e8b84b'); }
+  3203→      Pages._estCharts.push(new Chart(ctxPP, { type: 'bar', data: { labels: pl, datasets: [{ label: 'Ingreso ($)', data: pd2, backgroundColor: pc, borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.5)' } }, y: { grid: { display: false } } } } }));
+  3204→    }
+  3205→
+  3206→    var canvases = el.querySelectorAll('.est-chart-wrap');
+  3207→    for (var ch = 0; ch < canvases.length; ch++) { canvases[ch].style.height = '280px'; }
+  3208→  },
+  3209→
+  3210→  /* ================================================================
+  3211→     INVENTARIO TAB
+  3212→     ================================================================ */
+  3213→  _renderInventario: function(el, especias, blends) {
+  3214→    if (!el) return;
+  3215→    var db = ArcanoDB.getDB();
+  3216→    var envases = db.stockEnvases || { chico: 0, grande: 0 };
+  3217→    var bolsas = db.stockBolsas || { chico: 0, grande: 0 };
+  3218→    var stickers = ArcanoDB.getStickers();
+  3219→
+  3220→    // Calculate inventory value (at sale price)
+  3221→    var valorFrascos = 0, valorPala = 0;
+  3222→    var stockBajo = [], sinStock = [];
+  3223→    var catMap = {}, catStockMap = {};
+  3224→    for (var i = 0; i < especias.length; i++) {
+  3225→      var e = especias[i];
+  3226→      var vChico = (e.stockChico || 0) * (e.precioChico || 0);
+  3227→      var vGrande = (e.stockGrande || 0) * (e.precioGrande || 0);
+  3228→      valorFrascos += vChico + vGrande;
+  3229→      var palaGrs = e.stockBolsa || 0;
+  3230→      var cat = e.categoria || 'Sin categoria';
+  3231→      if (!catMap[cat]) catMap[cat] = { productos: 0, frascos: 0, pala: 0 };
+  3232→      catMap[cat].productos++;
+  3233→      catMap[cat].frascos += (e.stockChico || 0) + (e.stockGrande || 0);
+  3234→      catMap[cat].pala += palaGrs;
+  3235→      var totalStock = (e.stockChico || 0) + (e.stockGrande || 0);
+  3236→      if (totalStock === 0 && palaGrs === 0) sinStock.push({ nombre: e.nombre, tipo: 'especia', cat: cat });
+  3237→      else if (totalStock <= 3 || palaGrs <= 50) stockBajo.push({ nombre: e.nombre, tipo: 'especia', cat: cat, frascos: totalStock, pala: palaGrs });
+  3238→    }
+  3239→    for (var bi = 0; bi < blends.length; bi++) {
+  3240→      var b = blends[bi];
+  3241→      valorFrascos += (b.stockChico || 0) * (b.precioChico || 0) + (b.stockGrande || 0) * (b.precioGrande || 0);
+  3242→      var cat2 = b.categoria || 'Sin categoria';
+  3243→      if (!catMap[cat2]) catMap[cat2] = { productos: 0, frascos: 0, pala: 0 };
+  3244→      catMap[cat2].productos++;
+  3245→      catMap[cat2].frascos += (b.stockChico || 0) + (b.stockGrande || 0);
+  3246→      var ts = (b.stockChico || 0) + (b.stockGrande || 0);
+  3247→      if (ts === 0) sinStock.push({ nombre: b.nombre, tipo: 'blend', cat: cat2 });
+  3248→      else if (ts <= 3) stockBajo.push({ nombre: b.nombre, tipo: 'blend', cat: cat2, frascos: ts, pala: 0 });
+  3249→    }
+  3250→    var totalProductos = especias.length + blends.length;
+  3251→    var totalFrascosStock = especias.reduce(function(s, e) { return s + (e.stockChico||0) + (e.stockGrande||0); }, 0) +
+  3252→                             blends.reduce(function(s, b) { return s + (b.stockChico||0) + (b.stockGrande||0); }, 0);
+  3253→    var totalPala = especias.reduce(function(s, e) { return s + (e.stockBolsa||0); }, 0);
+  3254→
+  3255→    var h = '';
+  3256→    h += '<div class="est-kpi-grid">';
+  3257→    h += '<div class="est-kpi"><div class="est-kpi-value">$' + valorFrascos.toLocaleString() + '</div><div class="est-kpi-label">Valor Inventario (Frascos)</div><div class="est-kpi-sub">al precio de venta</div></div>';
+  3258→    h += '<div class="est-kpi"><div class="est-kpi-value">' + totalFrascosStock + '</div><div class="est-kpi-label">Frascos en Stock</div><div class="est-kpi-sub">listos para vender</div></div>';
+  3259→    h += '<div class="est-kpi"><div class="est-kpi-value">' + totalPala.toLocaleString() + 'g</div><div class="est-kpi-label">Pala (Materia Prima)</div><div class="est-kpi-sub">gramos en stock</div></div>';
+  3260→    h += '<div class="est-kpi ' + (stockBajo.length > 0 ? 'down' : 'up') + '"><div class="est-kpi-value">' + stockBajo.length + '</div><div class="est-kpi-label">Stock Bajo</div><div class="est-kpi-sub">requiere reposicion</div></div>';
+  3261→    h += '<div class="est-kpi ' + (sinStock.length > 0 ? 'down' : 'up') + '"><div class="est-kpi-value">' + sinStock.length + '</div><div class="est-kpi-label">Sin Stock</div><div class="est-kpi-sub">productos agotados</div></div>';
+  3262→    h += '</div>';
+  3263→
+  3264→    // Packaging stock
+  3265→    h += '<div class="card mt-16"><div class="card-header"><h3>Stock de Packaging</h3></div><div class="card-body">';
+  3266→    h += '<div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">';
+  3267→    h += '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value">' + (envases.chico || 0) + '</div><div class="stat-label">Envases Pequenos</div></div>';
+  3268→    h += '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value">' + (envases.grande || 0) + '</div><div class="stat-label">Envases Grandes</div></div>';
+  3269→    h += '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value">' + (bolsas.chico || 0) + '</div><div class="stat-label">Bolsas Pequenas</div></div>';
+  3270→    h += '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value">' + (bolsas.grande || 0) + '</div><div class="stat-label">Bolsas Grandes</div></div>';
+  3271→    h += '</div></div></div>';
+  3272→
+  3273→    // Category breakdown
+  3274→    var catArr = Object.keys(catMap).sort(function(a, b) { return catMap[b].frascos - catMap[a].frascos; });
+  3275→    h += '<div class="card mt-16"><div class="card-header"><h3>Inventario por Categoria</h3></div><div class="card-body">';
+  3276→    h += '<div class="table-wrap"><table class="est-detail-table"><thead><tr><th>Categoria</th><th>Productos</th><th>Frascos</th><th>Pala (grs)</th></tr></thead><tbody>';
+  3277→    for (var ci = 0; ci < catArr.length; ci++) {
+  3278→      var cd = catMap[catArr[ci]];
+  3279→      h += '<tr><td class="fw7">' + catArr[ci] + '</td><td>' + cd.productos + '</td><td>' + cd.frascos + '</td><td>' + cd.pala.toLocaleString() + '</td></tr>';
+  3280→    }
+  3281→    h += '</tbody></table></div></div></div>';
+  3282→
+  3283→    // Low stock alerts
+  3284→    if (stockBajo.length > 0) {
+  3285→      h += '<div class="card mt-16" style="border-color:var(--yellow)"><div class="card-header"><h3 style="color:var(--yellow)">Alertas de Stock Bajo (' + stockBajo.length + ')</h3></div><div class="card-body">';
+  3286→      h += '<div class="table-wrap"><table class="est-detail-table"><thead><tr><th>Producto</th><th>Tipo</th><th>Categoria</th><th>Frascos</th><th>Pala</th></tr></thead><tbody>';
+  3287→      for (var si = 0; si < stockBajo.length; si++) {
+  3288→        var sb = stockBajo[si];
+  3289→        h += '<tr><td class="fw7">' + sb.nombre + '</td><td><span class="badge ' + (sb.tipo === 'blend' ? 'badge-blue' : 'badge-gold') + '">' + (sb.tipo === 'blend' ? 'Blend' : 'Especia') + '</span></td><td>' + sb.cat + '</td><td>' + (sb.frascos || '-') + '</td><td>' + (sb.pala ? sb.pala + 'g' : '-') + '</td></tr>';
+  3290→      }
+  3291→      h += '</tbody></table></div></div></div>';
+  3292→    }
+  3293→
+  3294→    // No stock
+  3295→    if (sinStock.length > 0) {
+  3296→      h += '<div class="card mt-16" style="border-color:var(--red)"><div class="card-header"><h3 style="color:var(--red)">Sin Stock (' + sinStock.length + ')</h3></div><div class="card-body">';
+  3297→      h += '<p class="text-sm text-muted mb-8">';
+  3298→      for (var ni = 0; ni < sinStock.length; ni++) {
+  3299→        h += '<span class="badge badge-red mr-4">' + sinStock[ni].nombre + '</span>';
+  3300→      }
+  3301→      h += '</p></div></div>';
+  3302→    }
+  3303→
+  3304→    el.innerHTML = h;
+  3305→
+  3306→    // No charts for inventory, no chart cleanup needed
+  3307→    if (Pages._estCharts) { for (var ci = 0; ci < Pages._estCharts.length; ci++) { try { Pages._estCharts[ci].destroy(); } catch (e) {} } }
+  3308→    Pages._estCharts = [];
+  3309→  },
+  3310→
+  3311→  /* ================================================================
+  3312→     HELPERS (kept for backward compat)
+  3313→     ================================================================ */
+  3314→  _getCurrentEstData: function() {
+  3315→    var ventas = ArcanoDB.getVentas();
+  3316→    var pedidos = ArcanoDB.getPedidos();
+  3317→    var allSales = [];
+  3318→    for (var vi = 0; vi < ventas.length; vi++) {
+  3319→      var v = ventas[vi];
+  3320→      var vItems = [];
+  3321→      if (v.items) { for (var vi2 = 0; vi2 < v.items.length; vi2++) { var it = v.items[vi2]; vItems.push({ nombre: it.productoNombre || '?', tipo: it.tipo || 'especia', talla: it.talla || 'chico', cantidad: it.cantidad || 0, precio: it.precioUnitario || 0, subtotal: it.subtotal || 0 }); } }
+  3322→      allSales.push({ fecha: v.fecha || '', creado: v.creado || '', total: v.total || 0, items: vItems, source: 'admin' });
+  3323→    }
+  3324→    for (var pi = 0; pi < pedidos.length; pi++) {
+  3325→      var p = pedidos[pi];
+  3326→      if (p.estado === 'cancelado') continue;
+  3327→      var pItems = [];
+  3328→      if (p.items) { for (var pi2 = 0; pi2 < p.items.length; pi2++) { var pit = p.items[pi2]; pItems.push({ nombre: pit.nombre || '?', tipo: pit.tipo || 'especia', talla: pit.talla || 'chico', cantidad: pit.qty || pit.cantidad || 0, precio: pit.precio || 0, subtotal: pit.subtotal || 0 }); } }
+  3329→      var pFecha = p.creado ? p.creado.slice(0, 10) : '';
+  3330→      allSales.push({ fecha: pFecha, creado: p.creado || '', total: p.total || 0, items: pItems, source: 'tienda', cliente: (p.cliente || {}).nombre || '', ciudad: (p.cliente || {}).ciudad || '' });
+  3331→    }
+  3332→    allSales.sort(function(a, b) { return (b.fecha || '').localeCompare(a.fecha || ''); });
+  3333→    return allSales;
+  3334→  },
+  3335→
+  3336→  _renderEstContent: function(data, el) {
+  3337→    // Redirect to ventas tab for backward compat
+  3338→    Pages._estTab = 'ventas';
+  3339→    Pages._renderVentas(data, el);
+  3340→  }};
+  3341→

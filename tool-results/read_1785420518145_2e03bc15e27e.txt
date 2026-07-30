@@ -1,0 +1,2002 @@
+     1→/* ===================== ARCANO V3 — PAGES (FIXED) ===================== */
+     2→const Pages = {
+     3→
+     4→  /* ================================================================
+     5→     DASHBOARD — MAPA VISUAL COMPLETO DEL NEGOCIO
+     6→     ================================================================ */
+     7→  _dashCharts: [],
+     8→
+     9→  renderDashboard(container) {
+    10→    if (Pages._dashCharts) { for (var _ci = 0; _ci < Pages._dashCharts.length; _ci++) { try { Pages._dashCharts[_ci].destroy(); } catch(e) {} } }
+    11→    Pages._dashCharts = [];
+    12→
+    13→    var db = ArcanoDB.getDB();
+    14→    var stats = ArcanoDB.getStats();
+    15→    var ventas = ArcanoDB.getVentas();
+    16→    var pedidos = ArcanoDB.getPedidos();
+    17→    var producciones = ArcanoDB.getProducciones();
+    18→    var entradas = ArcanoDB.getEntradas();
+    19→    var especias = ArcanoDB.getEspecias();
+    20→    var blends = ArcanoDB.getBlends();
+    21→    var stickers = ArcanoDB.getStickers();
+    22→    var today = new Date().toISOString().slice(0, 10);
+    23→    var mes = new Date().toISOString().slice(0, 7);
+    24→
+    25→    // === CALCULATE ALL KPIs ===
+    26→    var ventasHoy = [], ventasMes = [], pedidosNuevos = [];
+    27→    var totalIngresos = 0, totalUnidades = 0, totalOps = 0;
+    28→    var adminIngreso = 0, tiendaIngreso = 0;
+    29→    var prodVentaMap = {}, tipoCount = {especia: 0, blend: 0}, tallaCount = {chico: 0, grande: 0};
+    30→    var diaMap = {}, monthMap = {};
+    31→
+    32→    for (var vi = 0; vi < ventas.length; vi++) {
+    33→      var v = ventas[vi];
+    34→      var vf = v.fecha || '';
+    35→      totalIngresos += (v.total || 0);
+    36→      totalOps++;
+    37→      adminIngreso += (v.total || 0);
+    38→      if (vf === today) ventasHoy.push(v);
+    39→      if (vf && vf.startsWith(mes)) ventasMes.push(v);
+    40→      if (vf) {
+    41→        if (!diaMap[vf]) diaMap[vf] = {ops: 0, ingresos: 0};
+    42→        diaMap[vf].ops++;
+    43→        diaMap[vf].ingresos += (v.total || 0);
+    44→        var mn = vf.substring(0, 7);
+    45→        if (!monthMap[mn]) monthMap[mn] = {ops: 0, ingresos: 0};
+    46→        monthMap[mn].ops++;
+    47→        monthMap[mn].ingresos += (v.total || 0);
+    48→      }
+    49→      if (v.items) { for (var vi2 = 0; vi2 < v.items.length; vi2++) {
+    50→        var it = v.items[vi2];
+    51→        var iCant = it.cantidad || 0;
+    52→        totalUnidades += iCant;
+    53→        tipoCount[it.tipo || 'especia'] = (tipoCount[it.tipo || 'especia'] || 0) + iCant;
+    54→        tallaCount[it.talla || 'chico'] = (tallaCount[it.talla || 'chico'] || 0) + iCant;
+    55→        var pkey = it.productoNombre || '?';
+    56→        if (!prodVentaMap[pkey]) prodVentaMap[pkey] = 0;
+    57→        prodVentaMap[pkey] += (it.subtotal || 0);
+    58→      }}
+    59→    }
+    60→    for (var pi = 0; pi < pedidos.length; pi++) {
+    61→      var p = pedidos[pi];
+    62→      if (p.estado === 'nuevo') pedidosNuevos.push(p);
+    63→      if (p.estado === 'cancelado') continue;
+    64→      var pf = p.creado ? p.creado.slice(0, 10) : '';
+    65→      totalIngresos += (p.total || 0);
+    66→      totalOps++;
+    67→      tiendaIngreso += (p.total || 0);
+    68→      if (pf && pf.startsWith(mes)) ventasMes.push(p);
+    69→      if (pf) {
+    70→        if (!diaMap[pf]) diaMap[pf] = {ops: 0, ingresos: 0};
+    71→        diaMap[pf].ops++;
+    72→        diaMap[pf].ingresos += (p.total || 0);
+    73→      }
+    74→      if (p.items) { for (var pi2 = 0; pi2 < p.items.length; pi2++) {
+    75→        var pit = p.items[pi2];
+    76→        var pCant = pit.qty || pit.cantidad || 0;
+    77→        totalUnidades += pCant;
+    78→        tipoCount[pit.tipo || 'especia'] = (tipoCount[pit.tipo || 'especia'] || 0) + pCant;
+    79→        tallaCount[pit.talla || 'chico'] = (tallaCount[pit.talla || 'chico'] || 0) + pCant;
+    80→        var pkey2 = pit.nombre || '?';
+    81→        if (!prodVentaMap[pkey2]) prodVentaMap[pkey2] = 0;
+    82→        prodVentaMap[pkey2] += (pit.subtotal || 0);
+    83→      }}
+    84→    }
+    85→
+    86→    var ingresosHoy = 0;
+    87→    for (var vi3 = 0; vi3 < ventasHoy.length; vi3++) ingresosHoy += (ventasHoy[vi3].total || 0);
+    88→    var ingresosMes = 0, opsMes = 0;
+    89→    for (var vi4 = 0; vi4 < ventasMes.length; vi4++) { ingresosMes += (ventasMes[vi4].total || 0); opsMes++; }
+    90→
+    91→    var totalCostos = 0;
+    92→    for (var ei = 0; ei < entradas.length; ei++) totalCostos += (Number(entradas[ei].total) || 0);
+    93→    var margenBruto = totalIngresos - totalCostos;
+    94→    var margenPct = totalIngresos > 0 ? (margenBruto / totalIngresos * 100) : 0;
+    95→
+    96→    var prodMesCount = 0, prodMesUds = 0;
+    97→    for (var pr = 0; pr < producciones.length; pr++) {
+    98→      var prd = producciones[pr];
+    99→      if (prd.fecha && prd.fecha.startsWith(mes)) { prodMesCount++; prodMesUds += (prd.cantidad || 0); }
+   100→    }
+   101→
+   102→    var palaBaja = [], frascosBajos = [], stickerBajos = [];
+   103→    for (var ei2 = 0; ei2 < especias.length; ei2++) {
+   104→      var esp = especias[ei2];
+   105→      if ((esp.stockBolsa || 0) <= 50) palaBaja.push(esp);
+   106→      if ((esp.stockChico || 0) <= 3 && (esp.stockGrande || 0) <= 3) frascosBajos.push({nombre: esp.nombre, chico: esp.stockChico||0, grande: esp.stockGrande||0, tipo: 'especia'});
+   107→    }
+   108→    for (var bi = 0; bi < blends.length; bi++) {
+   109→      var bl = blends[bi];
+   110→      if ((bl.stockChico || 0) <= 3 && (bl.stockGrande || 0) <= 3) frascosBajos.push({nombre: bl.nombre, chico: bl.stockChico||0, grande: bl.stockGrande||0, tipo: 'blend'});
+   111→    }
+   112→    for (var si = 0; si < stickers.length; si++) {
+   113→      var stk = stickers[si];
+   114→      if (((stk.stockChico||0) + (stk.stockGrande||0)) <= 5) stickerBajos.push(stk);
+   115→    }
+   116→    var totalAlertas = palaBaja.length + frascosBajos.length + stickerBajos.length;
+   117→
+   118→    var prodArr = [];
+   119→    var pkeys = Object.keys(prodVentaMap);
+   120→    for (var pk = 0; pk < pkeys.length; pk++) prodArr.push({nombre: pkeys[pk], ingreso: prodVentaMap[pkeys[pk]]});
+   121→    prodArr.sort(function(a, b) { return b.ingreso - a.ingreso; });
+   122→
+   123→    // === BUILD HTML ===
+   124→    var h = '';
+   125→
+   126→    // KPIs principales
+   127→    h += '<div class="dash-section-title"><span class="dash-dot" style="background:var(--gold)"></span>Resumen del Negocio</div>';
+   128→    h += '<div class="dash-kpi-row">';
+   129→    h += '<div class="dash-kpi-card dash-kpi-gold"><div class="dash-kpi-icon">$</div><div class="dash-kpi-body"><div class="dash-kpi-val">$' + ingresosHoy.toLocaleString() + '</div><div class="dash-kpi-lbl">Ventas Hoy</div></div></div>';
+   130→    h += '<div class="dash-kpi-card dash-kpi-blue"><div class="dash-kpi-icon">M</div><div class="dash-kpi-body"><div class="dash-kpi-val">$' + ingresosMes.toLocaleString() + '</div><div class="dash-kpi-lbl">Ingresos del Mes</div><div class="dash-kpi-sub">' + opsMes + ' operaciones</div></div></div>';
+   131→    var mClr = margenPct >= 0 ? 'var(--green)' : 'var(--red)';
+   132→    h += '<div class="dash-kpi-card"><div class="dash-kpi-icon" style="color:var(--green)">%a</div><div class="dash-kpi-body"><div class="dash-kpi-val" style="color:' + mClr + '">' + margenPct.toFixed(1) + '%</div><div class="dash-kpi-lbl">Margen Bruto</div><div class="dash-kpi-sub">Ingreso $' + totalIngresos.toLocaleString() + ' - Costos $' + totalCostos.toLocaleString() + '</div></div></div>';
+   133→    h += '<div class="dash-kpi-card ' + (totalAlertas > 0 ? 'dash-kpi-red' : 'dash-kpi-green') + '"><div class="dash-kpi-icon">!</div><div class="dash-kpi-body"><div class="dash-kpi-val">' + totalAlertas + '</div><div class="dash-kpi-lbl">Alertas de Stock</div><div class="dash-kpi-sub">' + palaBaja.length + ' pala, ' + frascosBajos.length + ' frascos, ' + stickerBajos.length + ' stk</div></div></div>';
+   134→    h += '</div>';
+   135→
+   136→    // Segunda fila
+   137→    h += '<div class="dash-kpi-row dash-kpi-sm">';
+   138→    h += '<div class="dash-mini"><div class="dash-mini-val">' + totalUnidades + '</div><div class="dash-mini-lbl">Unidades Vendidas</div></div>';
+   139→    h += '<div class="dash-mini"><div class="dash-mini-val">$' + (totalOps > 0 ? Math.round(totalIngresos / totalOps) : 0).toLocaleString() + '</div><div class="dash-mini-lbl">Ticket Promedio</div></div>';
+   140→    h += '<div class="dash-mini"><div class="dash-mini-val">' + prodMesCount + '</div><div class="dash-mini-lbl">Producciones Mes</div><div class="dash-mini-sub">' + prodMesUds + ' frascos</div></div>';
+   141→    h += '<div class="dash-mini"><div class="dash-mini-val">' + stats.totalFrascos + '</div><div class="dash-mini-lbl">Frascos en Stock</div><div class="dash-mini-sub">' + stats.frascosChico + ' pq / ' + stats.frascosGrande + ' gr</div></div>';
+   142→    h += '<div class="dash-mini"><div class="dash-mini-val">' + stats.totalProductos + '</div><div class="dash-mini-lbl">Productos Activos</div><div class="dash-mini-sub">' + stats.totalEspecias + ' esp + ' + stats.totalBlends + ' bl</div></div>';
+   143→    h += '<div class="dash-mini"><div class="dash-mini-val">' + pedidosNuevos.length + '</div><div class="dash-mini-lbl">Pedidos Nuevos</div></div>';
+   144→    h += '</div>';
+   145→
+   146→    // Canal de venta + Composicion
+   147→    h += '<div class="dash-section-title"><span class="dash-dot" style="background:var(--blue)"></span>Analisis de Ventas</div>';
+   148→    h += '<div class="dash-grid-2">';
+   149→    h += '<div class="dash-card"><h4>Canal de Venta</h4>';
+   150→    var totalCanal = adminIngreso + tiendaIngreso;
+   151→    var admPct = totalCanal > 0 ? Math.round(adminIngreso / totalCanal * 100) : 0;
+   152→    var tiePct = totalCanal > 0 ? Math.round(tiendaIngreso / totalCanal * 100) : 0;
+   153→    h += '<div class="dash-canal-row"><div class="dash-canal-item"><div class="dash-canal-bar-track"><div class="dash-canal-bar-fill" style="width:' + admPct + '%;background:var(--gold)"></div></div><div class="dash-canal-info"><span class="dash-canal-name">Ventas Admin</span><span class="dash-canal-val">$' + adminIngreso.toLocaleString() + ' (' + admPct + '%)</span></div></div>';
+   154→    h += '<div class="dash-canal-item"><div class="dash-canal-bar-track"><div class="dash-canal-bar-fill" style="width:' + tiePct + '%;background:var(--blue)"></div></div><div class="dash-canal-info"><span class="dash-canal-name">Tienda Online</span><span class="dash-canal-val">$' + tiendaIngreso.toLocaleString() + ' (' + tiePct + '%)</span></div></div></div></div>';
+   155→
+   156→    // Composicion con SVG rings
+   157→    h += '<div class="dash-card"><h4>Composicion de Ventas</h4><div class="dash-comp-grid">';
+   158→    var tipoTotal = (tipoCount.especia || 0) + (tipoCount.blend || 0);
+   159→    var espPct = tipoTotal > 0 ? Math.round((tipoCount.especia || 0) / tipoTotal * 100) : 50;
+   160→    var blPct = 100 - espPct;
+   161→    var tallaTotal = (tallaCount.chico || 0) + (tallaCount.grande || 0);
+   162→    var chPct = tallaTotal > 0 ? Math.round((tallaCount.chico || 0) / tallaTotal * 100) : 50;
+   163→    var grPct = 100 - chPct;
+   164→    h += '<div class="dash-comp-item"><div class="dash-comp-ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--bg4)" stroke-width="3"></circle><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--gold)" stroke-width="3" stroke-dasharray="' + espPct + ' ' + (100 - espPct) + '" stroke-dashoffset="25" stroke-linecap="round"></circle></svg><div class="dash-comp-center">' + espPct + '%</div></div><div class="dash-comp-label">Especias <b>' + (tipoCount.especia || 0) + '</b></div></div>';
+   165→    h += '<div class="dash-comp-item"><div class="dash-comp-ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--bg4)" stroke-width="3"></circle><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--blue)" stroke-width="3" stroke-dasharray="' + blPct + ' ' + (100 - blPct) + '" stroke-dashoffset="25" stroke-linecap="round"></circle></svg><div class="dash-comp-center">' + blPct + '%</div></div><div class="dash-comp-label">Blends <b>' + (tipoCount.blend || 0) + '</b></div></div>';
+   166→    h += '<div class="dash-comp-item"><div class="dash-comp-ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--bg4)" stroke-width="3"></circle><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--gold2)" stroke-width="3" stroke-dasharray="' + chPct + ' ' + (100 - chPct) + '" stroke-dashoffset="25" stroke-linecap="round"></circle></svg><div class="dash-comp-center">' + chPct + '%</div></div><div class="dash-comp-label">Pequeno <b>' + (tallaCount.chico || 0) + '</b></div></div>';
+   167→    h += '<div class="dash-comp-item"><div class="dash-comp-ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--bg4)" stroke-width="3"></circle><circle cx="18" cy="18" r="15.9" fill="none" stroke="var(--green)" stroke-width="3" stroke-dasharray="' + grPct + ' ' + (100 - grPct) + '" stroke-dashoffset="25" stroke-linecap="round"></circle></svg><div class="dash-comp-center">' + grPct + '%</div></div><div class="dash-comp-label">Grande <b>' + (tallaCount.grande || 0) + '</b></div></div>';
+   168→    h += '</div></div></div>';
+   169→
+   170→    // Charts
+   171→    h += '<div class="dash-section-title"><span class="dash-dot" style="background:var(--green)"></span>Tendencias</div>';
+   172→    h += '<div class="dash-grid-2">';
+   173→    h += '<div class="dash-card"><h4>Ingresos Ultimos 15 Dias</h4><div class="dash-chart-wrap"><canvas id="dash-chart-daily"></canvas></div></div>';
+   174→    h += '<div class="dash-card"><h4>Ingresos Mensuales</h4><div class="dash-chart-wrap"><canvas id="dash-chart-monthly"></canvas></div></div>';
+   175→    h += '</div>';
+   176→
+   177→    // Top productos + Pedidos nuevos
+   178→    h += '<div class="dash-section-title"><span class="dash-dot" style="background:var(--yellow)"></span>Actividad Reciente</div>';
+   179→    h += '<div class="dash-grid-2">';
+   180→    h += '<div class="dash-card"><h4>Top 5 Productos por Ingreso</h4>';
+   181→    if (prodArr.length > 0) {
+   182→      var maxIngreso = prodArr[0].ingreso || 1;
+   183→      h += '<div class="dash-top-list">';
+   184→      for (var tp = 0; tp < Math.min(5, prodArr.length); tp++) {
+   185→        var pp = prodArr[tp];
+   186→        var barW = Math.max(4, Math.round((pp.ingreso / maxIngreso) * 100));
+   187→        h += '<div class="dash-top-item"><div class="dash-top-info"><span class="dash-top-rank">' + (tp + 1) + '</span><span class="dash-top-name">' + pp.nombre + '</span></div><div class="dash-top-bar-track"><div class="dash-top-bar-fill" style="width:' + barW + '%"></div></div><div class="dash-top-val">$' + pp.ingreso.toLocaleString() + '</div></div>';
+   188→      }
+   189→      h += '</div>';
+   190→    } else { h += '<div class="est-empty">Sin datos de ventas</div>'; }
+   191→    h += '</div>';
+   192→
+   193→    // Pedidos nuevos
+   194→    h += '<div class="dash-card ' + (pedidosNuevos.length > 0 ? 'dash-card-alert' : '') + '"><h4>' + (pedidosNuevos.length > 0 ? '<span style="color:var(--red)">Pedidos Nuevos (' + pedidosNuevos.length + ')</span>' : 'Pedidos Nuevos') + '</h4>';
+   195→    if (pedidosNuevos.length > 0) {
+   196→      h += '<div class="dash-pedidos-list">';
+   197→      for (var pn = 0; pn < pedidosNuevos.length; pn++) {
+   198→        var ped = pedidosNuevos[pn];
+   199→        var cl = ped.cliente || {};
+   200→        var hora = ped.creado ? ped.creado.slice(11, 16) : '';
+   201→        h += '<div class="dash-pedido-item"><div class="dash-pedido-left"><div class="dash-pedido-time">' + hora + '</div><div class="dash-pedido-cliente">' + (cl.nombre || '?') + '</div><div class="dash-pedido-ciudad">' + (cl.ciudad || '') + '</div></div><div class="dash-pedido-right"><div class="dash-pedido-total">$' + (ped.total || 0).toLocaleString() + '</div><div class="dash-pedido-items">' + ((ped.items || []).length) + ' items</div></div></div>';
+   202→      }
+   203→      h += '</div>';
+   204→    } else { h += '<div class="est-empty">Sin pedidos pendientes</div>'; }
+   205→    h += '</div></div>';
+   206→
+   207→    // Inventario
+   208→    h += '<div class="dash-section-title"><span class="dash-dot" style="background:var(--red)"></span>Estado del Inventario</div>';
+   209→    h += '<div class="dash-grid-3">';
+   210→    h += '<div class="dash-card"><h4>Envases</h4>';
+   211→    h += '<div class="dash-stock-row"><span>Pequenos</span><span class="dash-stock-val" style="color:' + (stats.envasesChico <= 10 ? 'var(--red)' : 'var(--green)') + '">' + stats.envasesChico.toLocaleString() + '</span></div><div class="dash-stock-bar-track"><div class="dash-stock-bar-fill" style="width:' + Math.min(100, stats.envasesChico / 500 * 100) + '%;background:' + (stats.envasesChico <= 10 ? 'var(--red)' : 'var(--green)') + '"></div></div>';
+   212→    h += '<div class="dash-stock-row" style="margin-top:8px"><span>Grandes</span><span class="dash-stock-val" style="color:' + (stats.envasesGrande <= 10 ? 'var(--red)' : 'var(--green)') + '">' + stats.envasesGrande.toLocaleString() + '</span></div><div class="dash-stock-bar-track"><div class="dash-stock-bar-fill" style="width:' + Math.min(100, stats.envasesGrande / 500 * 100) + '%;background:' + (stats.envasesGrande <= 10 ? 'var(--red)' : 'var(--green)') + '"></div></div></div>';
+   213→    h += '<div class="dash-card"><h4>Bolsas</h4>';
+   214→    h += '<div class="dash-stock-row"><span>Pequenas</span><span class="dash-stock-val" style="color:' + (stats.bolsasChico <= 10 ? 'var(--red)' : 'var(--green)') + '">' + stats.bolsasChico.toLocaleString() + '</span></div><div class="dash-stock-bar-track"><div class="dash-stock-bar-fill" style="width:' + Math.min(100, stats.bolsasChico / 500 * 100) + '%;background:' + (stats.bolsasChico <= 10 ? 'var(--red)' : 'var(--green)') + '"></div></div>';
+   215→    h += '<div class="dash-stock-row" style="margin-top:8px"><span>Grandes</span><span class="dash-stock-val" style="color:' + (stats.bolsasGrande <= 10 ? 'var(--red)' : 'var(--green)') + '">' + stats.bolsasGrande.toLocaleString() + '</span></div><div class="dash-stock-bar-track"><div class="dash-stock-bar-fill" style="width:' + Math.min(100, stats.bolsasGrande / 500 * 100) + '%;background:' + (stats.bolsasGrande <= 10 ? 'var(--red)' : 'var(--green)') + '"></div></div></div>';
+   216→    h += '<div class="dash-card ' + (totalAlertas > 0 ? 'dash-card-alert' : '') + '"><h4>' + (totalAlertas > 0 ? '<span style="color:var(--red)">Alertas de Stock</span>' : 'Stock Saludable') + '</h4>';
+   217→    if (totalAlertas > 0) {
+   218→      h += '<div class="dash-alert-list">';
+   219→      for (var ai = 0; ai < Math.min(palaBaja.length, 4); ai++) h += '<div class="dash-alert-item dash-alert-yellow">PALA: ' + palaBaja[ai].nombre + ' <b>' + (palaBaja[ai].stockBolsa || 0) + 'g</b></div>';
+   220→      for (var ai2 = 0; ai2 < Math.min(frascosBajos.length, 3); ai2++) h += '<div class="dash-alert-item dash-alert-red">FRASCO: ' + frascosBajos[ai2].nombre + ' <b>pq:' + frascosBajos[ai2].chico + ' gr:' + frascosBajos[ai2].grande + '</b></div>';
+   221→      for (var ai3 = 0; ai3 < Math.min(stickerBajos.length, 3); ai3++) h += '<div class="dash-alert-item dash-alert-blue">STICKER: ' + (stickerBajos[ai3].nombre || '?') + ' <b>' + ((stickerBajos[ai3].stockChico||0) + (stickerBajos[ai3].stockGrande||0)) + '</b></div>';
+   222→      h += '</div>';
+   223→    } else { h += '<div class="est-empty">Todo el inventario esta OK</div>'; }
+   224→    h += '</div></div>';
+   225→
+   226→    // Ultimas operaciones
+   227→    h += '<div class="dash-section-title"><span class="dash-dot" style="background:var(--text3)"></span>Ultimas Operaciones</div>';
+   228→    h += '<div class="dash-grid-2">';
+   229→    h += '<div class="dash-card"><h4>Ultimas Ventas</h4>';
+   230→    var ultVentas = ventas.slice(0, 5);
+   231→    if (ultVentas.length === 0) { h += '<div class="est-empty">Sin ventas</div>'; }
+   232→    else {
+   233→      h += '<div class="dash-ops-list">';
+   234→      for (var uv = 0; uv < ultVentas.length; uv++) {
+   235→        var uv2 = ultVentas[uv];
+   236→        var uvItems = '';
+   237→        if (uv2.items) { for (var uv3 = 0; uv3 < Math.min(2, uv2.items.length); uv3++) { uvItems += (uv2.items[uv3].productoNombre || '?') + ' x' + (uv2.items[uv3].cantidad || 0); if (uv3 < Math.min(2, uv2.items.length) - 1) uvItems += ', '; } if ((uv2.items||[]).length > 2) uvItems += '...'; }
+   238→        h += '<div class="dash-op-item"><div class="dash-op-left"><span class="dash-op-date">' + (uv2.fecha || '') + '</span><span class="dash-op-detail">' + uvItems + '</span></div><div class="dash-op-val">$' + (uv2.total || 0).toLocaleString() + '</div></div>';
+   239→      }
+   240→      h += '</div>';
+   241→    }
+   242→    h += '</div>';
+   243→    h += '<div class="dash-card"><h4>Ultimas Producciones</h4>';
+   244→    var ultProd = producciones.slice(0, 5);
+   245→    if (ultProd.length === 0) { h += '<div class="est-empty">Sin producciones</div>'; }
+   246→    else {
+   247→      h += '<div class="dash-ops-list">';
+   248→      for (var up = 0; up < ultProd.length; up++) {
+   249→        var upr = ultProd[up];
+   250→        var tClr = (upr.talla || 'chico') === 'grande' ? 'var(--gold)' : 'var(--blue)';
+   251→        h += '<div class="dash-op-item"><div class="dash-op-left"><span class="dash-op-date">' + (upr.fecha || '') + '</span><span class="dash-op-detail">' + (upr.productoNombre || '') + ' <span style="color:' + tClr + ';font-weight:700">' + (upr.talla || 'chico') + '</span></span></div><div class="dash-op-val" style="color:var(--green)">+' + (upr.cantidad || 0) + ' frascos</div></div>';
+   252→      }
+   253→      h += '</div>';
+   254→    }
+   255→    h += '</div></div>';
+   256→
+   257→    container.innerHTML = h;
+   258→
+   259→    // === CHARTS ===
+   260→    Chart.defaults.color = '#9a8a78';
+   261→    Chart.defaults.borderColor = '#3a2218';
+   262→    Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+   263→    var diasSorted = Object.keys(diaMap).sort().slice(-15);
+   264→    var ctxD = document.getElementById('dash-chart-daily');
+   265→    if (ctxD && diasSorted.length > 0) {
+   266→      var dLabels = [], dData = [];
+   267→      for (var dd = 0; dd < diasSorted.length; dd++) { dLabels.push(diasSorted[dd].slice(5)); dData.push(diaMap[diasSorted[dd]].ingresos); }
+   268→      Pages._dashCharts.push(new Chart(ctxD, { type: 'bar', data: { labels: dLabels, datasets: [{ label: 'Ingresos', data: dData, backgroundColor: 'rgba(232,184,75,0.6)', borderColor: '#e8b84b', borderWidth: 1, borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.4)' } }, x: { grid: { display: false } } } } }));
+   269→    }
+   270→    var mesesSorted = Object.keys(monthMap).sort().slice(-12);
+   271→    var ctxM = document.getElementById('dash-chart-monthly');
+   272→    if (ctxM && mesesSorted.length > 0) {
+   273→      var mLabels = [], mData = [];
+   274→      for (var mm = 0; mm < mesesSorted.length; mm++) { mLabels.push(mesesSorted[mm]); mData.push(monthMap[mesesSorted[mm]].ingresos); }
+   275→      Pages._dashCharts.push(new Chart(ctxM, { type: 'bar', data: { labels: mLabels, datasets: [{ label: 'Ingresos', data: mData, backgroundColor: 'rgba(93,173,226,0.6)', borderColor: '#5dade2', borderWidth: 1, borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: function(v) { return '$' + v.toLocaleString(); } }, grid: { color: 'rgba(58,34,24,0.4)' } }, x: { grid: { display: false } } } } }));
+   276→    }
+   277→    var chartWraps = container.querySelectorAll('.dash-chart-wrap');
+   278→    for (var cw = 0; cw < chartWraps.length; cw++) chartWraps[cw].style.height = '220px';
+   279→  },
+   280→
+   281→  verPedido(key) {
+   282→    App.navigate('pedidos');
+   283→    setTimeout(function() { var btn = document.querySelector('[data-pedido-key="' + key + '"]'); if (btn) btn.click(); }, 300);
+   284→  },
+   285→
+   286→  /* ================================================================
+   287→     PRODUCTOS
+   288→     ================================================================ */
+   289→  renderProductos(container) {
+   290→    var especias = ArcanoDB.getEspecias();
+   291→    var blends = ArcanoDB.getBlends();
+   292→    var tab = window._prodTab || 'especias';
+   293→
+   294→    var h = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+   295→      '<div class="tabs" style="margin-bottom:0;border-bottom:none">' +
+   296→        `<button class="tab${tab==='especias' ? ' active' : ''}" onclick="window._prodTab='especias';App.renderPage('productos')">Especias<span class="tab-count">${especias.length}</span></button>` +
+   297→        `<button class="tab${tab==='blends' ? ' active' : ''}" onclick="window._prodTab='blends';App.renderPage('productos')">Blends<span class="tab-count">${blends.length}</span></button>` +
+   298→        `<button class="tab${tab==='uso' ? ' active' : ''}" onclick="window._prodTab='uso';App.renderPage('productos')">Etiquetas de uso</button>` +
+   299→      '</div>' +
+   300→      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+   301→        (tab==='especias' ? '<button class="btn btn-gold" onclick="Pages.formEspecia()">+ Especia</button><button class="btn btn-outline" style="border-color:var(--green);color:var(--green)" onclick="Pages.formImportarExcel()">Importar Excel</button>' : '') +
+   302→        (tab==='blends' ? '<button class="btn btn-gold" onclick="Pages.formBlend()">+ Blend</button>' : '') +
+   303→      '</div></div>';
+   304→
+   305→    h += '<div style="border-bottom:2px solid var(--border);margin:8px 0 16px"></div>';
+   306→
+   307→    // --- TAB: ESPECIAS ---
+   308→    if (tab === 'especias') {
+   309→      if (especias.length === 0) {
+   310→        h += '<div class="card"><div class="card-body"><p class="text-muted text-center" style="padding:32px">Sin especias. Crea una o importa desde Excel.</p></div></div>';
+   311→      } else {
+   312→        h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Pala</th><th>Grs/Ch</th><th>Grs/Gr</th><th>$Pequeño</th><th>$Grande</th><th>Fr.Ch</th><th>Fr.Gr</th><th>Acciones</th></tr></thead><tbody>';
+   313→        for (var i = 0; i < especias.length; i++) {
+   314→          var e = especias[i];
+   315→          h += '<tr>' +
+   316→            '<td class="fw7">' + e.nombre + '</td>' +
+   317→            '<td><span class="badge badge-gold">' + (e.categoria||'—') + '</span></td>' +
+   318→            '<td>' + (e.stockBolsa||0) + 'g</td>' +
+   319→            '<td>' + (e.gramosChico||0) + 'g</td>' +
+   320→            '<td>' + (e.gramosGrande||0) + 'g</td>' +
+   321→            '<td>$' + (e.precioChico||0).toLocaleString() + '</td>' +
+   322→            '<td>$' + (e.precioGrande||0).toLocaleString() + '</td>' +
+   323→            '<td><span class="' + ((e.stockChico||0)<=3?'text-red fw7':'text-green') + '">' + (e.stockChico||0) + '</span></td>' +
+   324→            '<td><span class="' + ((e.stockGrande||0)<=3?'text-red fw7':'text-green') + '">' + (e.stockGrande||0) + '</span></td>' +
+   325→            '<td style="white-space:nowrap">' +
+   326→              '<button class="btn btn-sm ' + (e.enTienda ? 'btn-green' : 'btn-outline') + ' mr-4" onclick="ArcanoDB.toggleTienda(\'especia\',' + e.id + ');App.renderPage(\'productos\')" title="Tienda">' + (e.enTienda ? 'Tienda ON' : 'Tienda') + '</button>' +
+   327→              '<button class="btn btn-sm btn-green mr-4" onclick="Pages.formProduccionRapida(\'especia\',' + e.id + ')">Producir</button>' +
+   328→              '<button class="btn btn-sm btn-outline mr-8" onclick="Pages.formEspecia(' + e.id + ')">Editar</button>' +
+   329→              '<button class="btn btn-sm btn-red" onclick="Pages.delEspecia(' + e.id + ')">X</button>' +
+   330→            '</td></tr>';
+   331→        }
+   332→        h += '</tbody></table></div>';
+   333→      }
+   334→    }
+   335→
+   336→    // --- TAB: BLENDS ---
+   337→    if (tab === 'blends') {
+   338→      if (blends.length === 0) {
+   339→        h += '<div class="card"><div class="card-body"><p class="text-muted text-center" style="padding:32px">Sin blends. Crea uno nuevo.</p></div></div>';
+   340→      } else {
+   341→        h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Region</th><th>Ingredientes</th><th>$Pequeño</th><th>$Grande</th><th>Fr.Ch</th><th>Fr.Gr</th><th>Acciones</th></tr></thead><tbody>';
+   342→        for (var i = 0; i < blends.length; i++) {
+   343→          var b = blends[i];
+   344→          var ingN = (b.ingredientes||[]).map(function(x){return x.especiaNombre||'?'}).join(', ');
+   345→          h += '<tr>' +
+   346→            '<td class="fw7">' + b.nombre + '</td>' +
+   347→            '<td><span class="badge badge-blue">' + (b.categoria||'—') + '</span></td>' +
+   348→            '<td class="text-sm text-muted">' + (b.region||'—') + '</td>' +
+   349→            '<td class="text-sm text-muted">' + (ingN||'—') + '</td>' +
+   350→            '<td>$' + (b.precioChico||0).toLocaleString() + '</td>' +
+   351→            '<td>$' + (b.precioGrande||0).toLocaleString() + '</td>' +
+   352→            '<td><span class="' + ((b.stockChico||0)<=3?'text-red fw7':'text-green') + '">' + (b.stockChico||0) + '</span></td>' +
+   353→            '<td><span class="' + ((b.stockGrande||0)<=3?'text-red fw7':'text-green') + '">' + (b.stockGrande||0) + '</span></td>' +
+   354→            '<td style="white-space:nowrap">' +
+   355→              '<button class="btn btn-sm btn-outline mr-4" onclick="Pages.formBlend(' + b.id + ')" title="Editar">Editar</button>' +
+   356→              '<button class="btn btn-sm ' + (b.enTienda ? 'btn-green' : 'btn-outline') + ' mr-4" onclick="ArcanoDB.toggleTienda(\'blend\',' + b.id + ');App.renderPage(\'productos\')" title="Tienda">' + (b.enTienda ? 'Tienda ON' : 'Tienda') + '</button>' +
+   357→              '<button class="btn btn-sm btn-green mr-4" onclick="Pages.formProduccionRapida(\'blend\',' + b.id + ')">Producir</button>' +
+   358→              '<button class="btn btn-sm btn-red" onclick="Pages.delBlend(' + b.id + ')">X</button>' +
+   359→            '</td></tr>';
+   360→        }
+   361→        h += '</tbody></table></div>';
+   362→      }
+   363→    }
+   364→
+   365→    // --- TAB: ETIQUETAS DE USO ---
+   366→    if (tab === 'uso') {
+   367→      var allTags = ArcanoDB.getProductTags();
+   368→      var catKeys = ['Comidas', 'Infusiones', 'Cocteleria'];
+   369→      h += '<div class="card"><div class="card-body">';
+   370→      for (var ci = 0; ci < catKeys.length; ci++) {
+   371→        var cat = catKeys[ci];
+   372→        var tags = allTags[cat] || [];
+   373→        h += '<div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="badge badge-gold" style="min-width:100px;text-align:center">' + cat + '</span>' +
+   374→          `<input type="text" class="input" id="new-tag-${ci}" placeholder="Nueva etiqueta de uso..." style="flex:1;padding:6px 10px;font-size:.85rem" onkeydown="if(event.key==='Enter')Pages.doAddTag('${cat}',${ci})">` +
+   375→          `<button class="btn btn-sm btn-outline" onclick="Pages.doAddTag('${cat}',${ci})">+ Agregar</button></div>` +
+   376→          '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+   377→        for (var ti = 0; ti < tags.length; ti++) {
+   378→          h += '<span class="tag-chip-admin"><span>' + tags[ti] + '</span><button onclick="Pages.doRemoveTag(\'' + cat + '\',\'' + tags[ti].replace(/'/g, '&apos;') + '\')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:1rem;padding:0 2px">X</button></span>';
+   379→        }
+   380→        if (tags.length === 0) h += '<span class="text-sm text-muted">Sin etiquetas de uso</span>';
+   381→        h += '</div></div>';
+   382→      }
+   383→      h += '</div></div>';
+   384→    }
+   385→
+   386→    container.innerHTML = h;
+   387→  },
+   388→
+   389→  /* ==================== ESPECIA FORM ====================  /* ==================== ESPECIA FORM ==================== */
+   390→  formEspecia(editId) {
+   391→    var esp = (editId != null) ? ArcanoDB.getEspecia(editId) : null;
+   392→    var isEdit = (esp != null);
+   393→
+   394→    var modal = document.createElement('div');
+   395→    modal.className = 'modal-overlay';
+   396→    modal.setAttribute('data-edit-id', isEdit ? String(editId) : '');
+   397→
+   398→    var inner = '<div class="modal modal-lg">' +
+   399→      '<div class="modal-header"><h3>' + (isEdit ? 'Editar: ' + esp.nombre : 'Nueva Especia') + '</h3>' +
+   400→      '<button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">X</button></div>' +
+   401→      '<div class="modal-body">' +
+   402→        '<div class="form-group"><label>Nombre</label><input type="text" class="input" id="f-esp-nombre" value="' + (isEdit ? esp.nombre : '') + '" placeholder="Ej: Curcuma" ' + (isEdit ? 'readonly style="opacity:0.6"' : '') + '></div>' +
+   403→        '<div class="form-group"><label>Categoria</label><select class="input" id="f-esp-cat" onchange="Pages.refreshTagSelector(\'esp\')">' +
+   404→          '<option value="Comidas"' + (isEdit && esp.categoria==='Comidas' ? ' selected' : '') + '>Comidas</option>' +
+   405→          '<option value="Infusiones"' + (isEdit && esp.categoria==='Infusiones' ? ' selected' : '') + '>Infusiones</option>' +
+   406→          '<option value="Cocteleria"' + (isEdit && esp.categoria==='Cocteleria' ? ' selected' : '') + '>Cocteleria</option>' +
+   407→        '</select></div>' +
+   408→        '<div class="card" style="border-color:var(--gold)"><div class="card-header"><h3>Precios de Venta</h3></div><div class="card-body">' +
+   409→        '<div class="g2"><div class="form-group"><label>Precio Pequeño ($)</label><input type="number" class="input" id="f-esp-pc" value="' + (isEdit ? esp.precioChico : '') + '" placeholder="Ej: 8000" min="0"></div>' +
+   410→        '<div class="form-group"><label>Precio Grande ($)</label><input type="number" class="input" id="f-esp-pg" value="' + (isEdit ? esp.precioGrande : '') + '" placeholder="Ej: 18000" min="0"></div></div>' +
+   411→        '<p class="text-xs text-muted">Estos son los precios que se mostraran en la tienda.</p></div></div>' +
+   412→        '<div class="g2"><div class="form-group"><label>Gramos por Frasco Pequeño</label><input type="number" class="input" id="f-esp-gc" value="' + (isEdit ? esp.gramosChico : '') + '" placeholder="Ej: 30" min="0"></div>' +
+   413→        '<div class="form-group"><label>Gramos por Frasco Grande</label><input type="number" class="input" id="f-esp-gg" value="' + (isEdit ? esp.gramosGrande : '') + '" placeholder="Ej: 80" min="0"></div></div>' +
+   414→        '<div class="card mt-12" style="background:var(--bg);border-color:var(--gold)"><div class="card-header"><h3>Tienda Online</h3></div><div class="card-body">' +
+   415→        '<div class="form-group"><label>Visible en Tienda</label><select class="input" id="f-esp-tienda"><option value="0"' + (isEdit && !esp.enTienda ? ' selected' : '') + '>No</option><option value="1"' + (isEdit && esp.enTienda ? ' selected' : (!isEdit ? ' selected' : '')) + '>Si</option></select></div>' +
+   416→        '<p class="text-xs text-muted mb-8">Precio especial para la tienda online (opcional). Si lo dejas vacio se usara el precio de venta.</p>' +
+   417→        '<div class="g2"><div class="form-group"><label>Precio Tienda Pequeño ($)</label><input type="number" class="input" id="f-esp-tc" value="' + (isEdit ? (esp.precioTiendaChico||'') : '') + '" placeholder="Igual al de venta" min="0"></div>' +
+   418→        '<div class="form-group"><label>Precio Tienda Grande ($)</label><input type="number" class="input" id="f-esp-tg" value="' + (isEdit ? (esp.precioTiendaGrande||'') : '') + '" placeholder="Igual al de venta" min="0"></div></div>' +
+   419→        '<div class="form-group"><label>Imagen</label><div class="img-upload-area" id="img-area-esp"><input type="file" accept="image/*" id="f-esp-img" style="display:none" onchange="Pages.handleImageUpload(this,\'img-area-esp\')">' +
+   420→        (isEdit && esp.imagen ? '<img src="' + esp.imagen + '" class="img-preview" id="img-preview-esp"><button class="btn btn-sm btn-red" style="margin-top:6px" onclick="Pages.removeImage(\'img-area-esp\',\'f-esp-img\')">Quitar imagen</button>' : '') +
+   421→        '<div class="img-upload-placeholder" onclick="document.getElementById(\'f-esp-img\').click()"><span>+ Click para subir imagen</span></div></div></div>' +
+   422→        '</div></div>' +
+   423→        '<div class="form-group"><label>Etiquetas de uso</label><div id="tag-area-esp">' + Pages.buildTagSelectorHtml(isEdit ? (esp.categoria||'Comidas') : 'Comidas', esp.tags || []) + '</div></div>' +
+   424→        '<div class="form-group"><label>Descripcion (opcional)</label><textarea class="input" id="f-esp-desc" rows="2" placeholder="Breve descripcion del producto para la tienda...">' + (isEdit ? (esp.descripcion||'') : '') + '</textarea></div>' +
+   425→        '<div class="form-group"><label>Uso / Preparaciones (opcional)</label><input type="text" class="input" id="f-esp-uso" value="' + (isEdit ? (esp.uso||'') : '') + '" placeholder="Ej: Carnes, Arroces, Sopas"></div>' +
+   426→        (isEdit ? '<p class="text-xs text-muted mt-8">Stock: ' + (esp.stockBolsa||0) + 'g pala, ' + (esp.stockChico||0) + ' fr pequeño, ' + (esp.stockGrande||0) + ' fr grande</p>' : '') +
+   427→      '</div><div class="modal-footer">' +
+   428→        '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
+   429→        '<button class="btn btn-gold" id="btn-save-esp">Guardar</button>' +
+   430→      '</div></div>';
+   431→    modal.innerHTML = inner;
+   432→    document.body.appendChild(modal);
+   433→
+   434→    // Bind save button (no inline onclick with id interpolation)
+   435→    document.getElementById('btn-save-esp').addEventListener('click', function() {
+   436→      var nombre = document.getElementById('f-esp-nombre').value.trim();
+   437→      if (!nombre) { alert('Ingresa un nombre'); return; }
+   438→      var previewEl = document.getElementById('img-preview-esp');
+   439→      var data = {
+   440→        nombre: nombre,
+   441→        categoria: document.getElementById('f-esp-cat').value,
+   442→        precioChico: Number(document.getElementById('f-esp-pc').value) || 0,
+   443→        precioGrande: Number(document.getElementById('f-esp-pg').value) || 0,
+   444→        gramosChico: Number(document.getElementById('f-esp-gc').value) || 0,
+   445→        gramosGrande: Number(document.getElementById('f-esp-gg').value) || 0,
+   446→        enTienda: document.getElementById('f-esp-tienda').value === '1' || (Number(document.getElementById('f-esp-pc').value) || Number(document.getElementById('f-esp-pg').value)) > 0,
+   447→        precioTiendaChico: Number(document.getElementById('f-esp-tc').value) || 0,
+   448→        precioTiendaGrande: Number(document.getElementById('f-esp-tg').value) || 0,
+   449→        imagen: previewEl ? previewEl.src : '',
+   450→        descripcion: (document.getElementById('f-esp-desc') || {}).value ? document.getElementById('f-esp-desc').value.trim() : '',
+   451→        uso: (document.getElementById('f-esp-uso') || {}).value ? document.getElementById('f-esp-uso').value.trim() : '',
+   452→        tags: Pages.getSelectedTags()
+   453→      };
+   454→      if (isEdit) {
+   455→        data.id = editId;  // CRITICAL: set the existing ID
+   456→      }
+   457→      try {
+   458→        ArcanoDB.saveEspecia(data);
+   459→        modal.remove();
+   460→        App.renderPage('productos');
+   461→      } catch (err) { alert('Error: ' + err.message); }
+   462→    });
+   463→
+   464→    if (!isEdit) document.getElementById('f-esp-nombre').focus();
+   465→  },
+   466→
+   467→  delEspecia(id) {
+   468→    var esp = ArcanoDB.getEspecia(id);
+   469→    if (!esp) return;
+   470→    if (!confirm('Eliminar "' + esp.nombre + '"?')) return;
+   471→    ArcanoDB.deleteEspecia(id);
+   472→    App.renderPage('productos');
+   473→  },
+   474→
+   475→  /* ==================== BLEND FORM ==================== */
+   476→  formBlend(editId) {
+   477→    var bl = (editId != null) ? ArcanoDB.getBlend(editId) : null;
+   478→    var isEdit = (bl != null);
+   479→    var especias = ArcanoDB.getEspecias();
+   480→    var ings = isEdit ? (bl.ingredientes || []) : [{ especiaId: '', gramosChico: '', gramosGrande: '' }];
+   481→
+   482→    var modal = document.createElement('div');
+   483→    modal.className = 'modal-overlay';
+   484→    modal.setAttribute('data-edit-id', isEdit ? String(editId) : '');
+   485→
+   486→    var espOptions = '<option value="">Seleccionar</option>';
+   487→    for (var i = 0; i < especias.length; i++) {
+   488→      espOptions += '<option value="' + especias[i].id + '">' + especias[i].nombre + '</option>';
+   489→    }
+   490→
+   491→    var inner = '<div class="modal modal-lg">' +
+   492→      '<div class="modal-header"><h3>' + (isEdit ? 'Editar: ' + bl.nombre : 'Nuevo Blend') + '</h3>' +
+   493→      '<button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">X</button></div>' +
+   494→      '<div class="modal-body">' +
+   495→        '<div class="form-group"><label>Nombre</label><input type="text" class="input" id="f-bl-nombre" value="' + (isEdit ? bl.nombre : '') + '" placeholder="Ej: Curry Casero" ' + (isEdit ? 'readonly style="opacity:0.6"' : '') + '></div>' +
+   496→        '<div class="g2">' +
+   497→          '<div class="form-group"><label>Categoria</label><select class="input" id="f-bl-cat" onchange="Pages.refreshTagSelector(\'bl\')">' +
+   498→          '<option value="Comidas"' + (isEdit && bl.categoria==='Comidas' ? ' selected' : '') + '>Comidas</option>' +
+   499→          '<option value="Infusiones"' + (isEdit && bl.categoria==='Infusiones' ? ' selected' : '') + '>Infusiones</option>' +
+   500→          '<option value="Cocteleria"' + (isEdit && bl.categoria==='Cocteleria' ? ' selected' : '') + '>Cocteleria</option>' +
+   501→        '</select></div>' +
+   502→          '<div class="form-group"><label>Region (opcional)</label><input type="text" class="input" id="f-bl-region" value="' + (isEdit ? (bl.region||'') : '') + '" placeholder="Ej: India"></div>' +
+   503→        '</div>' +
+   504→        '<div class="form-group"><label>Uso (opcional)</label><input type="text" class="input" id="f-bl-uso" value="' + (isEdit ? (bl.uso||'') : '') + '" placeholder="Ej: Carnes, Currys"></div>' +
+   505→        '<div class="card" style="border-color:var(--gold)"><div class="card-header"><h3>Precios de Venta</h3></div><div class="card-body">' +
+   506→        '<div class="g2"><div class="form-group"><label>Precio Pequeño ($)</label><input type="number" class="input" id="f-bl-pc" value="' + (isEdit ? bl.precioChico : '') + '" placeholder="Ej: 8000" min="0"></div>' +
+   507→        '<div class="form-group"><label>Precio Grande ($)</label><input type="number" class="input" id="f-bl-pg" value="' + (isEdit ? bl.precioGrande : '') + '" placeholder="Ej: 18000" min="0"></div></div>' +
+   508→        '<p class="text-xs text-muted">Estos son los precios que se mostraran en la tienda.</p></div></div>' +
+   509→        '<div class="form-group"><label>Ingredientes</label><div id="blend-ings"></div>' +
+   510→        '<button class="btn btn-sm btn-outline mt-8" id="btn-add-ing">+ Ingrediente</button></div>' +
+   511→        '<div class="card mt-12" style="background:var(--bg);border-color:var(--gold)"><div class="card-header"><h3>Tienda Online</h3></div><div class="card-body">' +
+   512→        '<div class="form-group"><label>Visible en Tienda</label><select class="input" id="f-bl-tienda"><option value="0"' + (isEdit && !bl.enTienda ? ' selected' : '') + '>No</option><option value="1"' + (isEdit && bl.enTienda ? ' selected' : (!isEdit ? ' selected' : '')) + '>Si</option></select></div>' +
+   513→        '<p class="text-xs text-muted mb-8">Precio especial para la tienda online (opcional). Si lo dejas vacio se usara el precio de venta.</p>' +
+   514→        '<div class="g2"><div class="form-group"><label>Precio Tienda Pequeño ($)</label><input type="number" class="input" id="f-bl-tc" value="' + (isEdit ? (bl.precioTiendaChico||'') : '') + '" placeholder="Igual al de venta" min="0"></div>' +
+   515→        '<div class="form-group"><label>Precio Tienda Grande ($)</label><input type="number" class="input" id="f-bl-tg" value="' + (isEdit ? (bl.precioTiendaGrande||'') : '') + '" placeholder="Igual al de venta" min="0"></div></div>' +
+   516→        '<div class="form-group"><label>Imagen</label><div class="img-upload-area" id="img-area-bl"><input type="file" accept="image/*" id="f-bl-img" style="display:none" onchange="Pages.handleImageUpload(this,\'img-area-bl\')">' +
+   517→        (isEdit && bl.imagen ? '<img src="' + bl.imagen + '" class="img-preview" id="img-preview-bl"><button class="btn btn-sm btn-red" style="margin-top:6px" onclick="Pages.removeImage(\'img-area-bl\',\'f-bl-img\')">Quitar imagen</button>' : '') +
+   518→        '<div class="img-upload-placeholder" onclick="document.getElementById(\'f-bl-img\').click()"><span>+ Click para subir imagen</span></div></div></div>' +
+   519→        '</div></div>' +
+   520→        '<div class="form-group"><label>Etiquetas de uso</label><div id="tag-area-bl">' + Pages.buildTagSelectorHtml(isEdit ? (bl.categoria||'Comidas') : 'Comidas', bl.tags || []) + '</div></div>' +
+   521→        '<div class="form-group"><label>Descripcion (opcional)</label><textarea class="input" id="f-bl-desc" rows="2" placeholder="Breve descripcion del blend para la tienda...">' + (isEdit ? (bl.descripcion||'') : '') + '</textarea></div>' +
+   522→        (isEdit ? '<p class="text-xs text-muted mt-8">Stock: ' + (bl.stockChico||0) + ' fr pequeño, ' + (bl.stockGrande||0) + ' fr grande</p>' : '') +
+   523→      '</div><div class="modal-footer">' +
+   524→        '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
+   525→        '<button class="btn btn-gold" id="btn-save-bl">Guardar</button>' +
+   526→      '</div></div>';
+   527→    modal.innerHTML = inner;
+   528→    document.body.appendChild(modal);
+   529→
+   530→    // Build ingredient rows
+   531→    var ingContainer = document.getElementById('blend-ings');
+   532→    var espOptsHTML = espOptions; // capture
+   533→
+   534→    function addIngRow(ing) {
+   535→      var div = document.createElement('div');
+   536→      div.className = 'g4 mb-8';
+   537→      div.style.alignItems = 'end';
+   538→      var gc = ing ? (ing.gramosChico || '') : '';
+   539→      var gg = ing ? (ing.gramosGrande || '') : '';
+   540→      var selVal = ing ? ing.especiaId : '';
+   541→      div.innerHTML =
+   542→        '<div class="form-group" style="margin:0"><label>Especia</label><select class="input ing-esp">' + espOptsHTML + '</select></div>' +
+   543→        '<div class="form-group" style="margin:0"><label>Grs/Pequeño</label><input type="number" class="input ing-gc" value="' + gc + '" placeholder="0" min="0"></div>' +
+   544→        '<div class="form-group" style="margin:0"><label>Grs/Grande</label><input type="number" class="input ing-gg" value="' + gg + '" placeholder="0" min="0"></div>' +
+   545→        '<div><button class="btn btn-sm btn-red btn-rm-ing">X</button></div>';
+   546→      if (selVal) div.querySelector('.ing-esp').value = selVal;
+   547→      div.querySelector('.btn-rm-ing').addEventListener('click', function() { div.remove(); });
+   548→      ingContainer.appendChild(div);
+   549→    }
+   550→
+   551→    for (var i = 0; i < ings.length; i++) addIngRow(ings[i]);
+   552→    document.getElementById('btn-add-ing').addEventListener('click', function() { addIngRow(null); });
+   553→
+   554→    // Save
+   555→    document.getElementById('btn-save-bl').addEventListener('click', function() {
+   556→      var nombre = document.getElementById('f-bl-nombre').value.trim();
+   557→      if (!nombre) { alert('Ingresa un nombre'); return; }
+   558→      var rows = ingContainer.querySelectorAll('.g4');
+   559→      var ingredientes = [];
+   560→      for (var r = 0; r < rows.length; r++) {
+   561→        var espId = Number(rows[r].querySelector('.ing-esp').value);
+   562→        var gc = Number(rows[r].querySelector('.ing-gc').value) || 0;
+   563→        var gg = Number(rows[r].querySelector('.ing-gg').value) || 0;
+   564→        if (!espId) continue;
+   565→        var espObj = null;
+   566→        for (var s = 0; s < especias.length; s++) { if (especias[s].id === espId) { espObj = especias[s]; break; } }
+   567→        ingredientes.push({ especiaId: espId, especiaNombre: espObj ? espObj.nombre : '', gramosChico: gc, gramosGrande: gg });
+   568→      }
+   569→      var data = {
+   570→        nombre: nombre,
+   571→        categoria: document.getElementById('f-bl-cat').value,
+   572→        region: (document.getElementById('f-bl-region') || {}).value ? document.getElementById('f-bl-region').value.trim() : '',
+   573→        uso: (document.getElementById('f-bl-uso') || {}).value ? document.getElementById('f-bl-uso').value.trim() : '',
+   574→        precioChico: Number(document.getElementById('f-bl-pc').value) || 0,
+   575→        precioGrande: Number(document.getElementById('f-bl-pg').value) || 0,
+   576→        ingredientes: ingredientes,
+   577→        enTienda: document.getElementById('f-bl-tienda').value === '1' || (Number(document.getElementById('f-bl-pc').value) || Number(document.getElementById('f-bl-pg').value)) > 0,
+   578→        precioTiendaChico: Number(document.getElementById('f-bl-tc').value) || 0,
+   579→        precioTiendaGrande: Number(document.getElementById('f-bl-tg').value) || 0,
+   580→        imagen: (document.getElementById('img-preview-bl') || {}).src || '',
+   581→        descripcion: (document.getElementById('f-bl-desc') || {}).value ? document.getElementById('f-bl-desc').value.trim() : '',
+   582→        tags: Pages.getSelectedTags()
+   583→      };
+   584→      if (isEdit) {
+   585→        data.id = editId;  // CRITICAL: set the existing ID
+   586→      }
+   587→      try {
+   588→        ArcanoDB.saveBlend(data);
+   589→        modal.remove();
+   590→        App.renderPage('productos');
+   591→      } catch (err) { alert('Error: ' + err.message); }
+   592→    });
+   593→
+   594→    if (!isEdit) document.getElementById('f-bl-nombre').focus();
+   595→  },
+   596→
+   597→  delBlend(id) {
+   598→    var bl = ArcanoDB.getBlend(id);
+   599→    if (!bl) return;
+   600→    if (!confirm('Eliminar "' + bl.nombre + '"?')) return;
+   601→    ArcanoDB.deleteBlend(id);
+   602→    App.renderPage('productos');
+   603→  },
+   604→
+   605→  /* ================================================================
+   606→     INSUMOS
+   607→     ================================================================ */
+   608→  renderInsumos(container) {
+   609→    var db = ArcanoDB.getDB();
+   610→    var envases = db.stockEnvases || { chico: 0, grande: 0 };
+   611→    var bolsas = db.stockBolsas || { chico: 0, grande: 0 };
+   612→    var especias = ArcanoDB.getEspecias();
+   613→    var etiqList = ArcanoDB.getProductosConStickers();
+   614→    var entradas = ArcanoDB.getEntradas();
+   615→
+   616→    var h = '<div class="page-actions"><button class="btn btn-gold" onclick="Pages.formEntrada()">+ Registrar Entrada</button></div>';
+   617→    h += '<div class="stats-grid mt-12" style="grid-template-columns: repeat(4, 1fr)">' +
+   618→      '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.chico||0) + '</div><div class="stat-label">Frascos Pequeños</div></div>' +
+   619→      '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.grande||0) + '</div><div class="stat-label">Frascos Grandes</div></div>' +
+   620→      '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value" style="color:var(--green)">' + (bolsas.chico||0) + '</div><div class="stat-label">Bolsas Chicas</div></div>' +
+   621→      '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value" style="color:var(--green)">' + (bolsas.grande||0) + '</div><div class="stat-label">Bolsas Grandes</div></div></div>';
+   622→
+   623→    h += '<div class="g2 mt-16" style="gap:16px">';
+   624→    // Especias en pala
+   625→    h += '<div class="card"><div class="card-header"><h3>Pala (materia prima)</h3></div><div class="card-body">';
+   626→    if (especias.length === 0) { h += '<p class="text-muted text-center text-sm">Sin especias</p>'; }
+   627→    else {
+   628→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Especia</th><th>Cat.</th><th>Gramos</th></tr></thead><tbody>';
+   629→      for (var i = 0; i < especias.length; i++) {
+   630→        var e = especias[i];
+   631→        var cls = (e.stockBolsa||0) <= 50 ? 'text-red fw7' : (e.stockBolsa||0) <= 200 ? 'text-yellow fw7' : 'text-green';
+   632→        h += '<tr><td class="fw7">' + e.nombre + '</td><td class="text-sm">' + (e.categoria||'') + '</td><td class="' + cls + '">' + (e.stockBolsa||0) + ' grs</td></tr>';
+   633→      }
+   634→      h += '</tbody></table></div>';
+   635→    }
+   636→    h += '</div></div>';
+   637→    // Stickers
+   638→    h += '<div class="card"><div class="card-header"><h3>Stickers</h3></div><div class="card-body">';
+   639→    if (etiqList.length === 0) { h += '<p class="text-muted text-center text-sm">Sin productos</p>'; }
+   640→    else {
+   641→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Producto</th><th>Tipo</th><th>Pequeño</th><th>Grande</th></tr></thead><tbody>';
+   642→      for (var i = 0; i < etiqList.length; i++) {
+   643→        var et = etiqList[i];
+   644→        h += '<tr><td class="fw7">' + et.nombre + '</td><td><span class="badge ' + (et.tipo==='blend'?'badge-blue':'badge-gold') + '">' + (et.tipo==='blend'?'Blend':'Especia') + '</span></td>' +
+   645→          '<td class="' + (et.stockChico<=5?'text-red fw7':'') + '">' + et.stockChico + '</td>' +
+   646→          '<td class="' + (et.stockGrande<=5?'text-red fw7':'') + '">' + et.stockGrande + '</td></tr>';
+   647→      }
+   648→      h += '</tbody></table></div>';
+   649→    }
+   650→    h += '</div></div></div>';
+   651→
+   652→    // Historial
+   653→    h += '<div class="card mt-16"><div class="card-header"><h3>Historial de Entradas</h3></div><div class="card-body">';
+   654→    if (entradas.length === 0) { h += '<p class="text-muted text-center">Sin entradas.</p>'; }
+   655→    else {
+   656→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Items</th><th>Total</th><th></th></tr></thead><tbody>';
+   657→      for (var i = 0; i < Math.min(entradas.length, 30); i++) {
+   658→        var en = entradas[i];
+   659→        var desc = (en.items||[]).map(function(it) {
+   660→          if (it.tipo==='especia_grs') return (it.especiaNombre||'?') + ' ' + it.cantidad + 'grs';
+   661→          if (it.tipo==='envase') return 'Frascos ' + (it.talla||'chico') + ' x' + it.cantidad;
+   662→          if (it.tipo==='bolsa') return 'Bolsas ' + (it.talla||'chico') + ' x' + it.cantidad;
+   663→          if (it.tipo==='sticker') return 'Stk ' + (it.stickerNombre||'?') + ' ' + (it.talla||'chico') + ' x' + it.cantidad;
+   664→          return '?';
+   665→        }).join(' | ');
+   666→        h += '<tr><td>' + (en.fecha||'') + '</td><td class="text-sm">' + desc + '</td><td class="fw7 text-gold">$' + (en.total||0).toLocaleString() + '</td>' +
+   667→          '<td><button class="btn btn-sm btn-red" onclick="Pages.delEntrada(' + en.id + ')">X</button></td></tr>';
+   668→      }
+   669→      h += '</tbody></table></div>';
+   670→    }
+   671→    h += '</div></div>';
+   672→    container.innerHTML = h;
+   673→  },
+   674→
+   675→  /* ---------- Entrada Form ---------- */
+   676→  formEntrada() {
+   677→    var especias = ArcanoDB.getEspecias();
+   678→    var modal = document.createElement('div');
+   679→    modal.className = 'modal-overlay';
+   680→    modal.innerHTML = '<div class="modal modal-lg">' +
+   681→      '<div class="modal-header"><h3>Registrar Entrada</h3><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">X</button></div>' +
+   682→      '<div class="modal-body">' +
+   683→        '<div class="form-group"><label>Fecha</label><input type="date" class="input" id="f-ent-fecha" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+   684→        '<div class="form-group"><label>Proveedor (opcional)</label><input type="text" class="input" id="f-ent-prov" placeholder="Nombre"></div>' +
+   685→        '<div class="form-group"><label>Items</label><div id="ent-items"></div>' +
+   686→        '<button class="btn btn-sm btn-outline mt-8" id="btn-add-ent">+ Item</button></div>' +
+   687→        '<div class="venta-total-box mt-12">Total: $<span id="ent-total">0</span></div>' +
+   688→      '</div><div class="modal-footer">' +
+   689→        '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
+   690→        '<button class="btn btn-gold" id="btn-save-ent">Registrar</button>' +
+   691→      '</div></div>';
+   692→    document.body.appendChild(modal);
+   693→
+   694→    var itemsDiv = document.getElementById('ent-items');
+   695→
+   696→    function buildEspOpts() {
+   697→      var o = '';
+   698→      var esps = ArcanoDB.getEspecias();
+   699→      for (var i = 0; i < esps.length; i++) o += '<option value="' + esps[i].id + '">' + esps[i].nombre + '</option>';
+   700→      o += '<option value="__new__">+ Nueva especia...</option>';
+   701→      return o;
+   702→    }
+   703→
+   704→    function buildProductoOpts() {
+   705→      var o = '';
+   706→      var esps = ArcanoDB.getEspecias();
+   707→      var bls = ArcanoDB.getBlends();
+   708→      if (esps.length > 0) {
+   709→        o += '<optgroup label="Especias">';
+   710→        for (var i = 0; i < esps.length; i++) o += '<option value="especia|' + esps[i].id + '">' + esps[i].nombre + '</option>';
+   711→        o += '</optgroup>';
+   712→      }
+   713→      if (bls.length > 0) {
+   714→        o += '<optgroup label="Blends">';
+   715→        for (var i = 0; i < bls.length; i++) o += '<option value="blend|' + bls[i].id + '">' + bls[i].nombre + '</option>';
+   716→        o += '</optgroup>';
+   717→      }
+   718→      o += '<option value="__new__">+ Nuevo producto...</option>';
+   719→      return o;
+   720→    }
+   721→
+   722→    function addEntRow() {
+   723→      var div = document.createElement('div');
+   724→      div.className = 'card mb-8';
+   725→      div.style.background = 'var(--bg)';
+   726→      div.innerHTML = '<div class="card-body" style="padding:12px">' +
+   727→        '<div class="g4 mb-8">' +
+   728→          '<div class="form-group" style="margin:0"><label>Tipo</label><select class="input ent-tipo"><option value="especia_grs">Especia (grs)</option><option value="envase">Frascos</option><option value="bolsa">Bolsas</option><option value="sticker">Stickers</option></select></div>' +
+   729→          '<div class="form-group" style="margin:0" id="ent-detail-placeholder"></div>' +
+   730→          '<div class="form-group" style="margin:0"><label>Cantidad</label><input type="number" class="input ent-cant" placeholder="0" min="0"></div>' +
+   731→          '<div class="form-group" style="margin:0"><label>Costo Unit.</label><input type="number" class="input ent-cost" placeholder="0" min="0"></div>' +
+   732→        '</div>' +
+   733→        '<div style="text-align:right"><button class="btn btn-sm btn-red btn-rm-ent">Quitar</button></div>' +
+   734→        '</div>';
+   735→      itemsDiv.appendChild(div);
+   736→
+   737→      var tipoSel = div.querySelector('.ent-tipo');
+   738→      var detailDiv = div.querySelector('#ent-detail-placeholder');
+   739→      detailDiv.removeAttribute('id');
+   740→
+   741→      function renderDetail() {
+   742→        var t = tipoSel.value;
+   743→        if (t === 'especia_grs') {
+   744→          detailDiv.innerHTML = '<label>Especia</label><select class="input ent-especia"><option value="">Seleccionar</option>' + buildEspOpts() + '</select><input type="text" class="input ent-especia-new" placeholder="Nombre nueva especia..." style="display:none;margin-top:6px">';
+   745→          var espSel2 = detailDiv.querySelector('.ent-especia');
+   746→          var newInput = detailDiv.querySelector('.ent-especia-new');
+   747→          espSel2.addEventListener('change', function() {
+   748→            if (this.value === '__new__') {
+   749→              this.style.display = 'none';
+   750→              newInput.style.display = 'block';
+   751→              newInput.focus();
+   752→            }
+   753→          });
+   754→          newInput.addEventListener('blur', function() {
+   755→            if (!this.value.trim()) {
+   756→              this.style.display = 'none';
+   757→              espSel2.style.display = 'block';
+   758→              espSel2.value = '';
+   759→            }
+   760→          });
+   761→          newInput.addEventListener('keydown', function(ev) {
+   762→            if (ev.key === 'Escape') { this.value = ''; this.blur(); }
+   763→          });
+   764→        } else if (t === 'envase') {
+   765→          detailDiv.innerHTML = '<label>Talla</label><select class="input ent-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>';
+   766→        } else if (t === 'bolsa') {
+   767→          detailDiv.innerHTML = '<label>Talla</label><select class="input ent-talla"><option value="chico">Chica</option><option value="grande">Grande</option></select>';
+   768→        } else {
+   769→          detailDiv.innerHTML = '<label>Producto</label><select class="input ent-stk-nombre"><option value="">Seleccionar</option>' + buildProductoOpts() + '</select><input type="text" class="input ent-stk-new-nombre" placeholder="Nombre nuevo producto..." style="display:none;margin-top:6px"><select class="input ent-stk-new-tipo" style="display:none;margin-top:6px"><option value="especia">Especia</option><option value="blend">Blend</option></select><label class="mt-8" style="display:block">Talla</label><select class="input ent-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>';
+   770→          var stkSel = detailDiv.querySelector('.ent-stk-nombre');
+   771→          var stkNewNombre = detailDiv.querySelector('.ent-stk-new-nombre');
+   772→          var stkNewTipo = detailDiv.querySelector('.ent-stk-new-tipo');
+   773→          var stkTalla = detailDiv.querySelectorAll('.ent-talla')[0];
+   774→          stkSel.addEventListener('change', function() {
+   775→            if (this.value === '__new__') {
+   776→              this.style.display = 'none';
+   777→              stkNewTipo.style.display = 'block';
+   778→              stkNewNombre.style.display = 'block';
+   779→              stkNewNombre.focus();
+   780→            }
+   781→          });
+   782→          stkNewNombre.addEventListener('blur', function() {
+   783→            if (!this.value.trim()) {
+   784→              this.style.display = 'none';
+   785→              stkNewTipo.style.display = 'none';
+   786→              stkSel.style.display = 'block';
+   787→              stkSel.value = '';
+   788→            }
+   789→          });
+   790→          stkNewNombre.addEventListener('keydown', function(ev) {
+   791→            if (ev.key === 'Escape') { this.value = ''; this.blur(); }
+   792→          });
+   793→        }
+   794→      }
+   795→      tipoSel.addEventListener('change', renderDetail);
+   796→      renderDetail();
+   797→      div.querySelector('.btn-rm-ent').addEventListener('click', function() { div.remove(); updateTotal(); });
+   798→      div.querySelector('.ent-cant').addEventListener('input', updateTotal);
+   799→      div.querySelector('.ent-cost').addEventListener('input', updateTotal);
+   800→    }
+   801→
+   802→    function updateTotal() {
+   803→      var rows = itemsDiv.children;
+   804→      var total = 0;
+   805→      for (var i = 0; i < rows.length; i++) {
+   806→        var c = Number(rows[i].querySelector('.ent-cant').value) || 0;
+   807→        var co = Number(rows[i].querySelector('.ent-cost').value) || 0;
+   808→        total += c * co;
+   809→      }
+   810→      document.getElementById('ent-total').textContent = total.toLocaleString();
+   811→    }
+   812→
+   813→    addEntRow();
+   814→    document.getElementById('btn-add-ent').addEventListener('click', addEntRow);
+   815→
+   816→    document.getElementById('btn-save-ent').addEventListener('click', function() {
+   817→      var rows = itemsDiv.children;
+   818→      var items = [];
+   819→      var total = 0;
+   820→      var esps = ArcanoDB.getEspecias();
+   821→      var bls = ArcanoDB.getBlends();
+   822→
+   823→      for (var i = 0; i < rows.length; i++) {
+   824→        var tipo = rows[i].querySelector('.ent-tipo').value;
+   825→        var cant = Number(rows[i].querySelector('.ent-cant').value) || 0;
+   826→        var cost = Number(rows[i].querySelector('.ent-cost').value) || 0;
+   827→        if (cant <= 0) continue;
+   828→        var item = { tipo: tipo, cantidad: cant, costoUnitario: cost };
+   829→        total += cant * cost;
+   830→        if (tipo === 'especia_grs') {
+   831→          var newEspInput = rows[i].querySelector('.ent-especia-new');
+   832→          var espSel = rows[i].querySelector('.ent-especia');
+   833→          if (newEspInput && newEspInput.style.display !== 'none' && newEspInput.value.trim()) {
+   834→            var newName = newEspInput.value.trim();
+   835→            var existingEsp = null;
+   836→            for (var s = 0; s < esps.length; s++) { if (esps[s].nombre.toLowerCase() === newName.toLowerCase()) { existingEsp = esps[s]; break; } }
+   837→            if (existingEsp) {
+   838→              item.especiaId = existingEsp.id;
+   839→              item.especiaNombre = existingEsp.nombre;
+   840→            } else {
+   841→              var newEsp = ArcanoDB.saveEspecia({ nombre: newName });
+   842→              item.especiaId = newEsp.id;
+   843→              item.especiaNombre = newEsp.nombre;
+   844→              esps = ArcanoDB.getEspecias();
+   845→            }
+   846→          } else if (espSel && espSel.value && espSel.value !== '__new__') {
+   847→            item.especiaId = Number(espSel.value);
+   848→            var espObj = null;
+   849→            for (var s = 0; s < esps.length; s++) { if (esps[s].id === item.especiaId) { espObj = esps[s]; break; } }
+   850→            item.especiaNombre = espObj ? espObj.nombre : '?';
+   851→          } else {
+   852→            alert('Falta especia en item ' + (i+1)); return;
+   853→          }
+   854→          if (!item.especiaId) { alert('Falta especia en item ' + (i+1)); return; }
+   855→        } else if (tipo === 'envase') {
+   856→          item.talla = rows[i].querySelector('.ent-talla').value;
+   857→        } else if (tipo === 'bolsa') {
+   858→          item.talla = rows[i].querySelector('.ent-talla').value;
+   859→        } else if (tipo === 'sticker') {
+   860→          var stkSel = rows[i].querySelector('.ent-stk-nombre');
+   861→          var stkNewNombre = rows[i].querySelector('.ent-stk-new-nombre');
+   862→          var stkNewTipo = rows[i].querySelector('.ent-stk-new-tipo');
+   863→          if (stkSel && stkSel.style.display !== 'none') {
+   864→            var stkVal = stkSel.value || '';
+   865→            if (!stkVal || stkVal === '__new__') { alert('Falta producto de sticker en item ' + (i+1)); return; }
+   866→            var stkParts = stkVal.split('|');
+   867→            item.stickerTipo = stkParts[0];
+   868→            var stkId = Number(stkParts[1]);
+   869→            var stkObj = stkParts[0] === 'blend' ? ArcanoDB.getBlend(stkId) : ArcanoDB.getEspecia(stkId);
+   870→            item.stickerNombre = stkObj ? stkObj.nombre : '?';
+   871→          } else if (stkNewNombre && stkNewNombre.style.display !== 'none' && stkNewNombre.value.trim()) {
+   872→            var newProdName = stkNewNombre.value.trim();
+   873→            var newProdTipo = stkNewTipo ? stkNewTipo.value : 'especia';
+   874→            item.stickerTipo = newProdTipo;
+   875→            if (newProdTipo === 'blend') {
+   876→              var newBl = ArcanoDB.saveBlend({ nombre: newProdName });
+   877→              item.stickerNombre = newBl.nombre;
+   878→            } else {
+   879→              var newEsp2 = ArcanoDB.saveEspecia({ nombre: newProdName });
+   880→              item.stickerNombre = newEsp2.nombre;
+   881→            }
+   882→          } else {
+   883→            alert('Falta producto de sticker en item ' + (i+1)); return;
+   884→          }
+   885→          if (!item.stickerNombre) { alert('Falta producto de sticker en item ' + (i+1)); return; }
+   886→          item.talla = rows[i].querySelector('.ent-talla').value;
+   887→        }
+   888→        items.push(item);
+   889→      }
+   890→      if (items.length === 0) { alert('Agrega al menos un item'); return; }
+   891→      try {
+   892→        ArcanoDB.saveEntrada({ fecha: document.getElementById('f-ent-fecha').value, proveedor: document.getElementById('f-ent-prov').value.trim(), items: items, total: total });
+   893→        modal.remove();
+   894→        App.renderPage('insumos');
+   895→      } catch (err) { alert('Error: ' + err.message); }
+   896→    });
+   897→  },
+   898→
+   899→  delEntrada(id) {
+   900→    if (!confirm('Eliminar esta entrada?')) return;
+   901→    ArcanoDB.deleteEntrada(id);
+   902→    App.renderPage('insumos');
+   903→  },
+   904→
+   905→  /* ================================================================
+   906→     PRODUCCION
+   907→     ================================================================ */
+   908→  renderProduccion(container) {
+   909→    var prods = ArcanoDB.getProducciones();
+   910→    var h = '<div class="page-actions"><button class="btn btn-gold" onclick="Pages.formProduccion()">+ Nueva Produccion</button></div>';
+   911→    h += '<div class="card mt-16"><div class="card-header"><h3>Historial</h3></div><div class="card-body">';
+   912→    if (prods.length === 0) {
+   913→      h += '<p class="text-muted text-center">Sin producciones.</p>';
+   914→    } else {
+   915→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Talla</th><th>Cant.</th><th>Detalle</th></tr></thead><tbody>';
+   916→      for (var i = 0; i < Math.min(prods.length, 30); i++) {
+   917→        var p = prods[i];
+   918→        var det = p.tipo === 'blend' ?
+   919→          (p.ingredientes||[]).map(function(x){return x.especiaNombre+' '+x.gramosTotal+'g'}).join(', ') :
+   920→          (p.gramosTotal||0) + 'g consumidos';
+   921→        h += '<tr><td>' + (p.fecha||'') + '</td>' +
+   922→          '<td><span class="badge ' + (p.tipo==='blend'?'badge-blue':'badge-gold') + '">' + (p.tipo==='blend'?'Blend':'Especia') + '</span></td>' +
+   923→          '<td class="fw7">' + (p.productoNombre||'') + '</td>' +
+   924→          '<td><span class="badge ' + ((p.talla||'chico')==='grande'?'badge-gold':'badge-blue') + '">' + (p.talla||'chico') + '</span></td>' +
+   925→          '<td class="fw7 text-green">' + (p.cantidad||0) + ' fr</td>' +
+   926→          '<td class="text-sm">' + det + ' | Env:' + (p.envasesConsumidos||0) + ' Stk:' + (p.stickersConsumidos||0) + '</td></tr>';
+   927→      }
+   928→      h += '</tbody></table></div>';
+   929→    }
+   930→    h += '</div></div>';
+   931→    container.innerHTML = h;
+   932→  },
+   933→
+   934→  /** Produccion rapida desde Productos */
+   935→  formProduccionRapida(tipo, productoId) {
+   936→    Pages.formProduccion(tipo, productoId);
+   937→  },
+   938→
+   939→  /** Formulario de produccion — tipo y productoId son opcionales (pre-llenan) */
+   940→  formProduccion(presetTipo, presetProdId) {
+   941→    var modal = document.createElement('div');
+   942→    modal.className = 'modal-overlay';
+   943→    modal.innerHTML = '<div class="modal modal-lg">' +
+   944→      '<div class="modal-header"><h3>Nueva Produccion</h3><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">X</button></div>' +
+   945→      '<div class="modal-body">' +
+   946→        '<div class="form-group"><label>Tipo</label><select class="input" id="f-prod-tipo"><option value="especia">Especia</option><option value="blend">Blend</option></select></div>' +
+   947→        '<div class="form-group"><label>Producto</label><select class="input" id="f-prod-prod"><option value="">Seleccionar</option></select></div>' +
+   948→        '<div class="g2"><div class="form-group"><label>Talla</label><select class="input" id="f-prod-talla"><option value="chico">Pequeño</option><option value="grande">Grande</option></select></div>' +
+   949→        '<div class="form-group"><label>Cantidad de frascos</label><input type="number" class="input" id="f-prod-cant" value="1" min="1"></div></div>' +
+   950→        '<div id="f-prod-preview" class="mt-12"></div>' +
+   951→      '</div><div class="modal-footer">' +
+   952→        '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
+   953→        '<button class="btn btn-gold" id="btn-prod">Producir</button>' +
+   954→      '</div></div>';
+   955→    document.body.appendChild(modal);
+   956→
+   957→    var tipoSel = document.getElementById('f-prod-tipo');
+   958→    var prodSel = document.getElementById('f-prod-prod');
+   959→    var tallaSel = document.getElementById('f-prod-talla');
+   960→    var cantInput = document.getElementById('f-prod-cant');
+   961→    var previewDiv = document.getElementById('f-prod-preview');
+   962→    var prodBtn = document.getElementById('btn-prod');
+   963→    prodBtn.disabled = true;
+   964→
+   965→    function loadProductos() {
+   966→      var tipo = tipoSel.value;
+   967→      var list = tipo === 'blend' ? ArcanoDB.getBlends() : ArcanoDB.getEspecias();
+   968→      prodSel.innerHTML = '<option value="">Seleccionar</option>';
+   969→      for (var i = 0; i < list.length; i++) {
+   970→        prodSel.innerHTML += '<option value="' + list[i].id + '">' + list[i].nombre + '</option>';
+   971→      }
+   972→      previewDiv.innerHTML = '';
+   973→      prodBtn.disabled = true;
+   974→    }
+   975→
+   976→    function updatePreview() {
+   977→      var tipo = tipoSel.value;
+   978→      var prodId = Number(prodSel.value);
+   979→      var talla = tallaSel.value;
+   980→      var cant = Number(cantInput.value) || 0;
+   981→      if (!prodId || cant <= 0) { previewDiv.innerHTML = ''; prodBtn.disabled = true; return; }
+   982→
+   983→      var producto = tipo === 'blend' ? ArcanoDB.getBlend(prodId) : ArcanoDB.getEspecia(prodId);
+   984→      if (!producto) { previewDiv.innerHTML = '<p class="text-red">Producto no encontrado</p>'; prodBtn.disabled = true; return; }
+   985→
+   986→      var db = ArcanoDB.getDB();
+   987→      var envases = db.stockEnvases || { chico: 0, grande: 0 };
+   988→      var allOk = true;
+   989→      var h = '<div class="card"><div class="card-body">' +
+   990→        '<p class="fw7 mb-8">Producir ' + cant + ' frasco' + (cant>1?'s':'') + ' ' + talla + ' de <span class="text-gold">' + producto.nombre + '</span></p>';
+   991→
+   992→      if (tipo === 'especia') {
+   993→        var gpf = talla === 'grande' ? (Number(producto.gramosGrande)||0) : (Number(producto.gramosChico)||0);
+   994→        var grsTotal = gpf * cant;
+   995→        var bolsaOk = (producto.stockBolsa||0) >= grsTotal;
+   996→        if (!bolsaOk) allOk = false;
+   997→        h += '<div class="list-row"><span>Pala de ' + producto.nombre + '</span><span class="' + (bolsaOk?'text-green':'text-red fw7') + '">' + (producto.stockBolsa||0) + 'g disponible → necesita ' + grsTotal + 'g ' + (bolsaOk?'OK':'FALTA') + '</span></div>';
+   998→      } else {
+   999→        // Blend ingredients
+  1000→        var ings = producto.ingredientes || [];
+  1001→        if (ings.length === 0) {
+  1002→          h += '<p class="text-red">Este blend no tiene ingredientes definidos. Editalo primero.</p>';
+  1003→          allOk = false;
+  1004→        } else {
+  1005→          for (var i = 0; i < ings.length; i++) {
+  1006→            var esp = ArcanoDB.getEspecia(ings[i].especiaId);
+  1007→            var gpf2 = talla === 'grande' ? (Number(ings[i].gramosGrande)||0) : (Number(ings[i].gramosChico)||0);
+  1008→            var needed = gpf2 * cant;
+  1009→            var avail = esp ? (esp.stockBolsa||0) : 0;
+  1010→            var ok = avail >= needed;
+  1011→            if (!ok) allOk = false;
+  1012→            h += '<div class="list-row"><span>' + (esp?esp.nombre:'?') + ' (pala)</span><span class="' + (ok?'text-green':'text-red fw7') + '">' + avail + 'g → necesita ' + needed + 'g ' + (ok?'OK':'FALTA') + '</span></div>';
+  1013→          }
+  1014→        }
+  1015→      }
+  1016→
+  1017→      // Envases
+  1018→      var envAvail = envases[talla] || 0;
+  1019→      var envOk = envAvail >= cant;
+  1020→      if (!envOk) allOk = false;
+  1021→      h += '<div class="list-row"><span>Envases ' + talla + '</span><span class="' + (envOk?'text-green':'text-red fw7') + '">' + envAvail + ' → necesita ' + cant + ' ' + (envOk?'OK':'FALTA') + '</span></div>';
+  1022→
+  1023→      // Stickers
+  1024→      var stkAvail = 0;
+  1025→      var stkKeys = Object.keys(db.stickers || {});
+  1026→      for (var j = 0; j < stkKeys.length; j++) {
+  1027→        if (db.stickers[stkKeys[j]].nombre === producto.nombre) {
+  1028→          stkAvail = Number(db.stickers[stkKeys[j]][talla==='grande'?'stockGrande':'stockChico']) || 0;
+  1029→          break;
+  1030→        }
+  1031→      }
+  1032→      var stkOk = stkAvail >= cant;
+  1033→      if (!stkOk) allOk = false;
+  1034→      h += '<div class="list-row"><span>Stickers ' + talla + '</span><span class="' + (stkOk?'text-green':'text-red fw7') + '">' + stkAvail + ' → necesita ' + cant + ' ' + (stkOk?'OK':'FALTA') + '</span></div>';
+  1035→
+  1036→      // Bolsas (packaging)
+  1037→      var bolsaAvail = (db.stockBolsas && db.stockBolsas[talla]) || 0;
+  1038→      var bolsaOk = bolsaAvail >= cant;
+  1039→      if (!bolsaOk) allOk = false;
+  1040→      h += '<div class="list-row"><span>Bolsas ' + talla + '</span><span class="' + (bolsaOk?'text-green':'text-red fw7') + '">' + bolsaAvail + ' → necesita ' + cant + ' ' + (bolsaOk?'OK':'FALTA') + '</span></div>';
+  1041→
+  1042→      h += '</div></div>';
+  1043→      previewDiv.innerHTML = h;
+  1044→      prodBtn.disabled = !allOk;
+  1045→    }
+  1046→
+  1047→    tipoSel.addEventListener('change', function() { loadProductos(); });
+  1048→    prodSel.addEventListener('change', updatePreview);
+  1049→    tallaSel.addEventListener('change', updatePreview);
+  1050→    cantInput.addEventListener('input', updatePreview);
+  1051→
+  1052→    // PRODUCE BUTTON — the critical missing handler
+  1053→    prodBtn.addEventListener('click', function() {
+  1054→      var tipo = tipoSel.value;
+  1055→      var prodId = Number(prodSel.value);
+  1056→      var talla = tallaSel.value;
+  1057→      var cant = Number(cantInput.value) || 0;
+  1058→      if (!prodId || cant <= 0) { alert('Selecciona producto y cantidad'); return; }
+  1059→      try {
+  1060→        if (tipo === 'blend') {
+  1061→          ArcanoDB.producirBlend(prodId, talla, cant);
+  1062→        } else {
+  1063→          ArcanoDB.producirEspecia(prodId, talla, cant);
+  1064→        }
+  1065→        modal.remove();
+  1066→        App.renderPage(App.currentPage);
+  1067→      } catch (err) { alert('Error: ' + err.message); }
+  1068→    });
+  1069→
+  1070→    // Preset values if called from Productos
+  1071→    if (presetTipo) tipoSel.value = presetTipo;
+  1072→    loadProductos();
+  1073→    if (presetProdId) {
+  1074→      prodSel.value = presetProdId;
+  1075→      updatePreview();
+  1076→    }
+  1077→  },
+  1078→
+  1079→  /* ================================================================
+  1080→     VENTAS
+  1081→     ================================================================ */
+  1082→  renderVentas(container) {
+  1083→    var ventas = ArcanoDB.getVentas();
+  1084→    var h = '<div class="page-actions"><button class="btn btn-gold" onclick="Pages.formVenta()">+ Nueva Venta</button>' +
+  1085→      '<button class="btn btn-outline" onclick="Pages.formVentaQR()" style="margin-left:8px">\u{1F4F7} Vender por QR</button></div>';
+  1086→
+  1087→    h += '<div class="card mt-16"><div class="card-header"><h3>Historial</h3></div><div class="card-body">';
+  1088→    if (ventas.length === 0) {
+  1089→      h += '<p class="text-muted text-center">Sin ventas.</p>';
+  1090→    } else {
+  1091→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Items</th><th>Total</th><th></th></tr></thead><tbody>';
+  1092→      for (var i = 0; i < Math.min(ventas.length, 30); i++) {
+  1093→        var v = ventas[i];
+  1094→        var desc = (v.items||[]).map(function(it){ return (it.productoNombre||'?')+' '+(it.talla||'chico')+' x'+(it.cantidad||0)+' ($'+(it.subtotal||0).toLocaleString()+')'; }).join(' | ');
+  1095→        h += '<tr><td>' + (v.fecha||'') + '</td><td class="text-sm">' + desc + '</td><td class="fw7 text-gold">$' + (v.total||0).toLocaleString() + '</td>' +
+  1096→          '<td><button class="btn btn-sm btn-red" onclick="Pages.delVenta(' + v.id + ')">X</button></td></tr>';
+  1097→      }
+  1098→      h += '</tbody></table></div>';
+  1099→    }
+  1100→    h += '</div></div>';
+  1101→    container.innerHTML = h;
+  1102→  },
+  1103→
+  1104→  formVenta() {
+  1105→    var frascos = ArcanoDB.getFrascosParaVender();
+  1106→    var modal = document.createElement('div');
+  1107→    modal.className = 'modal-overlay';
+  1108→    modal.innerHTML = '<div class="modal modal-lg">' +
+  1109→      '<div class="modal-header"><h3>Nueva Venta</h3><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">X</button></div>' +
+  1110→      '<div class="modal-body">' +
+  1111→        '<div class="form-group"><label>Fecha</label><input type="date" class="input" id="f-v-fecha" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+  1112→        '<div class="form-group"><label>Items</label><div id="v-items"></div>' +
+  1113→        '<button class="btn btn-sm btn-outline mt-8" id="btn-add-vitem">+ Item</button></div>' +
+  1114→        '<div class="venta-total-box mt-12">Total: $<span id="v-total">0</span></div>' +
+  1115→      '</div><div class="modal-footer">' +
+  1116→        '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
+  1117→        '<button class="btn btn-gold" id="btn-save-v">Vender</button>' +
+  1118→      '</div></div>';
+  1119→    document.body.appendChild(modal);
+  1120→
+  1121→    var itemsDiv = document.getElementById('v-items');
+  1122→
+  1123→    function buildFrascoOpts() {
+  1124→      var list = ArcanoDB.getFrascosParaVender();
+  1125→      var o = '<option value="">Seleccionar</option>';
+  1126→      for (var i = 0; i < list.length; i++) {
+  1127→        var f = list[i];
+  1128→        o += '<option value="' + f.tipo + '|' + f.id + '|' + f.talla + '" data-precio="' + f.precio + '" data-stock="' + f.stock + '">' +
+  1129→          f.nombre + ' (' + f.talla + ') - $' + f.precio.toLocaleString() + ' [stock:' + f.stock + ']</option>';
+  1130→      }
+  1131→      return o;
+  1132→    }
+  1133→
+  1134→    function addVItemRow() {
+  1135→      var div = document.createElement('div');
+  1136→      div.className = 'g4 mb-8';
+  1137→      div.style.alignItems = 'end';
+  1138→      div.innerHTML =
+  1139→        '<div class="form-group" style="margin:0"><label>Producto</label><select class="input vi-prod">' + buildFrascoOpts() + '</select></div>' +
+  1140→        '<div class="form-group" style="margin:0"><label>Cantidad</label><input type="number" class="input vi-cant" value="1" min="1"></div>' +
+  1141→        '<div class="form-group" style="margin:0"><label>Precio Unit.</label><input type="number" class="input vi-precio" placeholder="0"></div>' +
+  1142→        '<div><button class="btn btn-sm btn-red btn-rm-vi">X</button></div>';
+  1143→      itemsDiv.appendChild(div);
+  1144→
+  1145→      var prodSel = div.querySelector('.vi-prod');
+  1146→      var cantInp = div.querySelector('.vi-cant');
+  1147→      var precioInp = div.querySelector('.vi-precio');
+  1148→
+  1149→      prodSel.addEventListener('change', function() {
+  1150→        var opt = prodSel.options[prodSel.selectedIndex];
+  1151→        precioInp.value = opt.dataset.precio || '';
+  1152→        cantInp.max = opt.dataset.stock || 999;
+  1153→        if (Number(cantInp.value) > Number(opt.dataset.stock)) cantInp.value = opt.dataset.stock;
+  1154→        updateTotal();
+  1155→      });
+  1156→      cantInp.addEventListener('input', updateTotal);
+  1157→      precioInp.addEventListener('input', updateTotal);
+  1158→      div.querySelector('.btn-rm-vi').addEventListener('click', function() { div.remove(); updateTotal(); });
+  1159→    }
+  1160→
+  1161→    function updateTotal() {
+  1162→      var rows = itemsDiv.children;
+  1163→      var total = 0;
+  1164→      for (var i = 0; i < rows.length; i++) {
+  1165→        total += (Number(rows[i].querySelector('.vi-cant').value)||0) * (Number(rows[i].querySelector('.vi-precio').value)||0);
+  1166→      }
+  1167→      document.getElementById('v-total').textContent = total.toLocaleString();
+  1168→    }
+  1169→
+  1170→    addVItemRow();
+  1171→    document.getElementById('btn-add-vitem').addEventListener('click', addVItemRow);
+  1172→
+  1173→    document.getElementById('btn-save-v').addEventListener('click', function() {
+  1174→      var rows = itemsDiv.children;
+  1175→      var items = [];
+  1176→      for (var i = 0; i < rows.length; i++) {
+  1177→        var val = rows[i].querySelector('.vi-prod').value;
+  1178→        if (!val) continue;
+  1179→        var parts = val.split('|');
+  1180→        var cant = Number(rows[i].querySelector('.vi-cant').value) || 0;
+  1181→        var precio = Number(rows[i].querySelector('.vi-precio').value) || 0;
+  1182→        if (cant <= 0) continue;
+  1183→        items.push({ tipo: parts[0], productoId: Number(parts[1]), talla: parts[2], cantidad: cant, precioUnitario: precio });
+  1184→      }
+  1185→      if (items.length === 0) { alert('Agrega al menos un item'); return; }
+  1186→      try {
+  1187→        ArcanoDB.saveVenta({ fecha: document.getElementById('f-v-fecha').value, items: items });
+  1188→        modal.remove();
+  1189→        App.renderPage('ventas');
+  1190→      } catch (err) { alert('Error: ' + err.message); }
+  1191→    });
+  1192→  },
+  1193→
+  1194→  delVenta(id) {
+  1195→    if (!confirm('Eliminar esta venta?')) return;
+  1196→    ArcanoDB.deleteVenta(id);
+  1197→    App.renderPage('ventas');
+  1198→  },
+  1199→
+  1200→  /* ================================================================
+  1201→  /* ================================================================
+  1202→     VENTA POR CAMARA (OCR - lectura de etiquetas)
+  1203→     ================================================================ */
+  1204→  _camStream: null,
+  1205→  _camCart: [],
+  1206→  _camOcrRunning: false,
+  1207→
+  1208→  /** Open camera modal for label-reading sale */
+  1209→  formVentaQR() {
+  1210→    Pages._camCart = [];
+  1211→    var modal = document.createElement('div');
+  1212→    modal.className = 'modal-overlay';
+  1213→    modal.id = 'cam-venta-modal';
+  1214→    modal.innerHTML =
+  1215→      '<div class="modal modal-lg" style="max-width:520px">' +
+  1216→        '<div class="modal-header"><h3>\u{1F4F7} Venta por Camara</h3>' +
+  1217→          '<button class="btn btn-ghost" onclick="Pages.closeVentaCam()">X</button></div>' +
+  1218→        '<div class="modal-body" style="padding:0">' +
+  1219→          '<div style="position:relative;background:#000">' +
+  1220→            '<video id="cam-video" autoplay playsinline style="width:100%;display:block;max-height:320px;object-fit:cover"></video>' +
+  1221→            '<canvas id="cam-canvas" style="display:none"></canvas>' +
+  1222→            '<div id="cam-scan-line" style="position:absolute;top:50%;left:10%;right:10%;height:2px;background:var(--gold);opacity:0.6;transform:translateY(-50%);animation:scanLine 2s ease-in-out infinite;pointer-events:none"></div>' +
+  1223→            '<style>@keyframes scanLine{0%,100%{top:calc(50% - 50px)}50%{top:calc(50% + 50px)}}</style>' +
+  1224→          '</div>' +
+  1225→          '<div id="cam-status" style="padding:12px 16px;background:var(--bg-card);color:var(--muted);font-size:0.85rem;text-align:center">' +
+  1226→            'Apunta la camara a la etiqueta del producto' +
+  1227→          '</div>' +
+  1228→          '<div style="display:flex;justify-content:center;gap:8px;padding:8px 16px;background:var(--bg-card)">' +
+  1229→            '<button class="btn btn-sm btn-outline" id="cam-flash-btn" onclick="Pages.toggleCamFlash()">\u{1F526} Flash</button>' +
+  1230→            '<button class="btn btn-sm btn-gold" onclick="Pages.captureAndRead()">\u{1F4F7} Capturar</button>' +
+  1231→          '</div>' +
+  1232→          '<!-- Confirmation area -->' +
+  1233→          '<div id="cam-confirm-area" style="padding:12px 16px;display:none">' +
+  1234→            '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Producto detectado</div>' +
+  1235→            '<div id="cam-detected-text" style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;font-style:italic"></div>' +
+  1236→            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+  1237→              '<select class="input" id="cam-prod-select" style="flex:1;min-width:140px"><option value="">Seleccionar producto</option></select>' +
+  1238→              '<select class="input" id="cam-talla-select" style="width:120px"><option value="chico">Pequeño</option><option value="grande">Grande</option></select>' +
+  1239→              '<button class="btn btn-sm btn-gold" onclick="Pages.addCamProduct()">+ Agregar</button>' +
+  1240→              '<button class="btn btn-sm btn-outline" onclick="Pages.cancelCamDetect()">Seguir leyendo</button>' +
+  1241→            '</div>' +
+  1242→          '</div>' +
+  1243→          '<!-- Cart -->' +
+  1244→          '<div id="cam-cart-area" style="padding:12px 16px;max-height:200px;overflow-y:auto;display:none">' +
+  1245→            '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Productos agregados</div>' +
+  1246→            '<div id="cam-cart-items"></div>' +
+  1247→          '</div>' +
+  1248→          '<!-- Total and confirm -->' +
+  1249→          '<div id="cam-total-area" style="padding:12px 16px;border-top:1px solid var(--border);display:none">' +
+  1250→            '<div class="venta-total-box">Total: $<span id="cam-venta-total">0</span></div>' +
+  1251→            '<button class="btn btn-gold btn-block mt-8" onclick="Pages.confirmarVentaCam()">\u{2705} Confirmar Venta</button>' +
+  1252→          '</div>' +
+  1253→        '</div>' +
+  1254→      '</div>';
+  1255→    document.body.appendChild(modal);
+  1256→    setTimeout(function() { Pages.startCamera(); }, 300);
+  1257→  },
+  1258→
+  1259→  startCamera() {
+  1260→    var video = document.getElementById('cam-video');
+  1261→    if (!video) return;
+  1262→    var statusEl = document.getElementById('cam-status');
+  1263→    navigator.mediaDevices.getUserMedia({
+  1264→      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+  1265→    }).then(function(stream) {
+  1266→      Pages._camStream = stream;
+  1267→      video.srcObject = stream;
+  1268→      video.play();
+  1269→      if (statusEl) statusEl.textContent = 'Apunta la camara a la etiqueta del producto';
+  1270→    }).catch(function(err) {
+  1271→      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">No se pudo acceder a la camara: ' + err.message + '</span>';
+  1272→    });
+  1273→  },
+  1274→
+  1275→  stopCamera() {
+  1276→    if (Pages._camStream) {
+  1277→      Pages._camStream.getTracks().forEach(function(t) { t.stop(); });
+  1278→      Pages._camStream = null;
+  1279→    }
+  1280→    Pages._camOcrRunning = false;
+  1281→  },
+  1282→
+  1283→  toggleCamFlash() {
+  1284→    if (!Pages._camStream) return;
+  1285→    var track = Pages._camStream.getVideoTracks()[0];
+  1286→    if (!track) return;
+  1287→    var caps = track.getCapabilities ? track.getCapabilities() : {};
+  1288→    if (caps.torch) {
+  1289→      var isOn = (track.getSettings && track.getSettings().torch) || false;
+  1290→      track.applyConstraints({ advanced: [{ torch: !isOn }] });
+  1291→      var btn = document.getElementById('cam-flash-btn');
+  1292→      if (btn) btn.textContent = isOn ? '\u{1F526} Flash' : '\u{1F526} Flash ON';
+  1293→    }
+  1294→  },
+  1295→
+  1296→  captureAndRead() {
+  1297→    if (Pages._camOcrRunning) return;
+  1298→    var video = document.getElementById('cam-video');
+  1299→    var canvas = document.getElementById('cam-canvas');
+  1300→    var statusEl = document.getElementById('cam-status');
+  1301→    if (!video || !canvas || video.readyState < 2) return;
+  1302→    if (navigator.vibrate) navigator.vibrate(50);
+  1303→    canvas.width = video.videoWidth;
+  1304→    canvas.height = video.videoHeight;
+  1305→    var ctx = canvas.getContext('2d');
+  1306→    ctx.drawImage(video, 0, 0);
+  1307→    var imageData = canvas.toDataURL('image/png');
+  1308→    Pages._camOcrRunning = true;
+  1309→    if (statusEl) statusEl.innerHTML = '<span style="color:var(--gold)">Leyendo etiqueta...</span>';
+  1310→    if (typeof Tesseract === 'undefined') {
+  1311→      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">Libreria OCR no disponible. Verifica conexion a internet.</span>';
+  1312→      Pages._camOcrRunning = false;
+  1313→      return;
+  1314→    }
+  1315→    Tesseract.recognize(imageData, 'spa+eng', {
+  1316→      logger: function() {}
+  1317→    }).then(function(result) {
+  1318→      Pages._camOcrRunning = false;
+  1319→      var text = (result && result.data && result.data.text) || '';
+  1320→      text = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  1321→      Pages.handleOCRResult(text);
+  1322→    }).catch(function(err) {
+  1323→      Pages._camOcrRunning = false;
+  1324→      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">Error al leer: ' + err.message + '</span>';
+  1325→    });
+  1326→  },
+  1327→
+  1328→  handleOCRResult(text) {
+  1329→    var statusEl = document.getElementById('cam-status');
+  1330→    var confirmArea = document.getElementById('cam-confirm-area');
+  1331→    var detectedTextEl = document.getElementById('cam-detected-text');
+  1332→    var prodSelect = document.getElementById('cam-prod-select');
+  1333→    if (!text || text.length < 2) {
+  1334→      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">No se detecto texto. Intenta de nuevo.</span>';
+  1335→      setTimeout(function() { if (statusEl) statusEl.textContent = 'Apunta la camara a la etiqueta del producto'; }, 2000);
+  1336→      return;
+  1337→    }
+  1338→    var especias = ArcanoDB.getEspecias();
+  1339→    var blends = ArcanoDB.getBlends();
+  1340→    var allProducts = [];
+  1341→    for (var i = 0; i < especias.length; i++) { allProducts.push({ tipo: 'especia', producto: especias[i] }); }
+  1342→    for (var i = 0; i < blends.length; i++) { allProducts.push({ tipo: 'blend', producto: blends[i] }); }
+  1343→    var ocrLower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  1344→    var scored = [];
+  1345→    for (var i = 0; i < allProducts.length; i++) {
+  1346→      var p = allProducts[i];
+  1347→      var name = (p.producto.nombre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  1348→      var nameWords = name.split(/\s+/);
+  1349→      var matchCount = 0;
+  1350→      for (var w = 0; w < nameWords.length; w++) {
+  1351→        if (nameWords[w].length < 2) continue;
+  1352→        if (ocrLower.indexOf(nameWords[w]) !== -1) matchCount++;
+  1353→      }
+  1354→      var score = nameWords.length > 0 ? matchCount / nameWords.length : 0;
+  1355→      if (ocrLower.indexOf(name) !== -1) score = Math.max(score, 1.0);
+  1356→      if (name.length >= 3 && ocrLower.indexOf(name.substring(0, Math.min(name.length, 6))) !== -1) score = Math.max(score, 0.7);
+  1357→      if (score >= 0.5) scored.push({ tipo: p.tipo, producto: p.producto, score: score });
+  1358→    }
+  1359→    scored.sort(function(a, b) { return b.score - a.score; });
+  1360→    if (confirmArea) confirmArea.style.display = 'block';
+  1361→    if (detectedTextEl) detectedTextEl.textContent = 'Texto leido: "' + text.substring(0, 80) + (text.length > 80 ? '...' : '') + '"';
+  1362→    if (prodSelect) {
+  1363→      prodSelect.innerHTML = '<option value="">Seleccionar producto</option>';
+  1364→      if (scored.length > 0) {
+  1365→        for (var i = 0; i < Math.min(scored.length, 5); i++) {
+  1366→          var s = scored[i];
+  1367→          var pct = Math.round(s.score * 100);
+  1368→          prodSelect.innerHTML += '<option value="' + s.tipo + '|' + s.producto.id + '">' + s.producto.nombre + ' (' + pct + '%)</option>';
+  1369→        }
+  1370→        if (scored[0].score >= 0.7) {
+  1371→          prodSelect.value = scored[0].tipo + '|' + scored[0].producto.id;
+  1372→        }
+  1373→        if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">Producto detectado - confirma abajo</span>';
+  1374→      } else {
+  1375→        if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">No se encontro producto. Selecciona manualmente.</span>';
+  1376→        for (var i = 0; i < allProducts.length; i++) {
+  1377→          var ap = allProducts[i];
+  1378→          prodSelect.innerHTML += '<option value="' + ap.tipo + '|' + ap.producto.id + '">' + ap.producto.nombre + '</option>';
+  1379→        }
+  1380→      }
+  1381→    }
+  1382→  },
+  1383→
+  1384→  cancelCamDetect() {
+  1385→    var confirmArea = document.getElementById('cam-confirm-area');
+  1386→    if (confirmArea) confirmArea.style.display = 'none';
+  1387→    var statusEl = document.getElementById('cam-status');
+  1388→    if (statusEl) statusEl.textContent = 'Apunta la camara a la etiqueta del producto';
+  1389→  },
+  1390→
+  1391→  addCamProduct() {
+  1392→    var prodVal = document.getElementById('cam-prod-select').value;
+  1393→    var tallaVal = document.getElementById('cam-talla-select').value;
+  1394→    if (!prodVal) { alert('Selecciona un producto'); return; }
+  1395→    var parts = prodVal.split('|');
+  1396→    var tipo = parts[0];
+  1397→    var prodId = Number(parts[1]);
+  1398→    var producto = tipo === 'blend' ? ArcanoDB.getBlend(prodId) : ArcanoDB.getEspecia(prodId);
+  1399→    if (!producto) { alert('Producto no encontrado'); return; }
+  1400→    var stockKey = tallaVal === 'grande' ? 'stockGrande' : 'stockChico';
+  1401→    var precioKey = tallaVal === 'grande' ? 'precioGrande' : 'precioChico';
+  1402→    var stock = producto[stockKey] || 0;
+  1403→    var precio = producto[precioKey] || 0;
+  1404→    if (stock <= 0) { alert('Sin stock de ' + producto.nombre + ' (' + tallaVal + ')'); return; }
+  1405→    var found = false;
+  1406→    for (var i = 0; i < Pages._camCart.length; i++) {
+  1407→      if (Pages._camCart[i].tipo === tipo && Pages._camCart[i].productoId === prodId && Pages._camCart[i].talla === tallaVal) {
+  1408→        if (Pages._camCart[i].cantidad < stock) Pages._camCart[i].cantidad++;
+  1409→        found = true;
+  1410→        break;
+  1411→      }
+  1412→    }
+  1413→    if (!found) {
+  1414→      Pages._camCart.push({ tipo: tipo, productoId: prodId, talla: tallaVal, cantidad: 1, precioUnitario: precio });
+  1415→    }
+  1416→    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+  1417→    Pages.renderCamCart();
+  1418→    Pages.cancelCamDetect();
+  1419→  },
+  1420→
+  1421→  renderCamCart() {
+  1422→    var cartArea = document.getElementById('cam-cart-area');
+  1423→    var cartItems = document.getElementById('cam-cart-items');
+  1424→    var totalArea = document.getElementById('cam-total-area');
+  1425→    var totalSpan = document.getElementById('cam-venta-total');
+  1426→    if (Pages._camCart.length === 0) {
+  1427→      if (cartArea) cartArea.style.display = 'none';
+  1428→      if (totalArea) totalArea.style.display = 'none';
+  1429→      return;
+  1430→    }
+  1431→    if (cartArea) cartArea.style.display = 'block';
+  1432→    if (totalArea) totalArea.style.display = 'block';
+  1433→    var h = '';
+  1434→    var total = 0;
+  1435→    for (var i = 0; i < Pages._camCart.length; i++) {
+  1436→      var item = Pages._camCart[i];
+  1437→      var prod = item.tipo === 'blend' ? ArcanoDB.getBlend(item.productoId) : ArcanoDB.getEspecia(item.productoId);
+  1438→      var nombre = prod ? prod.nombre : '?';
+  1439→      var sub = item.cantidad * item.precioUnitario;
+  1440→      total += sub;
+  1441→      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">' +
+  1442→        '<div><div style="font-weight:600;font-size:0.9rem">' + nombre + '</div>' +
+  1443→        '<div style="font-size:0.75rem;color:var(--muted)">' + item.talla + ' | $' + item.precioUnitario.toLocaleString() + ' c/u</div></div>' +
+  1444→        '<div style="display:flex;align-items:center;gap:8px">' +
+  1445→        '<button class="btn btn-sm btn-outline" onclick="Pages.camCartQty(' + i + ',-1)">-</button>' +
+  1446→        '<span style="font-weight:700;min-width:24px;text-align:center">' + item.cantidad + '</span>' +
+  1447→        '<button class="btn btn-sm btn-outline" onclick="Pages.camCartQty(' + i + ',1)">+</button>' +
+  1448→        '<span style="font-weight:700;color:var(--gold);min-width:70px;text-align:right">$' + sub.toLocaleString() + '</span>' +
+  1449→        '<button class="btn btn-sm btn-red" onclick="Pages.camCartRemove(' + i + ')">X</button>' +
+  1450→        '</div></div>';
+  1451→    }
+  1452→    if (cartItems) cartItems.innerHTML = h;
+  1453→    if (totalSpan) totalSpan.textContent = total.toLocaleString();
+  1454→  },
+  1455→
+  1456→  camCartQty(idx, delta) {
+  1457→    if (!Pages._camCart[idx]) return;
+  1458→    var item = Pages._camCart[idx];
+  1459→    var newCant = item.cantidad + delta;
+  1460→    var producto = item.tipo === 'blend' ? ArcanoDB.getBlend(item.productoId) : ArcanoDB.getEspecia(item.productoId);
+  1461→    var stockKey = item.talla === 'grande' ? 'stockGrande' : 'stockChico';
+  1462→    var maxStock = producto ? (producto[stockKey] || 0) : 0;
+  1463→    if (newCant < 1 || newCant > maxStock) return;
+  1464→    item.cantidad = newCant;
+  1465→    Pages.renderCamCart();
+  1466→  },
+  1467→
+  1468→  camCartRemove(idx) {
+  1469→    Pages._camCart.splice(idx, 1);
+  1470→    Pages.renderCamCart();
+  1471→  },
+  1472→
+  1473→  confirmarVentaCam() {
+  1474→    if (Pages._camCart.length === 0) { alert('No hay productos en la venta'); return; }
+  1475→    if (!confirm('Registrar venta de ' + Pages._camCart.length + ' producto(s)?')) return;
+  1476→    try {
+  1477→      ArcanoDB.saveVenta({
+  1478→        fecha: new Date().toISOString().slice(0, 10),
+  1479→        items: JSON.parse(JSON.stringify(Pages._camCart))
+  1480→      });
+  1481→      Pages.closeVentaCam();
+  1482→      App.renderPage('ventas');
+  1483→    } catch (err) {
+  1484→      alert('Error: ' + err.message);
+  1485→    }
+  1486→  },
+  1487→
+  1488→  closeVentaCam() {
+  1489→    Pages.stopCamera();
+  1490→    var modal = document.getElementById('cam-venta-modal');
+  1491→    if (modal) modal.remove();
+  1492→    Pages._camCart = [];
+  1493→  },
+  1494→
+  1495→
+  1496→  /* ================================================================
+  1497→     STOCK
+  1498→     ================================================================ */
+  1499→  renderStock(container) {
+  1500→    var db = ArcanoDB.getDB();
+  1501→    var especias = ArcanoDB.getEspecias();
+  1502→    var blends = ArcanoDB.getBlends();
+  1503→    var envases = db.stockEnvases || { chico: 0, grande: 0 };
+  1504→    var bolsas = db.stockBolsas || { chico: 0, grande: 0 };
+  1505→    var etiqList = ArcanoDB.getProductosConStickers();
+  1506→    var ajustes = ArcanoDB.getAjustes();
+  1507→
+  1508→    var h = '<div class="page-actions"><button class="btn btn-gold" onclick="Pages.formAjusteStock()">Ajustar Stock</button></div>';
+  1509→
+  1510→    // === SECTION 1: PRODUCTOS ===
+  1511→    h += '<h3 style="color:var(--gold);margin-bottom:12px;font-size:1.1rem">Stock de Productos</h3>';
+  1512→
+  1513→    // Especias
+  1514→    h += '<div class="card mt-8"><div class="card-header"><h3>Especias</h3></div><div class="card-body">';
+  1515→    if (especias.length === 0) { h += '<p class="text-muted text-center">Sin especias</p>'; }
+  1516→    else {
+  1517→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Pala (grs)</th><th>Fr.Pequeño</th><th>Fr.Grande</th></tr></thead><tbody>';
+  1518→      for (var i = 0; i < especias.length; i++) {
+  1519→        var e = especias[i];
+  1520→        h += '<tr><td class="fw7">' + e.nombre + '</td>' +
+  1521→          '<td><span class="badge badge-gold">' + (e.categoria||'—') + '</span></td>' +
+  1522→          '<td class="' + ((e.stockBolsa||0)<=50?'text-red fw7':'') + '">' + (e.stockBolsa||0) + '</td>' +
+  1523→          '<td class="' + ((e.stockChico||0)<=3?'text-red fw7':'text-green') + '">' + (e.stockChico||0) + '</td>' +
+  1524→          '<td class="' + ((e.stockGrande||0)<=3?'text-red fw7':'text-green') + '">' + (e.stockGrande||0) + '</td></tr>';
+  1525→      }
+  1526→      h += '</tbody></table></div>';
+  1527→    }
+  1528→    h += '</div></div>';
+  1529→
+  1530→    // Blends
+  1531→    h += '<div class="card mt-16"><div class="card-header"><h3>Blends</h3></div><div class="card-body">';
+  1532→    if (blends.length === 0) { h += '<p class="text-muted text-center">Sin blends</p>'; }
+  1533→    else {
+  1534→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cat.</th><th>Fr.Pequeño</th><th>Fr.Grande</th></tr></thead><tbody>';
+  1535→      for (var i = 0; i < blends.length; i++) {
+  1536→        var b = blends[i];
+  1537→        h += '<tr><td class="fw7">' + b.nombre + '</td>' +
+  1538→          '<td><span class="badge badge-blue">' + (b.categoria||'—') + '</span></td>' +
+  1539→          '<td class="' + ((b.stockChico||0)<=3?'text-red fw7':'text-green') + '">' + (b.stockChico||0) + '</td>' +
+  1540→          '<td class="' + ((b.stockGrande||0)<=3?'text-red fw7':'text-green') + '">' + (b.stockGrande||0) + '</td></tr>';
+  1541→      }
+  1542→      h += '</tbody></table></div>';
+  1543→    }
+  1544→    h += '</div></div>';
+  1545→
+  1546→    // === SECTION 2: PACKAGING ===
+  1547→    h += '<h3 style="color:var(--gold);margin:24px 0 12px;font-size:1.1rem">Packaging</h3>';
+  1548→    h += '<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr)">' +
+  1549→      '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.chico||0) + '</div><div class="stat-label">Frascos Pequeños</div></div>' +
+  1550→      '<div class="stat-card" style="border-left-color:var(--blue)"><div class="stat-value" style="color:var(--blue)">' + (envases.grande||0) + '</div><div class="stat-label">Frascos Grandes</div></div>' +
+  1551→      '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value" style="color:var(--green)">' + (bolsas.chico||0) + '</div><div class="stat-label">Bolsas Chicas</div></div>' +
+  1552→      '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value" style="color:var(--green)">' + (bolsas.grande||0) + '</div><div class="stat-label">Bolsas Grandes</div></div></div>';
+  1553→
+  1554→    // Stickers table
+  1555→    h += '<div class="card mt-16"><div class="card-header"><h3>Stickers</h3></div><div class="card-body">';
+  1556→    if (etiqList.length === 0) { h += '<p class="text-muted text-center">Sin stickers</p>'; }
+  1557→    else {
+  1558→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Producto</th><th>Tipo</th><th>Stk.Pequeño</th><th>Stk.Grande</th></tr></thead><tbody>';
+  1559→      for (var i = 0; i < etiqList.length; i++) {
+  1560→        var et = etiqList[i];
+  1561→        h += '<tr><td class="fw7">' + et.nombre + '</td><td><span class="badge ' + (et.tipo==='blend'?'badge-blue':'badge-gold') + '">' + (et.tipo==='blend'?'Blend':'Especia') + '</span></td>' +
+  1562→          '<td class="' + (et.stockChico<=5?'text-red fw7':'') + '">' + et.stockChico + '</td>' +
+  1563→          '<td class="' + (et.stockGrande<=5?'text-red fw7':'') + '">' + et.stockGrande + '</td></tr>';
+  1564→      }
+  1565→      h += '</tbody></table></div>';
+  1566→    }
+  1567→    h += '</div></div>';
+  1568→
+  1569→    // === SECTION 3: HISTORIAL DE AJUSTES ===
+  1570→    h += '<div class="card mt-24"><div class="card-header"><h3>Historial de Ajustes Manuales</h3></div><div class="card-body">';
+  1571→    if (ajustes.length === 0) {
+  1572→      h += '<p class="text-muted text-center">Sin ajustes manuales.</p>';
+  1573→    } else {
+  1574→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Sub</th><th>Cant.</th><th>Motivo</th><th></th></tr></thead><tbody>';
+  1575→      for (var i = 0; i < Math.min(ajustes.length, 50); i++) {
+  1576→        var aj = ajustes[i];
+  1577→        var catLabel = aj.categoria === 'especia' ? 'Especia' : aj.categoria === 'blend' ? 'Blend' : aj.categoria === 'envase' ? 'Frascos' : aj.categoria === 'bolsa' ? 'Bolsas' : 'Sticker';
+  1578→        var subLabel = aj.subtipo === 'pala' ? 'Pala' : aj.subtipo === 'chico' ? 'Pequeño' : 'Grande';
+  1579→        var cantColor = (aj.cantidad > 0) ? 'text-green' : 'text-red';
+  1580→        var cantSign = (aj.cantidad > 0) ? '+' : '';
+  1581→        var unidad = aj.subtipo === 'pala' ? 'g' : 'u';
+  1582→        h += '<tr><td>' + (aj.fecha||'') + '</td>' +
+  1583→          '<td><span class="badge badge-gold">' + catLabel + '</span></td>' +
+  1584→          '<td class="fw7">' + (aj.productoNombre||'—') + '</td>' +
+  1585→          '<td>' + subLabel + '</td>' +
+  1586→          '<td class="' + cantColor + ' fw7">' + cantSign + (aj.cantidad||0) + ' ' + unidad + '</td>' +
+  1587→          '<td class="text-sm" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (aj.motivo||'').replace(/"/g, '&quot;') + '">' + (aj.motivo||'—') + '</td>' +
+  1588→          '<td><button class="btn btn-sm btn-red" onclick="Pages.delAjuste(' + aj.id + ')">X</button></td></tr>';
+  1589→      }
+  1590→      h += '</tbody></table></div>';
+  1591→    }
+  1592→    h += '</div></div>';
+  1593→    container.innerHTML = h;
+  1594→  },
+  1595→
+  1596→  /* ---------- Ajuste Manual de Stock ---------- */
+  1597→  delAjuste(id) {
+  1598→    if (!confirm('Eliminar este ajuste? (El stock NO se revertira)')) return;
+  1599→    ArcanoDB.deleteAjuste(id);
+  1600→    App.renderPage('stock');
+  1601→  },
+  1602→
+  1603→  formAjusteStock() {
+  1604→    var especias = ArcanoDB.getEspecias();
+  1605→    var blends = ArcanoDB.getBlends();
+  1606→    var stickerList = ArcanoDB.getStickers();
+  1607→
+  1608→    var modal = document.createElement('div');
+  1609→    modal.className = 'modal-overlay';
+  1610→    modal.innerHTML = '<div class="modal modal-lg" style="max-width:560px">' +
+  1611→      '<div class="modal-header"><h3>Ajustar Stock Manualmente</h3><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">X</button></div>' +
+  1612→      '<div class="modal-body">' +
+  1613→        '<div class="form-group"><label>Categoria</label><select class="input" id="f-aj-cat">' +
+  1614→          '<option value="especia">Especia</option>' +
+  1615→          '<option value="blend">Blend</option>' +
+  1616→          '<option value="envase">Frascos</option>' +
+  1617→          '<option value="bolsa">Bolsas</option>' +
+  1618→          '<option value="sticker">Stickers</option>' +
+  1619→        '</select></div>' +
+  1620→        '<div class="form-group" id="f-aj-prod-wrap"><label>Producto</label><select class="input" id="f-aj-prod"></select></div>' +
+  1621→        '<div class="form-group"><label>Sub-tipo</label><select class="input" id="f-aj-sub"></select></div>' +
+  1622→        '<div class="form-group"><label>Cantidad (<span style="color:var(--red)">negativo = restar</span>, positivo = sumar)</label><input type="number" class="input" id="f-aj-cant" placeholder="Ej: -100 o 50"></div>' +
+  1623→        '<div class="form-group"><label>Motivo <span class="text-red">*</span></label><textarea class="input" id="f-aj-motivo" rows="2" placeholder="Ej: Se rompieron, merma, conteo fisico, etc."></textarea></div>' +
+  1624→        '<div id="f-aj-preview" class="card mt-12" style="background:var(--bg);border-color:var(--gold);display:none"><div class="card-body" id="f-aj-preview-body"></div></div>' +
+  1625→      '</div><div class="modal-footer">' +
+  1626→        '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
+  1627→        '<button class="btn btn-gold" id="btn-save-aj">Aplicar Ajuste</button>' +
+  1628→      '</div></div>';
+  1629→    document.body.appendChild(modal);
+  1630→
+  1631→    var catSel = document.getElementById('f-aj-cat');
+  1632→    var prodSel = document.getElementById('f-aj-prod');
+  1633→    var prodWrap = document.getElementById('f-aj-prod-wrap');
+  1634→    var subSel = document.getElementById('f-aj-sub');
+  1635→    var cantInput = document.getElementById('f-aj-cant');
+  1636→    var previewDiv = document.getElementById('f-aj-preview');
+  1637→    var previewBody = document.getElementById('f-aj-preview-body');
+  1638→
+  1639→    function buildEspOpts() {
+  1640→      var o = '';
+  1641→      for (var i = 0; i < especias.length; i++) o += '<option value="' + especias[i].id + '">' + especias[i].nombre + '</option>';
+  1642→      return o;
+  1643→    }
+  1644→    function buildBlendOpts() {
+  1645→      var o = '';
+  1646→      for (var i = 0; i < blends.length; i++) o += '<option value="' + blends[i].id + '">' + blends[i].nombre + '</option>';
+  1647→      return o;
+  1648→    }
+  1649→    function buildStickerOpts() {
+  1650→      var o = '';
+  1651→      for (var i = 0; i < stickerList.length; i++) o += '<option value="' + stickerList[i].nombre + '">' + stickerList[i].nombre + '</option>';
+  1652→      return o;
+  1653→    }
+  1654→
+  1655→    function updateForm() {
+  1656→      var cat = catSel.value;
+  1657→      var prodId = prodSel.value;
+  1658→
+  1659→      // Show/hide product selector
+  1660→      if (cat === 'envase' || cat === 'bolsa') {
+  1661→        prodWrap.style.display = 'none';
+  1662→      } else {
+  1663→        prodWrap.style.display = '';
+  1664→        if (cat === 'especia') prodSel.innerHTML = buildEspOpts();
+  1665→        else if (cat === 'blend') prodSel.innerHTML = buildBlendOpts();
+  1666→        else if (cat === 'sticker') prodSel.innerHTML = buildStickerOpts();
+  1667→      }
+  1668→
+  1669→      // Subtipo options
+  1670→      if (cat === 'especia') {
+  1671→        subSel.innerHTML = '<option value="pala">Pala (gramos)</option><option value="chico">Frasco Pequeño (unidades)</option><option value="grande">Frasco Grande (unidades)</option>';
+  1672→      } else if (cat === 'blend') {
+  1673→        subSel.innerHTML = '<option value="chico">Frasco Pequeño (unidades)</option><option value="grande">Frasco Grande (unidades)</option>';
+  1674→      } else if (cat === 'envase') {
+  1675→        subSel.innerHTML = '<option value="chico">Chico (unidades)</option><option value="grande">Grande (unidades)</option>';
+  1676→      } else if (cat === 'bolsa') {
+  1677→        subSel.innerHTML = '<option value="chico">Chica (unidades)</option><option value="grande">Grande (unidades)</option>';
+  1678→      } else if (cat === 'sticker') {
+  1679→        subSel.innerHTML = '<option value="chico">Chico (unidades)</option><option value="grande">Grande (unidades)</option>';
+  1680→      }
+  1681→
+  1682→      updatePreview();
+  1683→    }
+  1684→
+  1685→    function updatePreview() {
+  1686→      var cat = catSel.value;
+  1687→      var sub = subSel.value;
+  1688→      var cant = Number(cantInput.value) || 0;
+  1689→      var db = ArcanoDB.getDB();
+  1690→      var actual = 0;
+  1691→      var nombre = '';
+  1692→      var unidad = sub === 'pala' ? 'g' : 'u';
+  1693→
+  1694→      if (cat === 'especia' && prodSel.value) {
+  1695→        var esp = ArcanoDB.getEspecia(Number(prodSel.value));
+  1696→        if (esp) {
+  1697→          nombre = esp.nombre;
+  1698→          if (sub === 'pala') actual = esp.stockBolsa || 0;
+  1699→          else if (sub === 'chico') actual = esp.stockChico || 0;
+  1700→          else actual = esp.stockGrande || 0;
+  1701→        }
+  1702→      } else if (cat === 'blend' && prodSel.value) {
+  1703→        var bl = ArcanoDB.getBlend(Number(prodSel.value));
+  1704→        if (bl) {
+  1705→          nombre = bl.nombre;
+  1706→          actual = (sub === 'grande') ? (bl.stockGrande || 0) : (bl.stockChico || 0);
+  1707→        }
+  1708→      } else if (cat === 'envase') {
+  1709→        nombre = 'Frascos ' + sub;
+  1710→        actual = (db.stockEnvases || {})[sub] || 0;
+  1711→      } else if (cat === 'bolsa') {
+  1712→        nombre = 'Bolsas ' + sub;
+  1713→        actual = (db.stockBolsas || {})[sub] || 0;
+  1714→      } else if (cat === 'sticker' && prodSel.value) {
+  1715→        nombre = prodSel.value;
+  1716→        var stks = ArcanoDB.getStickers();
+  1717→        for (var i = 0; i < stks.length; i++) {
+  1718→          if (stks[i].nombre === nombre) {
+  1719→            actual = (sub === 'grande') ? (stks[i].stockGrande || 0) : (stks[i].stockChico || 0);
+  1720→            break;
+  1721→          }
+  1722→        }
+  1723→      }
+  1724→
+  1725→      if (!nombre) { previewDiv.style.display = 'none'; return; }
+  1726→      var resultante = actual + cant;
+  1727→      var resColor = resultante < 0 ? 'text-red' : (resultante === 0 ? 'text-yellow' : 'text-green');
+  1728→      previewDiv.style.display = '';
+  1729→      previewBody.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><div><span class="text-sm text-muted">Stock actual de <b>' + nombre + '</b> (' + sub + '):</span></div>' +
+  1730→        '<div style="text-align:right"><span class="fw7" style="font-size:1.2rem">' + actual + ' ' + unidad + '</span>' +
+  1731→        ' <span class="text-muted" style="margin:0 8px">&#8594;</span>' +
+  1732→        '<span class="fw7 ' + resColor + '" style="font-size:1.2rem">' + resultante + ' ' + unidad + '</span></div></div>';
+  1733→    }
+  1734→
+  1735→    catSel.addEventListener('change', updateForm);
+  1736→    prodSel.addEventListener('change', updatePreview);
+  1737→    subSel.addEventListener('change', updatePreview);
+  1738→    cantInput.addEventListener('input', updatePreview);
+  1739→    updateForm();
+  1740→
+  1741→    // Save
+  1742→    document.getElementById('btn-save-aj').addEventListener('click', function() {
+  1743→      var motivo = (document.getElementById('f-aj-motivo').value || '').trim();
+  1744→      if (!motivo) { alert('Debes indicar el motivo del ajuste'); return; }
+  1745→      var cant = Number(cantInput.value) || 0;
+  1746→      if (cant === 0) { alert('La cantidad no puede ser 0'); return; }
+  1747→      var cat = catSel.value;
+  1748→      var sub = subSel.value;
+  1749→      var data = {
+  1750→        categoria: cat,
+  1751→        subtipo: sub,
+  1752→        cantidad: cant,
+  1753→        motivo: motivo,
+  1754→        fecha: new Date().toISOString().slice(0, 10)
+  1755→      };
+  1756→      if (cat === 'especia' || cat === 'blend') {
+  1757→        data.productoId = Number(prodSel.value);
+  1758→      }
+  1759→      if (cat === 'sticker') {
+  1760→        data.productoNombre = prodSel.value;
+  1761→      }
+  1762→      try {
+  1763→        ArcanoDB.saveAjuste(data);
+  1764→        modal.remove();
+  1765→        App.renderPage('stock');
+  1766→      } catch (err) { alert('Error: ' + err.message); }
+  1767→    });
+  1768→  },
+  1769→
+  1770→  /* ================================================================
+  1771→     PEDIDOS (Tienda)
+  1772→     ================================================================ */
+  1773→  renderPedidos(container) {
+  1774→    var pedidos = ArcanoDB.getPedidos();
+  1775→    var estados = ['nuevo', 'confirmado', 'enviado', 'entregado', 'cancelado'];
+  1776→    var estadoColors = { nuevo: 'text-red', confirmado: 'text-yellow', enviado: 'text-blue', entregado: 'text-green', cancelado: 'text-muted' };
+  1777→    var estadoLabels = { nuevo: 'Nuevo', confirmado: 'Confirmado', enviado: 'Enviado', entregado: 'Entregado', cancelado: 'Cancelado' };
+  1778→
+  1779→    var h = '<div class="page-actions"><button class="btn btn-outline" onclick="App.renderPage(\'dashboard\')">Volver al Dashboard</button></div>';
+  1780→
+  1781→    // Summary cards
+  1782→    h += '<div class="stats-grid mt-12" style="grid-template-columns: repeat(5, 1fr)">';
+  1783→    for (var si = 0; si < estados.length; si++) {
+  1784→      var est = estados[si];
+  1785→      var count = 0;
+  1786→      for (var sc = 0; sc < pedidos.length; sc++) { if (pedidos[sc].estado === est) count++; }
+  1787→      h += '<div class="stat-card"><div class="stat-value ' + estadoColors[est] + '">' + count + '</div><div class="stat-label">' + estadoLabels[est] + '</div></div>';
+  1788→    }
+  1789→    h += '</div>';
+  1790→
+  1791→    // Table
+  1792→    h += '<div class="card mt-16"><div class="card-header"><h3>Todos los Pedidos</h3></div><div class="card-body">';
+  1793→    if (pedidos.length === 0) {
+  1794→      h += '<p class="text-muted text-center">Sin pedidos.</p>';
+  1795→    } else {
+  1796→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Telefono</th><th>Ciudad</th><th>Items</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>';
+  1797→      for (var i = 0; i < pedidos.length; i++) {
+  1798→        var p = pedidos[i];
+  1799→        var cl = p.cliente || {};
+  1800→        var fecha = p.creado ? p.creado.slice(0, 10) : '';
+  1801→        var hora = p.creado ? p.creado.slice(11, 16) : '';
+  1802→        var nItems = (p.items || []).length;
+  1803→        var estClass = estadoColors[p.estado] || 'text-muted';
+  1804→        var estLabel = estadoLabels[p.estado] || p.estado;
+  1805→        h += '<tr>' +
+  1806→          '<td>' + fecha + '</td>' +
+  1807→          '<td class="fw7">' + hora + '</td>' +
+  1808→          '<td class="fw7">' + (cl.nombre || '?') + '</td>' +
+  1809→          '<td>' + (cl.telefono || '') + '</td>' +
+  1810→          '<td>' + (cl.ciudad || '') + '</td>' +
+  1811→          '<td>' + nItems + '</td>' +
+  1812→          '<td class="text-gold fw7">$' + (p.total || 0).toLocaleString() + '</td>' +
+  1813→          '<td><span class="badge ' + estClass + '" style="border:1px solid">' + estLabel + '</span></td>' +
+  1814→          '<td><button class="btn btn-sm btn-gold" onclick="Pages.verPedido(\'' + p._key + '\')">Ver</button>' +
+  1815→          '<button class="btn btn-sm btn-red" style="margin-left:4px" onclick="Pages.eliminarPedido(\'' + p._key + '\')">Eliminar</button></td>' +
+  1816→          '</tr>';
+  1817→      }
+  1818→      h += '</tbody></table></div>';
+  1819→    }
+  1820→    h += '</div></div>';
+  1821→    container.innerHTML = h;
+  1822→  },
+  1823→
+  1824→  verPedido(pedidoKey) {
+  1825→    var pedidos = ArcanoDB.getPedidos();
+  1826→    var p = null;
+  1827→    for (var i = 0; i < pedidos.length; i++) { if (pedidos[i]._key === pedidoKey) { p = pedidos[i]; break; } }
+  1828→    if (!p) { alert('Pedido no encontrado'); return; }
+  1829→    var cl = p.cliente || {};
+  1830→    var estadoLabels = { nuevo: 'Nuevo', confirmado: 'Confirmado', enviado: 'Enviado', entregado: 'Entregado', cancelado: 'Cancelado' };
+  1831→    var estados = ['nuevo', 'confirmado', 'enviado', 'entregado', 'cancelado'];
+  1832→    var estadoColors = { nuevo: 'text-red', confirmado: 'text-yellow', enviado: 'text-blue', entregado: 'text-green', cancelado: 'text-muted' };
+  1833→
+  1834→    var h = '<div class="card"><div class="card-header"><h3>Pedido de ' + (cl.nombre || '?') + '</h3><span class="badge ' + (estadoColors[p.estado]||'') + '" style="font-size:0.85rem">' + (estadoLabels[p.estado]||p.estado) + '</span></div><div class="card-body">';
+  1835→    h += '<div class="g2">';
+  1836→    h += '<div><p class="text-sm text-muted">Fecha</p><p class="fw7">' + (p.creado || '').replace('T', ' ') + '</p></div>';
+  1837→    h += '<div><p class="text-sm text-muted">Telefono</p><p class="fw7">' + (cl.telefono || '') + '</p></div>';
+  1838→    h += '<div><p class="text-sm text-muted">Email</p><p class="fw7">' + (cl.email || '') + '</p></div>';
+  1839→    h += '<div><p class="text-sm text-muted">Ciudad</p><p class="fw7">' + (cl.ciudad || '') + '</p></div>';
+  1840→    h += '</div>';
+  1841→    if (cl.direccion) h += '<p class="mt-8 text-sm text-muted">Direccion: <b>' + cl.direccion + '</b></p>';
+  1842→    if (p.notas) h += '<p class="mt-4 text-sm text-muted">Notas: <b>' + p.notas + '</b></p>';
+  1843→
+  1844→    h += '<h4 class="mt-16">Productos</h4>';
+  1845→    h += '<div class="table-wrap mt-8"><table class="table"><thead><tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>';
+  1846→    for (var i = 0; i < (p.items || []).length; i++) {
+  1847→      var it = p.items[i];
+  1848→      var tallaLabel = it.talla === 'grande' ? 'Grande' : 'Pequeño';
+  1849→      h += '<tr><td class="fw7">' + (it.nombre || '?') + '</td><td>' + tallaLabel + '</td><td>' + (it.qty || 0) + '</td><td>$' + (it.precio || 0).toLocaleString() + '</td><td class="fw7">$' + (it.subtotal || 0).toLocaleString() + '</td></tr>';
+  1850→    }
+  1851→    h += '</tbody></table></div>';
+  1852→    h += '<div style="text-align:right;margin-top:12px;font-size:1.2rem" class="fw7">Total: $' + (p.total || 0).toLocaleString() + '</div>';
+  1853→
+  1854→    // Estado buttons
+  1855→    h += '<div class="mt-16"><h4>Cambiar Estado</h4><div class="mt-8" style="display:flex;gap:8px;flex-wrap:wrap">';
+  1856→    for (var ei = 0; ei < estados.length; ei++) {
+  1857→      var est = estados[ei];
+  1858→      var isActive = p.estado === est;
+  1859→      var btnClass = isActive ? 'btn btn-gold' : 'btn btn-outline';
+  1860→      h += '<button class="' + btnClass + ' btn-sm" onclick="Pages.cambiarEstadoPedido(\'' + pedidoKey + '\',\'' + est + '\')">' + estadoLabels[est] + '</button>';
+  1861→    }
+  1862→    h += '</div></div>';
+  1863→
+  1864→    h += '</div><div class="modal-footer"><button class="btn btn-outline" onclick="document.getElementById(\'pedido-modal\').remove()">Cerrar</button>';
+  1865→    h += '<a class="btn btn-gold" href="tel:' + (cl.telefono || '') + '" target="_blank">Llamar Cliente</a>';
+  1866→    h += '<button class="btn btn-sm btn-red" style="margin-left:auto" onclick="Pages.eliminarPedido(\'' + pedidoKey + '\')">Eliminar Pedido</button>';
+  1867→    h += '</div></div>';
+  1868→
+  1869→    var modal = document.createElement('div');
+  1870→    modal.className = 'modal-overlay';
+  1871→    modal.id = 'pedido-modal';
+  1872→    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+  1873→    modal.innerHTML = '<div class="modal modal-lg" style="max-width:680px">' + h + '</div>';
+  1874→    document.body.appendChild(modal);
+  1875→  },
+  1876→
+  1877→  cambiarEstadoPedido(pedidoKey, nuevoEstado) {
+  1878→    ArcanoDB.updatePedidoEstado(pedidoKey, nuevoEstado);
+  1879→    var modal = document.getElementById('pedido-modal');
+  1880→    if (modal) modal.remove();
+  1881→    App.renderPage(App.currentPage);
+  1882→  },
+  1883→
+  1884→  eliminarPedido(pedidoKey) {
+  1885→    if (!confirm('Seguro que deseas eliminar este pedido? Esta accion no se puede deshacer.')) return;
+  1886→    var modal = document.getElementById('pedido-modal');
+  1887→    if (modal) modal.remove();
+  1888→    ArcanoDB.deletePedido(pedidoKey);
+  1889→    App.renderPage(App.currentPage);
+  1890→  },
+  1891→
+  1892→  /* ================================================================
+  1893→     TIENDA ADMIN
+  1894→     ================================================================ */
+  1895→  renderTiendaAdmin(container) {
+  1896→    var productos = ArcanoDB.getTiendaProductos();
+  1897→    var allEsp = ArcanoDB.getEspecias();
+  1898→    var allBl = ArcanoDB.getBlends();
+  1899→    var enTiendaCount = 0;
+  1900→    for (var i = 0; i < allEsp.length; i++) { if (allEsp[i].enTienda) enTiendaCount++; }
+  1901→    for (var i = 0; i < allBl.length; i++) { if (allBl[i].enTienda) enTiendaCount++; }
+  1902→
+  1903→    var h = '<div class="stats-grid" style="grid-template-columns: repeat(3, 1fr)">' +
+  1904→      '<div class="stat-card" style="border-left-color:var(--gold)"><div class="stat-value">' + enTiendaCount + '</div><div class="stat-label">Productos en Tienda</div></div>' +
+  1905→      '<div class="stat-card" style="border-left-color:var(--green)"><div class="stat-value">' + productos.length + '</div><div class="stat-label">Disponibles (con stock)</div></div>' +
+  1906→      '<div class="stat-card"><div class="stat-value" style="font-size:0.85rem">arcanoespecias.github.io/arcano-v2/tienda.html</div><div class="stat-label">URL Publica</div></div>' +
+  1907→      '</div>';
+  1908→
+  1909→    h += '<div class="card mt-16"><div class="card-header"><h3>Productos visibles en la tienda</h3></div><div class="card-body">';
+  1910→    if (productos.length === 0) {
+  1911→      h += '<p class="text-muted text-center">No hay productos visibles. Activa "Tienda" en Productos > Editar.</p>';
+  1912→    } else {
+  1913→      h += '<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Tipo</th><th>Cat.</th><th>Precio Pequeño</th><th>Precio Grande</th><th>Stock Pq</th><th>Stock Gr</th></tr></thead><tbody>';
+  1914→      for (var i = 0; i < productos.length; i++) {
+  1915→        var p = productos[i];
+  1916→        h += '<tr>' +
+  1917→          '<td class="fw7">' + p.nombre + '</td>' +
+  1918→          '<td><span class="badge ' + (p.tipo==='blend'?'badge-blue':'badge-gold') + '">' + (p.tipo==='blend'?'Blend':'Especia') + '</span></td>' +
+  1919→          '<td>' + (p.categoria||'') + '</td>' +
+  1920→          '<td class="text-gold">$' + (p.precioChico||0).toLocaleString() + '</td>' +
+  1921→          '<td class="text-gold">$' + (p.precioGrande||0).toLocaleString() + '</td>' +
+  1922→          '<td class="text-green">' + p.stockChico + '</td>' +
+  1923→          '<td class="text-green">' + p.stockGrande + '</td></tr>';
+  1924→      }
+  1925→      h += '</tbody></table></div>';
+  1926→    }
+  1927→    h += '</div></div>';
+  1928→    container.innerHTML = h;
+  1929→  },
+  1930→
+  1931→  /* ================================================================
+  1932→     IMPORTAR EXCEL
+  1933→     ================================================================ */
+  1934→  formImportarExcel() {
+  1935→    var modal = document.createElement('div');
+  1936→    modal.className = 'modal-overlay';
+  1937→    modal.innerHTML = '<div class="modal modal-lg" style="max-width:680px">' +
+  1938→      '<div class="modal-header"><h3>Importar Excel</h3><button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">X</button></div>' +
+  1939→      '<div class="modal-body">' +
+  1940→        '<p class="text-sm text-muted mb-12">Subi tu archivo Excel con las hojas <b>ESPECIAS</b> y <b>BLENDS</b>. El sistema creara los productos automaticamente.</p>' +
+  1941→        '<div class="form-group"><label>Archivo Excel (.xlsx)</label>' +
+  1942→        '<input type="file" class="input" id="f-import-file" accept=".xlsx,.xls"></div>' +
+  1943→        '<div class="g2">' +
+  1944→          '<div class="form-group"><label>Grs por Frasco Pequeño</label><input type="number" class="input" id="f-import-gc" value="30" min="1"></div>' +
+  1945→          '<div class="form-group"><label>Grs por Frasco Grande</label><input type="number" class="input" id="f-import-gg" value="80" min="1"></div>' +
+  1946→        '</div>' +
+  1947→        '<div id="f-import-status" class="mt-12"></div>' +
+  1948→        '<div id="f-import-preview" class="mt-12" style="display:none"></div>' +
+  1949→      '</div>' +
+  1950→      '<div class="modal-footer" id="f-import-footer">' +
+  1951→        '<button class="btn btn-outline" onclick="this.closest(\'.modal-overlay\').remove()">Cancelar</button>' +
+  1952→        '<button class="btn btn-gold" id="btn-parse-excel" disabled>Analizar</button>' +
+  1953→      '</div>' +
+  1954→    '</div>';
+  1955→    document.body.appendChild(modal);
+  1956→
+  1957→    var fileInput = document.getElementById('f-import-file');
+  1958→    var parseBtn = document.getElementById('btn-parse-excel');
+  1959→    var statusDiv = document.getElementById('f-import-status');
+  1960→    var previewDiv = document.getElementById('f-import-preview');
+  1961→    var footerDiv = document.getElementById('f-import-footer');
+  1962→
+  1963→    // Enable parse button when file selected
+  1964→    fileInput.addEventListener('change', function() {
+  1965→      parseBtn.disabled = !fileInput.files.length;
+  1966→    });
+  1967→
+  1968→    // Parse Excel
+  1969→    parseBtn.addEventListener('click', function() {
+  1970→      parseBtn.disabled = true;
+  1971→      statusDiv.innerHTML = '<p class="text-muted">Leyendo archivo...</p>';
+  1972→      previewDiv.style.display = 'none';
+  1973→
+  1974→      var reader = new FileReader();
+  1975→      reader.onload = function(e) {
+  1976→        try {
+  1977→          var data = new Uint8Array(e.target.result);
+  1978→          var workbook = XLSX.read(data, { type: 'array' });
+  1979→
+  1980→          // Parse ESPECIAS sheet
+  1981→          var especiasList = [];
+  1982→          var espSheet = workbook.Sheets['ESPECIAS'];
+  1983→          if (espSheet) {
+  1984→            var espData = XLSX.utils.sheet_to_json(espSheet, { header: 1 });
+  1985→            for (var i = 1; i < espData.length; i++) {
+  1986→              var row = espData[i];
+  1987→              var nombre = (row[0] || '').toString().trim();
+  1988→              if (!nombre || nombre.toLowerCase() === 'especia / ingrediente') continue;
+  1989→              especiasList.push({ nombre: nombre, categoria: 'Comidas' });
+  1990→            }
+  1991→          }
+  1992→
+  1993→          // Parse BLENDS sheet
+  1994→          var blendsList = [];
+  1995→          var blSheet = workbook.Sheets['BLENDS'];
+  1996→          if (blSheet) {
+  1997→            var blData = XLSX.utils.sheet_to_json(blSheet, { header: 1 });
+  1998→            var currentBlend = null;
+  1999→            for (var j = 1; j < blData.length; j++) {
+  2000→              var row = blData[j];
+
+[showing lines 1-2000 of 3341; use offset=2001 with limit to continue reading]
