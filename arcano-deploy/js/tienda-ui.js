@@ -317,7 +317,8 @@ function _getArcanoLinkData() {
   var products = getStoreProducts();
   var map = {};
   for (var i = 0; i < products.length; i++) {
-    if (products[i].nombre) map[products[i].nombre] = products[i].id;
+    var p = products[i];
+    if (p.nombre && (p.precioChico > 0 || p.precioGrande > 0)) map[p.nombre] = p.id;
   }
   var names = Object.keys(map);
   if (names.length === 0) { _arcanoLinkData = { regex: null, map: map }; return _arcanoLinkData; }
