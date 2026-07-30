@@ -68,12 +68,6 @@ function renderProducts(filter) {
     var hasChico = p.stockChico > 0 && p.precioChico > 0;
     var hasGrande = p.stockGrande > 0 && p.precioGrande > 0;
     var anyStock = hasChico || hasGrande;
-    var stockClass = (hasChico && p.stockChico <= 3) || (hasGrande && p.stockGrande <= 3) ? 'stock-low' : 'stock-ok';
-    var stockText = '';
-    if (hasChico && hasGrande) stockText = 'Pq: ' + p.stockChico + ' | Gr: ' + p.stockGrande;
-    else if (hasChico) stockText = 'Pequeño: ' + p.stockChico + ' disp.';
-    else if (hasGrande) stockText = 'Grande: ' + p.stockGrande + ' disp.';
-
     var meta = (p.tipo === 'blend' ? 'Blend' : 'Especia');
     if (p.categoria) meta += ' \u00b7 ' + p.categoria;
 
@@ -86,7 +80,6 @@ function renderProducts(filter) {
         '<div class="card-meta">' + meta + '</div>' +
         (p.tags && p.tags.length ? '<div class="card-tags">' + p.tags.map(function(t){return '<span class="card-tag">' + t + '</span>';}).join('') + '</div>' : '') +
         (p.tipo === 'blend' && p.ingredientes && p.ingredientes.length > 0 ? '<div class="card-tags" style="margin-top:2px">' + p.ingredientes.map(function(ing){return '<span class="card-tag" style="background:rgba(232,184,75,0.08);border-color:rgba(232,184,75,0.2)">' + (ing.especiaNombre||'') + '</span>';}).join('') + '</div>' : '') +
-        (anyStock ? '<span class="stock-badge ' + stockClass + '">' + stockText + '</span>' : '') +
         '<div class="card-prices">' +
           (hasChico ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;chico&#39;)"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>' : '') +
           (hasGrande ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;grande&#39;)"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>' : '') +
@@ -142,11 +135,6 @@ function openDetail(pid) {
   if (hasChico) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'chico' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Pequeño</div><div class="detail-price-val">$' + p.precioChico.toLocaleString() + '</div></button>';
   if (hasGrande) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'grande' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Grande</div><div class="detail-price-val">$' + p.precioGrande.toLocaleString() + '</div></button>';
 
-  var stockHtml = '';
-  if (hasChico && hasGrande) stockHtml = 'Pequeño: ' + p.stockChico + ' disponibles \u00b7 Grande: ' + p.stockGrande + ' disponibles';
-  else if (hasChico) stockHtml = p.stockChico + ' frascos disponibles';
-  else if (hasGrande) stockHtml = p.stockGrande + ' frascos disponibles';
-
   var descHtml = p.descripcion ? '<p class="detail-desc">' + p.descripcion + '</p>' : '';
 
   // Mostrar ingredientes para blends
@@ -177,7 +165,6 @@ function openDetail(pid) {
       descHtml +
       ingsHtml +
       (pricesHtml ? '<div class="detail-prices-row">' + pricesHtml + '</div>' : '') +
-      (stockHtml ? '<p class="detail-stock">' + stockHtml + '</p>' : '') +
     '</div></div>';
 
   overlay.innerHTML = html;
