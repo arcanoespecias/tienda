@@ -342,7 +342,7 @@ function _linkArcanoProducts(text) {
       if (k.toLowerCase() === name.toLowerCase()) { pid = data.map[k]; break; }
     }
     if (!pid) return full;
-    return before + '<span class=\'arcano-link\' onclick=\'event.stopPropagation();closeSidebar();openDetail(' + pid + ')\'>' + name + '</span>';
+    return before + '<span class=\'arcano-link\' onclick=\'event.stopPropagation();openDetail(' + pid + ')\'>' + name + '</span>';
   });
 }
 
