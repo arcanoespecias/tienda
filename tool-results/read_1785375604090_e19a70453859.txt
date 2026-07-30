@@ -1,3 +1,243 @@
+    40→
+    41→function _cleanNulls() {
+    42→  var cols = ['especias', 'blends', 'producciones', 'ventas', 'entradas', 'stickers', 'ajustes'];
+    43→  for (var c = 0; c < cols.length; c++) {
+    44→    var col = cols[c];
+    45→    if (!_db[col]) { _db[col] = {}; continue; }
+    46→    var keys = Object.keys(_db[col]);
+    47→    for (var j = 0; j < keys.length; j++) {
+    48→      if (_db[col][keys[j]] == null || typeof _db[col][keys[j]] !== 'object') {
+    49→        delete _db[col][keys[j]];
+    50→      }
+    51→    }
+    52→  }
+    53→}
+    54→
+    55→function _ensureStructure() {
+    56→  if (!_db || typeof _db !== 'object' || Array.isArray(_db)) {
+    57→    _db = null;
+    58→    return false;
+    59→  }
+    60→  if (!_db.meta || !_db.meta.nextId) {
+    61→    _db.meta = { nextId: Object.assign({}, DEFAULT_IDS), version: DB_VERSION };
+    62→  } else {
+    63→    _db.meta.version = DB_VERSION;
+    64→    for (var k in DEFAULT_IDS) {
+    65→      if (typeof _db.meta.nextId[k] !== 'number') _db.meta.nextId[k] = DEFAULT_IDS[k];
+    66→    }
+    67→  }
+    68→  if (!_db.especias) _db.especias = {};
+    69→  if (!_db.blends) _db.blends = {};
+    70→  if (!_db.producciones) _db.producciones = {};
+    71→  if (!_db.ventas) _db.ventas = {};
+    72→  if (!_db.entradas) _db.entradas = {};
+    73→  if (!_db.stickers) _db.stickers = {};
+    74→  if (!_db.ajustes) _db.ajustes = {};
+    75→  // Migration: copy old etiquetas data to stickers
+    76→  if (_db.etiquetas && Object.keys(_db.etiquetas).length > 0 && Object.keys(_db.stickers).length === 0) {
+    77→    _db.stickers = _db.etiquetas;
+    78→  }
+    79→  delete _db.etiquetas;
+    80→  if (!_db.stockEnvases) _db.stockEnvases = { chico: 0, grande: 0 };
+    81→  if (!_db.stockBolsas) _db.stockBolsas = { chico: 0, grande: 0 };
+    82→  if (!_db.usuarios) _db.usuarios = {
+    83→    admin: { id: 'admin', nombre: 'Administrador', pin: '1234', rol: 'admin', activo: true, creado: new Date().toISOString() }
+    84→  };
+    85→  if (!_db.productTags) _db.productTags = {
+    86→    'Comidas': ['Aves', 'Pescados y Mariscos', 'Cerdo', 'Salsas y Aderezos', 'Verduras y Vegetales', 'Granos y Legumbres'],
+    87→    'Infusiones': ['Relajante', 'Digestiva', 'Energética', 'Citrica', 'Refrescante', 'Detox', 'Aromatica'],
+    88→    'Cocteleria': ['Tropical', 'Citrica', 'Seca', 'Dulce']
+    89→  };
+    90→  _cleanNulls();
+    91→  return true;
+    92→}
+    93→
+    94→function _emptyDB() {
+    95→  return {
+    96→    meta: { nextId: Object.assign({}, DEFAULT_IDS), version: DB_VERSION },
+    97→    especias: {}, blends: {}, producciones: {}, ventas: {}, entradas: {}, stickers: {}, ajustes: {},
+    98→    stockEnvases: { chico: 0, grande: 0 },
+    99→    stockBolsas: { chico: 0, grande: 0 },
+   100→    productTags: {
+   101→      'Comidas': ['Aves', 'Pescados y Mariscos', 'Cerdo', 'Salsas y Aderezos', 'Verduras y Vegetales', 'Granos y Legumbres'],
+   102→      'Infusiones': ['Relajante', 'Digestiva', 'Energética', 'Citrica', 'Refrescante', 'Detox', 'Aromatica'],
+   103→      'Cocteleria': ['Tropical', 'Citrica', 'Seca', 'Dulce']
+   104→    },
+   105→    usuarios: { admin: { id: 'admin', nombre: 'Administrador', pin: '1234', rol: 'admin', activo: true, creado: new Date().toISOString() } }
+   106→  };
+   107→}
+   108→
+   109→function nextId(col) {
+   110→  if (!_db.meta.nextId[col]) _db.meta.nextId[col] = 1;
+   111→  var id = _db.meta.nextId[col]++;
+   112→  return id;
+   113→}
+   114→
+   115→/* ==================== FIREBASE ==================== */
+   116→
+   117→var _firebaseApp = null;
+   118→var _firebaseDb = null;
+   119→var _firebaseRef = null;
+   120→
+   121→/* === Pedidos (path arcano/db/pedidos) === */
+   122→var _pedidos = [];           // in-memory list of orders from tienda
+   123→var _pedidosRef = null;      // Firebase ref for arcano/db/pedidos
+   124→var _pedidosListeners = [];  // callbacks when new pedido arrives
+   125→
+   126→function _initFirebase() {
+   127→  if (_firebaseDb) return;
+   128→  try {
+   129→    _firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+   130→    _firebaseDb = firebase.database();
+   131→    _firebaseRef = _firebaseDb.ref(FB_PATH);
+   132→    _pedidosRef = _firebaseDb.ref('arcano/db/pedidos');
+   133→  } catch (e) {
+   134→    console.error('[DB] Firebase init error:', e);
+   135→  }
+   136→}
+   137→
+   138→function _saveToFirebase() {
+   139→  if (!_firebaseRef) return;
+   140→  _localDirty = true;
+   141→  clearTimeout(_saveTimer);
+   142→  _saveTimer = setTimeout(function() {
+   143→    try {
+   144→      var safetyTimer = setTimeout(function() { _localDirty = false; }, 5000);
+   145→      _firebaseRef.update(_db, function(error) {
+   146→        clearTimeout(safetyTimer);
+   147→        _localDirty = false;
+   148→        if (error) console.error('[DB] Firebase save error:', error);
+   149→      });
+   150→    } catch (e) {
+   151→      console.error('[DB] Firebase save error:', e);
+   152→      _localDirty = false;
+   153→    }
+   154→  }, 500);
+   155→}
+   156→
+   157→function _notify(type, col, id) {
+   158→  for (var i = 0; i < _listeners.length; i++) {
+   159→    try { _listeners[i](type, col, id); } catch (e) {}
+   160→  }
+   161→}
+   162→
+   163→/* ==================== INIT ==================== */
+   164→
+   165→function initDB() {
+   166→  return new Promise(function(resolve) {
+   167→    _initFirebase();
+   168→
+   169→    // Always try localStorage cache for instant UI
+   170→    var cached = null;
+   171→    try { cached = JSON.parse(localStorage.getItem(DB_KEY)); } catch (e) {}
+   172→
+   173→    if (cached && cached.meta && cached.meta.version === DB_VERSION && _ensureStructureOn(cached)) {
+   174→      _db = cached;
+   175→      _ensureStructure();  // ensure new fields exist on cached data
+   176→      _ready = true;
+   177→      _startFirebaseListener();
+   178→      _startPedidosListener();
+   179→      resolve();
+   180→      return;
+   181→    }
+   182→
+   183→    // Load from Firebase
+   184→    if (_firebaseRef) {
+   185→      _firebaseRef.once('value').then(function(snap) {
+   186→        var fbData = snap.val();
+   187→        if (fbData && fbData.meta && fbData.meta.version === DB_VERSION && _ensureStructureOn(fbData)) {
+   188→          delete fbData.pedidos;  // pedidos managed separately, not part of admin _db
+   189→          _db = fbData;
+   190→          _ensureStructure();  // ensure new fields exist on Firebase data
+   191→        } else {
+   192→          _db = _emptyDB();
+   193→          _ensureStructure();
+   194→          _saveToFirebase();
+   195→        }
+   196→        _ready = true;
+   197→        _cacheLocal();
+   198→        _startFirebaseListener();
+   199→        _startPedidosListener();
+   200→        resolve();
+   201→      }).catch(function() {
+   202→        _db = _emptyDB();
+   203→        _ensureStructure();
+   204→        _ready = true;
+   205→        resolve();
+   206→      });
+   207→    } else {
+   208→      _db = _emptyDB();
+   209→      _ensureStructure();
+   210→      _ready = true;
+   211→      resolve();
+   212→    }
+   213→  });
+   214→}
+   215→
+   216→function _ensureStructureOn(data) {
+   217→  if (!data || typeof data !== 'object') return false;
+   218→  if (!data.meta || !data.meta.version) return false;
+   219→  if (data.meta.version !== DB_VERSION) return false;
+   220→  // Basic check
+   221→  if (!data.especias || !data.blends) return false;
+   222→  return true;
+   223→}
+   224→
+   225→function _cacheLocal() {
+   226→  try { localStorage.setItem(DB_KEY, JSON.stringify(_db)); } catch (e) {}
+   227→}
+   228→
+   229→function _startFirebaseListener() {
+   230→  if (!_firebaseRef) return;
+   231→  _firebaseRef.on('value', function(snap) {
+   232→    var data = snap.val();
+   233→    if (!data || !data.meta || data.meta.version !== DB_VERSION) return;
+   234→    // CRITICAL: skip if local save is pending to prevent overwriting unsaved changes
+   235→    if (_localDirty) return;
+   236→    delete data.pedidos;  // pedidos managed separately, not part of admin _db
+   237→    var prevJson = JSON.stringify(_db);
+   238→    _db = data;
+   239→    _ensureStructure();
+   240→    _cacheLocal();
+   241→    var newJson = JSON.stringify(_db);
+   242→    if (prevJson !== newJson) {
+   243→      _notify('remote_change', '', '');
+   244→    }
+   245→  });
+   246→}
+   247→
+   248→function _startPedidosListener() {
+   249→  if (!_pedidosRef) return;
+   250→  var _prevNuevoKeys = {};
+   251→  _pedidosRef.on('value', function(snap) {
+   252→    var data = snap.val();
+   253→    var prevLen = _pedidos.length;
+   254→    var prevNuevoKeys = Object.assign({}, _prevNuevoKeys);
+   255→    _pedidos = [];
+   256→    var nuevoKeys = {};
+   257→    if (data) {
+   258→      var keys = Object.keys(data);
+   259→      for (var i = 0; i < keys.length; i++) {
+   260→        var p = data[keys[i]];
+   261→        if (p && typeof p === 'object') {
+   262→          p._key = keys[i];
+   263→          _pedidos.push(p);
+   264→          if (p.estado === 'nuevo') nuevoKeys[keys[i]] = true;
+   265→        }
+   266→      }
+   267→    }
+   268→    _pedidos.sort(function(a, b) { return (b.creado || '').localeCompare(a.creado || ''); });
+   269→    _prevNuevoKeys = nuevoKeys;
+   270→    // Detect new pedido: a key in nuevoKeys that was NOT in prevNuevoKeys
+   271→    var hasNew = false;
+   272→    var nk = Object.keys(nuevoKeys);
+   273→    for (var n = 0; n < nk.length; n++) {
+   274→      if (!prevNuevoKeys[nk[n]]) { hasNew = true; break; }
+   275→    }
+   276→    _notifyPedidos(hasNew, _pedidos.length !== prevLen);
+   277→  });
+   278→}
+   279→
    280→function _notifyPedidos(isNew, countChanged) {
    281→  for (var i = 0; i < _pedidosListeners.length; i++) {
    282→    try { _pedidosListeners[i](_pedidos, isNew, countChanged); } catch (e) {}
