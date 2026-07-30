@@ -1,0 +1,1034 @@
+     1→// ===================== ARCANO — APP LOGIC =====================
+     2→// ES5 — Firebase-first, every mutation calls DB.save()
+     3→
+     4→// ==================== STATE ====================
+     5→var currentUser = null;
+     6→var currentPage = 'dashboard';
+     7→var cart = [];
+     8→var storeCat = 'todos';
+     9→
+    10→// ==================== TOAST ====================
+    11→function toast(msg, type) {
+    12→  var el = document.getElementById('toast');
+    13→  if (!el) return;
+    14→  el.textContent = msg;
+    15→  el.className = (type === 'err' ? 'err' : 'ok') + ' show';
+    16→  clearTimeout(toast._t);
+    17→  toast._t = setTimeout(function() { el.className = ''; }, 3000);
+    18→}
+    19→
+    20→// ==================== MODAL ====================
+    21→function openModal(title, bodyHtml) {
+    22→  document.getElementById('modal-title').textContent = title;
+    23→  document.getElementById('modal-body').innerHTML = bodyHtml;
+    24→  document.getElementById('modal-overlay').classList.add('open');
+    25→}
+    26→function closeModal() {
+    27→  document.getElementById('modal-overlay').classList.remove('open');
+    28→}
+    29→
+    30→// ==================== AUTH ====================
+    31→function showLogin() {
+    32→  var users = DB.data ? DB.data.usuarios.filter(function(u) { return u.rol !== 'vendedor' && u.activo !== false; }) : [];
+    33→  if (users.length === 0) { toast('No hay usuarios admin','err'); return; }
+    34→  var html = '<div class="pin-users">';
+    35→  users.forEach(function(u) {
+    36→    var bc = u.rol === 'admin' ? 'badge-gold' : 'badge-blue';
+    37→    html += '<button class="pin-user-btn" onclick="startPin('+u.id+')">' +
+    38→      '<div class="avatar">'+esc(u.nombre.charAt(0).toUpperCase())+'</div>' +
+    39→      '<div><strong>'+esc(u.nombre)+'</strong><br><span class="badge '+bc+'">'+esc(u.rol)+'</span></div></button>';
+    40→  });
+    41→  html += '</div><button class="btn btn-link mt-16" onclick="showStorefront()">Volver a la tienda</button>';
+    42→  document.getElementById('pin-content').innerHTML = html;
+    43→  document.getElementById('pin-screen').style.display = 'flex';
+    44→  document.getElementById('storefront').style.display = 'none';
+    45→  document.getElementById('admin-app').style.display = 'none';
+    46→}
+    47→
+    48→function startPin(userId) {
+    49→  window._pinTarget = userId;
+    50→  window._pinVal = '';
+    51→  var html = '<div class="pin-card"><p class="pin-label">Ingrese su PIN</p>' +
+    52→    '<div class="pin-dots" id="pin-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>' +
+    53→    '<p class="pin-error" id="pin-error"></p><div class="numpad">';
+    54→  for (var i = 1; i <= 9; i++) html += '<button class="numpad-btn" onclick="pinDigit(\''+i+'\')">'+i+'</button>';
+    55→  html += '<button class="numpad-btn numpad-blank" onclick="pinBack()">&#9003;</button>' +
+    56→    '<button class="numpad-btn" onclick="pinDigit(\'0\')">0</button>' +
+    57→    '<button class="numpad-btn numpad-cancel" onclick="showLogin()">X</button></div></div>';
+    58→  document.getElementById('pin-content').innerHTML = html;
+    59→  updatePinDots();
+    60→}
+    61→
+    62→function pinDigit(d) {
+    63→  if (!window._pinVal) window._pinVal = '';
+    64→  if (window._pinVal.length >= 4) return;
+    65→  window._pinVal += d;
+    66→  updatePinDots();
+    67→  if (window._pinVal.length === 4) verifyPin();
+    68→}
+    69→
+    70→function pinBack() { if (window._pinVal) { window._pinVal = window._pinVal.slice(0,-1); updatePinDots(); } }
+    71→
+    72→function updatePinDots() {
+    73→  var dots = document.querySelectorAll('#pin-dots .dot');
+    74→  var len = (window._pinVal||'').length;
+    75→  for (var i = 0; i < dots.length; i++) dots[i].classList.toggle('filled', i < len);
+    76→}
+    77→
+    78→function verifyPin() {
+    79→  var user = DB.find('usuarios', window._pinTarget);
+    80→  if (user && user.pin === window._pinVal) {
+    81→    currentUser = user;
+    82→    enterApp();
+    83→  } else {
+    84→    var err = document.getElementById('pin-error');
+    85→    if (err) err.textContent = 'PIN incorrecto';
+    86→    window._pinVal = '';
+    87→    updatePinDots();
+    88→  }
+    89→}
+    90→
+    91→function handleLogout() {
+    92→  if (!confirm('Cerrar sesion?')) return;
+    93→  currentUser = null;
+    94→  cart = [];
+    95→  showStorefront();
+    96→}
+    97→
+    98→// ==================== NAVIGATION ====================
+    99→var ADMIN_PAGES = {
+   100→  admin: [
+   101→    {id:'dashboard',label:'Dashboard'},{id:'compras',label:'Compras'},{id:'especias',label:'Especias'},
+   102→    {id:'blends',label:'Blends'},{id:'ventas',label:'Ventas'},{id:'produccion',label:'Produccion'},
+   103→    {id:'usuarios',label:'Usuarios'}
+   104→  ],
+   105→  vendedor: [{id:'ventas',label:'Ventas'}]
+   106→};
+   107→
+   108→function enterApp() {
+   109→  document.getElementById('pin-screen').style.display = 'none';
+   110→  document.getElementById('storefront').style.display = 'none';
+   111→  document.getElementById('admin-app').style.display = 'flex';
+   112→  buildNav();
+   113→  updateUserChip();
+   114→  var start = (currentUser.rol === 'vendedor') ? 'ventas' : 'dashboard';
+   115→  navigateTo(start);
+   116→}
+   117→
+   118→function buildNav() {
+   119→  var nav = document.getElementById('admin-nav');
+   120→  if (!nav || !currentUser) return;
+   121→  var items = ADMIN_PAGES[currentUser.rol] || ADMIN_PAGES.admin;
+   122→  nav.innerHTML = items.map(function(p) {
+   123→    return '<button class="nav-btn'+(p.id===currentPage?' active':'')+'" onclick="navigateTo(\''+p.id+'\')">'+esc(p.label)+'</button>';
+   124→  }).join('');
+   125→}
+   126→
+   127→function navigateTo(page) {
+   128→  currentPage = page;
+   129→  document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.toggle('active', b.getAttribute('onclick').indexOf(page) >= 0); });
+   130→  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('visible'); });
+   131→  var el = document.getElementById('page-'+page);
+   132→  if (el) el.classList.add('visible');
+   133→  renderPage(page);
+   134→}
+   135→
+   136→function updateUserChip() {
+   137→  var chip = document.getElementById('user-chip');
+   138→  if (!chip || !currentUser) return;
+   139→  var bc = currentUser.rol==='admin' ? 'badge-gold' : 'badge-blue';
+   140→  chip.innerHTML = esc(currentUser.nombre)+' <span class="badge '+bc+'">'+esc(currentUser.rol)+'</span> <button class="btn-icon" title="Salir">&#x2190;</button>';
+   141→}
+   142→
+   143→function renderPage(p) {
+   144→  var fn = {dashboard:renderDashboard,compras:renderCompras,especias:renderEspecias,blends:renderBlends,ventas:renderVentas,produccion:renderProduccion,usuarios:renderUsuarios};
+   145→  if (fn[p]) fn[p]();
+   146→}
+   147→
+   148→// ==================== DASHBOARD ====================
+   149→function renderDashboard() {
+   150→  var el = document.getElementById('page-dashboard');
+   151→  if (!el || !DB.data) return;
+   152→  var d = DB.data;
+   153→  var totalVentasMes = 0, totalComprasMes = 0, ventasMes = 0;
+   154→  var now = new Date(), mes = now.getMonth(), anio = now.getFullYear();
+   155→  (d.ventas||[]).forEach(function(v) { var vd=new Date(v.fecha); if(vd.getMonth()===mes&&vd.getFullYear()===anio){totalVentasMes+=v.total||0;ventasMes++;} });
+   156→  (d.compras||[]).forEach(function(c) { var cd=new Date(c.fecha); if(cd.getMonth()===mes&&cd.getFullYear()===anio) totalComprasMes+=c.total||0; });
+   157→
+   158→  var lowStock = 0;
+   159→  (d.especias||[]).forEach(function(e) { if((e.stock||0)<=(e.stockMin||0)) lowStock++; });
+   160→  (d.blends||[]).forEach(function(b) { if((b.stock||0)<=5) lowStock++; });
+   161→
+   162→  var html = '<div class="page-header"><h2>Dashboard</h2></div>';
+   163→  html += '<div class="g4 mb-16">' +
+   164→    '<div class="stat-card"><div class="stat-value">'+(d.especias||[]).length+'</div><div class="stat-label">Especias</div></div>' +
+   165→    '<div class="stat-card"><div class="stat-value">'+(d.blends||[]).length+'</div><div class="stat-label">Blends</div></div>' +
+   166→    '<div class="stat-card"><div class="stat-value">'+ventasMes+'</div><div class="stat-label">Ventas del mes</div></div>' +
+   167→    '<div class="stat-card"><div class="stat-value" style="color:'+(lowStock>0?'var(--red)':'var(--green)')+'">'+lowStock+'</div><div class="stat-label">Stock bajo</div></div></div>';
+   168→  html += '<div class="g2 mb-16">' +
+   169→    '<div class="stat-card"><div class="stat-value text-sm">'+fmt(totalVentasMes)+'</div><div class="stat-label">Ventas mes</div></div>' +
+   170→    '<div class="stat-card"><div class="stat-value text-sm">'+fmt(totalComprasMes)+'</div><div class="stat-label">Compras mes</div></div></div>';
+   171→
+   172→  // Recent activity
+   173→  var recent = [];
+   174→  (d.compras||[]).slice(-5).reverse().forEach(function(c) { recent.push({txt:'Compra #'+c.id+' — '+esc(c.proveedor||''),date:c.fecha,cls:'badge-yellow'}); });
+   175→  (d.ventas||[]).slice(-5).reverse().forEach(function(v) { recent.push({txt:'Venta #'+v.id+' — '+esc(v.vendedorNombre||''),date:v.fecha,cls:'badge-green'}); });
+   176→  (d.produccion||[]).slice(-5).reverse().forEach(function(p) { recent.push({txt:'Produccion: '+esc(p.blendNombre||''),date:p.fecha,cls:'badge-blue'}); });
+   177→  recent.sort(function(a,b) { return new Date(b.date)-new Date(a.date); });
+   178→  recent = recent.slice(0,8);
+   179→
+   180→  if (recent.length) {
+   181→    html += '<h3 class="text-sm text-muted mb-8">Actividad reciente</h3>';
+   182→    recent.forEach(function(r) {
+   183→      html += '<div class="card" style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between">' +
+   184→        '<div><span class="badge '+r.cls+' mb-8"></span> '+r.txt+'</div><div class="text-xs text-muted">'+fmtDateTime(r.date)+'</div></div>';
+   185→    });
+   186→  }
+   187→  el.innerHTML = html;
+   188→}
+   189→
+   190→// ==================== COMPRAS ====================
+   191→var comprasFilter = 'todos';
+   192→
+   193→function renderCompras() {
+   194→  var el = document.getElementById('page-compras');
+   195→  if (!el || !DB.data) return;
+   196→  var list = (DB.data.compras||[]).slice();
+   197→  if (comprasFilter !== 'todos') list = list.filter(function(c) { return c.estado === comprasFilter; });
+   198→  list.sort(function(a,b) { return new Date(b.fecha)-new Date(a.fecha); });
+   199→
+   200→  var html = '<div class="page-header"><h2>Compras</h2><button class="btn btn-gold btn-sm" onclick="modalNuevaCompra()">+ Nueva Compra</button></div>';
+   201→  html += '<div class="tabs">';
+   202→  [{v:'todos',l:'Todas'},{v:'pendiente',l:'Pendiente'},{v:'recibida',l:'Recibida'},{v:'cancelada',l:'Cancelada'}].forEach(function(t) {
+   203→    html += '<button class="tab-btn'+(t.v===comprasFilter?' active':'')+'" onclick="comprasFilter=\''+t.v+'\';renderCompras()">'+t.l+'</button>';
+   204→  });
+   205→  html += '</div>';
+   206→
+   207→  if (list.length === 0) {
+   208→    html += '<p class="empty-msg">No hay compras</p>';
+   209→  } else {
+   210→    html += '<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Items</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>';
+   211→    list.forEach(function(c) {
+   212→      var bc = c.estado==='recibida'?'badge-green':c.estado==='cancelada'?'badge-red':'badge-yellow';
+   213→      html += '<tr><td>'+fmtDate(c.fecha)+'</td><td>'+esc(c.proveedor||'-')+'</td><td>'+(c.items||[]).length+'</td><td>'+fmt(c.total)+'</td>' +
+   214→        '<td><span class="badge '+bc+'">'+esc(c.estado)+'</span></td>' +
+   215→        '<td><button class="btn btn-ghost btn-sm" onclick="verCompra('+c.id+')">Ver</button></td></tr>';
+   216→    });
+   217→    html += '</tbody></table></div>';
+   218→  }
+   219→  el.innerHTML = html;
+   220→}
+   221→
+   222→function modalNuevaCompra() {
+   223→  var today = new Date().toISOString().split('T')[0];
+   224→  var html = '<div class="form-stack"><div class="form-group"><label>Fecha</label><input type="date" id="cmp-fecha" value="'+today+'"></div>' +
+   225→    '<div class="form-group"><label>Proveedor</label><input type="text" id="cmp-proveedor" placeholder="Nombre del proveedor"></div>' +
+   226→    '<div class="form-group"><label>Agregar items</label><div class="flex gap-8" style="flex-wrap:wrap">' +
+   227→    '<button class="btn btn-gold btn-sm" onclick="addCmpRow(\'especia\')">+ Especia</button>' +
+   228→    '<button class="btn btn-ghost btn-sm" onclick="addCmpRow(\'frasco\')">+ Frasco</button>' +
+   229→    '<button class="btn btn-ghost btn-sm" onclick="addCmpRow(\'etiqueta\')">+ Etiqueta</button></div></div>' +
+   230→    '<div id="cmp-items"></div>' +
+   231→    '<div class="form-group"><label class="chk-label"><input type="checkbox" id="cmp-recibida"> Marcar como recibida</label></div>' +
+   232→    '<p class="mb-8"><strong>Total:</strong> <span id="cmp-total">$0</span></p>' +
+   233→    '<button class="btn btn-gold btn-full" onclick="guardarCompra()">Guardar Compra</button></div>';
+   234→  openModal('Nueva Compra', html);
+   235→  addCmpRow('especia');
+   236→}
+   237→
+   238→function addCmpRow(tipo) {
+   239→  var c = document.getElementById('cmp-items');
+   240→  if (!c) return;
+   241→  var row = document.createElement('div');
+   242→  row.className = 'compra-row';
+   243→  row.setAttribute('data-tipo', tipo);
+   244→
+   245→  if (tipo === 'especia') {
+   246→    var opts = '<option value="">-- Nueva --</option>';
+   247→    (DB.data.especias||[]).forEach(function(e) { opts += '<option value="'+e.id+'">'+esc(e.nombre)+' ('+Math.round(e.stock||0)+'gr)</option>'; });
+   248→    row.innerHTML = '<select onchange="cmpEspeciaChange(this)">'+opts+'</select>' +
+   249→      '<input name="nombre" placeholder="Nombre (nueva)" style="display:none">' +
+   250→      '<input type="number" min="0" step="any" placeholder="Cant. grs" oninput="calcCmpTotal()">' +
+   251→      '<input type="number" min="0" step="any" placeholder="$ Total" oninput="calcCmpTotal()">' +
+   252→      '<span class="subtotal-disp">$0</span>' +
+   253→      '<button class="btn-icon" onclick="this.parentElement.remove();calcCmpTotal()">&times;</button>';
+   254→  } else if (tipo === 'frasco') {
+   255→    row.innerHTML = '<select><option value="grande">Frasco Grande</option><option value="pequeno">Frasco Pequeno</option></select>' +
+   256→      '<input type="number" min="0" step="1" placeholder="Cantidad uds" oninput="calcCmpTotal()">' +
+   257→      '<input type="number" min="0" step="any" placeholder="$ Unitario" oninput="calcCmpTotal()">' +
+   258→      '<span class="subtotal-disp">$0</span>' +
+   259→      '<button class="btn-icon" onclick="this.parentElement.remove();calcCmpTotal()">&times;</button>';
+   260→  } else {
+   261→    var opts2 = '<option value="">-- Nueva --</option>';
+   262→    (DB.data.etiquetas||[]).forEach(function(e) { opts2 += '<option value="'+e.id+'">'+esc(e.nombre)+' ('+(e.stock||0)+')</option>'; });
+   263→    row.innerHTML = '<select onchange="cmpEtiquetaChange(this)">'+opts2+'</select>' +
+   264→      '<input name="nombre" placeholder="Nombre (nueva)" style="display:none">' +
+   265→      '<input type="number" min="0" step="1" placeholder="Cantidad uds" oninput="calcCmpTotal()">' +
+   266→      '<input type="number" min="0" step="any" placeholder="$ Unitario" oninput="calcCmpTotal()">' +
+   267→      '<span class="subtotal-disp">$0</span>' +
+   268→      '<button class="btn-icon" onclick="this.parentElement.remove();calcCmpTotal()">&times;</button>';
+   269→  }
+   270→  c.appendChild(row);
+   271→}
+   272→
+   273→function cmpEspeciaChange(sel) {
+   274→  var nombre = sel.parentElement.querySelector('input[name="nombre"]');
+   275→  nombre.style.display = sel.value ? 'none' : '';
+   276→  if (!sel.value) nombre.focus();
+   277→}
+   278→function cmpEtiquetaChange(sel) {
+   279→  var nombre = sel.parentElement.querySelector('input[name="nombre"]');
+   280→  nombre.style.display = sel.value ? 'none' : '';
+   281→  if (!sel.value) nombre.focus();
+   282→}
+   283→
+   284→function calcCmpTotal() {
+   285→  var rows = document.querySelectorAll('#cmp-items .compra-row');
+   286→  var total = 0;
+   287→  rows.forEach(function(row) {
+   288→    var inputs = row.querySelectorAll('input[type="number"]');
+   289→    var q = inputs[0] ? Number(inputs[0].value)||0 : 0;
+   290→    var p = inputs[1] ? Number(inputs[1].value)||0 : 0;
+   291→    var sub = q * p;
+   292→    total += sub;
+   293→    var sp = row.querySelector('.subtotal-disp');
+   294→    if (sp) sp.textContent = fmt(sub);
+   295→  });
+   296→  var te = document.getElementById('cmp-total');
+   297→  if (te) te.textContent = fmt(total);
+   298→}
+   299→
+   300→function guardarCompra() {
+   301→  var fecha = document.getElementById('cmp-fecha').value;
+   302→  var proveedor = (document.getElementById('cmp-proveedor').value||'').trim();
+   303→  var recibida = document.getElementById('cmp-recibida').checked;
+   304→  fecha = fecha ? new Date(fecha+'T12:00:00').toISOString() : new Date().toISOString();
+   305→
+   306→  var rows = document.querySelectorAll('#cmp-items .compra-row');
+   307→  var items = [], total = 0;
+   308→
+   309→  rows.forEach(function(row) {
+   310→    var tipo = row.getAttribute('data-tipo');
+   311→    var numInputs = row.querySelectorAll('input[type="number"]');
+   312→
+   313→    if (tipo === 'especia') {
+   314→      var sel = row.querySelector('select');
+   315→      var existId = sel ? Number(sel.value)||0 : 0;
+   316→      var nombreInput = row.querySelector('input[name="nombre"]');
+   317→      var nombre = nombreInput ? (nombreInput.value||'').trim() : '';
+   318→      var cantGr = numInputs[0] ? Number(numInputs[0].value)||0 : 0;
+   319→      var precioTotal = numInputs[1] ? Number(numInputs[1].value)||0 : 0;
+   320→      if (cantGr <= 0 || precioTotal <= 0) return;
+   321→
+   322→      var prodId, prodNombre;
+   323→      if (existId) {
+   324→        prodId = existId;
+   325→        var f = DB.find('especias', existId);
+   326→        if (!f) return;
+   327→        prodNombre = f.nombre;
+   328→      } else {
+   329→        if (!nombre) return;
+   330→        var existing = null;
+   331→        DB.data.especias.forEach(function(e) { if (e.nombre.toLowerCase()===nombre.toLowerCase()) existing=e; });
+   332→        if (existing) { prodId=existing.id; prodNombre=existing.nombre; }
+   333→        else {
+   334→          prodId = DB.nextId('especias');
+   335→          prodNombre = nombre;
+   336→          DB.data.especias.push({id:prodId,nombre:nombre,stock:0,stockMin:0,costoPor1000gr:Math.round(precioTotal/cantGr*1000),precioVentaGr:0,categoria:'',proveedor:proveedor,creadoEn:new Date().toISOString()});
+   337→        }
+   338→      }
+   339→      if (recibida) {
+   340→        var e = DB.find('especias', prodId);
+   341→        if (e) e.stock = Math.round(((e.stock||0)+cantGr)*100)/100;
+   342→      }
+   343→      total += precioTotal;
+   344→      items.push({productoId:prodId,productoNombre:prodNombre,tipo:'especia',cantidad:cantGr,precioUnitario:Math.round(precioTotal/cantGr*100)/100,subtotal:precioTotal});
+   345→
+   346→    } else if (tipo === 'frasco') {
+   347→      var frascoTipo = row.querySelector('select').value;
+   348→      var cant = numInputs[0]?Number(numInputs[0].value)||0:0;
+   349→      var pUnit = numInputs[1]?Number(numInputs[1].value)||0:0;
+   350→      if (cant<=0||pUnit<=0) return;
+   351→      var fname = frascoTipo==='grande'?'Frasco Grande':'Frasco Pequeno';
+   352→      var frasco = DB.data.frascos.find(function(f){return f.tipo===frascoTipo;});
+   353→      if (frasco && recibida) frasco.stock = (frasco.stock||0)+cant;
+   354→      total += cant*pUnit;
+   355→      items.push({productoId:frasco?frasco.id:0,productoNombre:fname,tipo:'frasco',cantidad:cant,precioUnitario:pUnit,subtotal:cant*pUnit});
+   356→
+   357→    } else if (tipo === 'etiqueta') {
+   358→      var sel2 = row.querySelector('select');
+   359→      var existId2 = sel2?Number(sel2.value)||0:0;
+   360→      var nombreInput2 = row.querySelector('input[name="nombre"]');
+   361→      var nombre2 = nombreInput2?(nombreInput2.value||'').trim():'';
+   362→      var cant2 = numInputs[0]?Number(numInputs[0].value)||0:0;
+   363→      var pUnit2 = numInputs[1]?Number(numInputs[1].value)||0:0;
+   364→      if (cant2<=0||pUnit2<=0) return;
+   365→      var prodId2, prodNombre2;
+   366→      if (existId2) {
+   367→        prodId2=existId2; var f2=DB.find('etiquetas',existId2); if(!f2)return; prodNombre2=f2.nombre;
+   368→      } else {
+   369→        if(!nombre2)return;
+   370→        var ex2=null; DB.data.etiquetas.forEach(function(e){if(e.nombre.toLowerCase()===nombre2.toLowerCase())ex2=e;});
+   371→        if(ex2){prodId2=ex2.id;prodNombre2=ex2.nombre;}
+   372→        else{prodId2=DB.nextId('etiquetas');prodNombre2=nombre2;DB.data.etiquetas.push({id:prodId2,nombre:nombre2,stock:0,costoUnit:pUnit2,creadoEn:new Date().toISOString()});}
+   373→      }
+   374→      if(recibida){var et=DB.find('etiquetas',prodId2);if(et)et.stock=(et.stock||0)+cant2;}
+   375→      total+=cant2*pUnit2;
+   376→      items.push({productoId:prodId2,productoNombre:prodNombre2,tipo:'etiqueta',cantidad:cant2,precioUnitario:pUnit2,subtotal:cant2*pUnit2});
+   377→    }
+   378→  });
+   379→
+   380→  if (items.length===0){toast('Agregue al menos un item valido','err');return;}
+   381→  var compra = {id:DB.nextId('compras'),fecha:fecha,proveedor:proveedor,estado:recibida?'recibida':'pendiente',items:items,total:total,creadoPor:currentUser?currentUser.id:null,creadoEn:new Date().toISOString()};
+   382→  DB.data.compras.push(compra);
+   383→  DB.save();
+   384→  closeModal();
+   385→  toast('Compra #'+compra.id+' registrada');
+   386→  renderCompras();
+   387→}
+   388→
+   389→function verCompra(id) {
+   390→  var c = DB.find('compras', id);
+   391→  if (!c) return;
+   392→  var bc = c.estado==='recibida'?'badge-green':c.estado==='cancelada'?'badge-red':'badge-yellow';
+   393→  var html = '<p><strong>Fecha:</strong> '+fmtDate(c.fecha)+'</p><p><strong>Proveedor:</strong> '+esc(c.proveedor||'-')+'</p><p><strong>Estado:</strong> <span class="badge '+bc+'">'+esc(c.estado)+'</span></p>';
+   394→  html += '<div class="table-wrap mt-12"><table><thead><tr><th>Producto</th><th>Tipo</th><th>Cant.</th><th>P.Unit</th><th>Subtotal</th></tr></thead><tbody>';
+   395→  (c.items||[]).forEach(function(i) {
+   396→    html += '<tr><td>'+esc(i.productoNombre)+'</td><td>'+esc(i.tipo)+'</td><td>'+i.cantidad+'</td><td>'+fmt(i.precioUnitario)+'</td><td>'+fmt(i.subtotal)+'</td></tr>';
+   397→  });
+   398→  html += '</tbody></table></div><p class="mt-12"><strong>Total:</strong> '+fmt(c.total)+'</p>';
+   399→  html += '<div class="actions-row mt-12">';
+   400→  if (c.estado==='pendiente') { html += '<button class="btn btn-gold btn-sm" onclick="cambiarEstadoCompra('+id+',\'recibida\')">Marcar Recibida</button><button class="btn btn-danger btn-sm" onclick="cambiarEstadoCompra('+id+',\'cancelada\')">Cancelar</button>'; }
+   401→  else if (c.estado==='recibida') { html += '<button class="btn btn-danger btn-sm" onclick="cambiarEstadoCompra('+id+',\'cancelada\')">Cancelar</button>'; }
+   402→  else { html += '<button class="btn btn-ghost btn-sm" onclick="cambiarEstadoCompra('+id+',\'pendiente\')">Reactivar</button>'; }
+   403→  html += '</div>';
+   404→  openModal('Compra #'+c.id, html);
+   405→}
+   406→
+   407→function cambiarEstadoCompra(id, nuevo) {
+   408→  var c = DB.find('compras', id);
+   409→  if (!c || c.estado === nuevo) return;
+   410→  var old = c.estado;
+   411→
+   412→  if (nuevo==='recibida' && old!=='recibida') {
+   413→    (c.items||[]).forEach(function(item) {
+   414→      if (item.tipo==='especia'){var e=DB.find('especias',item.productoId);if(e)e.stock=Math.round(((e.stock||0)+item.cantidad)*100)/100;}
+   415→      else if(item.tipo==='frasco'){var f=DB.data.frascos.find(function(x){return x.tipo==='grande'&&item.productoNombre.indexOf('Grande')>=0;})||DB.data.frascos.find(function(x){return x.tipo==='pequeno';});if(f)f.stock=(f.stock||0)+item.cantidad;}
+   416→      else if(item.tipo==='etiqueta'){var et=DB.find('etiquetas',item.productoId);if(et)et.stock=(et.stock||0)+item.cantidad;}
+   417→    });
+   418→  }
+   419→  if (old==='recibida' && nuevo!=='recibida') {
+   420→    (c.items||[]).forEach(function(item) {
+   421→      if (item.tipo==='especia'){var e=DB.find('especias',item.productoId);if(e)e.stock=Math.round(((e.stock||0)-item.cantidad)*100)/100;}
+   422→      else if(item.tipo==='frasco'){var f=DB.data.frascos.find(function(x){return x.tipo==='grande'&&item.productoNombre.indexOf('Grande')>=0;})||DB.data.frascos.find(function(x){return x.tipo==='pequeno';});if(f)f.stock=Math.max(0,(f.stock||0)-item.cantidad);}
+   423→      else if(item.tipo==='etiqueta'){var et=DB.find('etiquetas',item.productoId);if(et)et.stock=Math.max(0,(et.stock||0)-item.cantidad);}
+   424→    });
+   425→  }
+   426→  c.estado = nuevo;
+   427→  DB.save();
+   428→  closeModal();
+   429→  toast('Estado actualizado a '+nuevo);
+   430→  renderCompras();
+   431→}
+   432→
+   433→// ==================== ESPECIAS ====================
+   434→function renderEspecias() {
+   435→  var el = document.getElementById('page-especias');
+   436→  if (!el || !DB.data) return;
+   437→  var list = DB.data.especias || [];
+   438→  var totalStock = 0, low = 0;
+   439→  list.forEach(function(e) { totalStock+=(e.stock||0); if((e.stock||0)<=(e.stockMin||0)) low++; });
+   440→
+   441→  var html = '<div class="page-header"><h2>Especias</h2><div class="text-sm text-muted">Stock disponible</div></div>';
+   442→  html += '<div class="g3 mb-16">' +
+   443→    '<div class="stat-card"><div class="stat-value">'+list.length+'</div><div class="stat-label">Especias</div></div>' +
+   444→    '<div class="stat-card"><div class="stat-value">'+Math.round(totalStock)+' gr</div><div class="stat-label">Stock total</div></div>' +
+   445→    '<div class="stat-card"><div class="stat-value" style="color:'+(low>0?'var(--red)':'var(--green)')+'">'+low+'</div><div class="stat-label">Stock bajo</div></div></div>';
+   446→
+   447→  if (list.length===0) { html += '<p class="empty-msg">No hay especias. Cargalas desde Compras.</p>'; el.innerHTML=html; return; }
+   448→
+   449→  list.forEach(function(e) {
+   450→    var st = Math.round((e.stock||0)*100)/100;
+   451→    var sc = (st<=(e.stockMin||0))?'var(--red)':(st<=(e.stockMin||0)*1.5)?'var(--yellow)':'var(--green)';
+   452→    var cpg = e.costoPor1000gr ? Math.round(e.costoPor1000gr/10)/10 : 0;
+   453→    html += '<div class="card"><div class="flex justify-between items-center mb-8"><div><strong class="text-gold">'+esc(e.nombre)+'</strong>' +
+   454→      (e.categoria?' <span class="badge badge-gold" style="margin-left:6px">'+esc(e.categoria)+'</span>':'')+'</div>' +
+   455→      '<button class="btn btn-ghost btn-sm" onclick="modalEditarEspecia('+e.id+')">Editar</button></div>' +
+   456→      '<div class="g3"><div><span class="text-xs text-muted">Stock</span><br><strong style="color:'+sc+';font-size:1.1rem">'+st+' gr</strong></div>' +
+   457→      '<div><span class="text-xs text-muted">Costo/1000gr</span><br>'+fmt(e.costoPor1000gr)+'</div>' +
+   458→      '<div><span class="text-xs text-muted">Precio venta/gr</span><br>'+fmt(e.precioVentaGr||0)+'</div></div></div>';
+   459→  });
+   460→  el.innerHTML = html;
+   461→}
+   462→
+   463→function modalEditarEspecia(id) {
+   464→  var e = DB.find('especias', id);
+   465→  if (!e) return;
+   466→  var html = '<div class="form-stack">' +
+   467→    '<div class="form-group"><label>Nombre</label><input type="text" id="ed-nombre" value="'+escJs(e.nombre)+'"></div>' +
+   468→    '<div class="g2"><div class="form-group"><label>Stock (gr)</label><input type="number" id="ed-stock" value="'+(e.stock||0)+'" step="any"></div>' +
+   469→    '<div class="form-group"><label>Stock minimo (gr)</label><input type="number" id="ed-stockmin" value="'+(e.stockMin||0)+'" step="any"></div></div>' +
+   470→    '<div class="g2"><div class="form-group"><label>Costo/1000gr</label><input type="number" id="ed-costo" value="'+(e.costoPor1000gr||0)+'" step="any"></div>' +
+   471→    '<div class="form-group"><label>Precio venta/gr</label><input type="number" id="ed-precio" value="'+(e.precioVentaGr||0)+'" step="any"></div></div>' +
+   472→    '<div class="g2"><div class="form-group"><label>Categoria</label><input type="text" id="ed-cat" value="'+escJs(e.categoria||'')+'" placeholder="Comidas, Infusion, Cocteleria"></div>' +
+   473→    '<div class="form-group"><label>Proveedor</label><input type="text" id="ed-prov" value="'+escJs(e.proveedor||'')+'"></div></div>' +
+   474→    '<button class="btn btn-gold btn-full mt-8" onclick="guardarEspecia('+id+')">Guardar</button></div>';
+   475→  openModal('Editar Especia', html);
+   476→}
+   477→
+   478→function guardarEspecia(id) {
+   479→  var e = DB.find('especias', id);
+   480→  if (!e) return;
+   481→  e.nombre = (document.getElementById('ed-nombre').value||'').trim();
+   482→  e.stock = Number(document.getElementById('ed-stock').value)||0;
+   483→  e.stockMin = Number(document.getElementById('ed-stockmin').value)||0;
+   484→  e.costoPor1000gr = Number(document.getElementById('ed-costo').value)||0;
+   485→  e.precioVentaGr = Number(document.getElementById('ed-precio').value)||0;
+   486→  e.categoria = (document.getElementById('ed-cat').value||'').trim();
+   487→  e.proveedor = (document.getElementById('ed-prov').value||'').trim();
+   488→  if (!e.nombre) { toast('Nombre requerido','err'); return; }
+   489→  DB.save();
+   490→  closeModal();
+   491→  toast('Especia actualizada');
+   492→  renderEspecias();
+   493→}
+   494→
+   495→// ==================== BLENDS ====================
+   496→function renderBlends() {
+   497→  var el = document.getElementById('page-blends');
+   498→  if (!el || !DB.data) return;
+   499→  var list = DB.data.blends || [];
+   500→
+   501→  var html = '<div class="page-header"><h2>Blends</h2><button class="btn btn-gold btn-sm" onclick="modalCrearBlend()">+ Nuevo Blend</button></div>';
+   502→
+   503→  if (list.length===0) { html += '<p class="empty-msg">No hay blends. Crea uno para empezar.</p>'; el.innerHTML=html; return; }
+   504→
+   505→  list.forEach(function(b) {
+   506→    var costo = b.costoUnitario || 0;
+   507→    var utilidad = (b.precioVenta||0) - costo;
+   508→    var pct = (b.precioVenta||0) > 0 ? Math.round(utilidad/(b.precioVenta||1)*100) : 0;
+   509→    var sc = (b.stock||0)<=5?'var(--red)':'var(--green)';
+   510→    html += '<div class="card"><div class="flex justify-between items-center mb-8"><div><strong class="text-gold" style="font-size:1.05rem">'+esc(b.nombre)+'</strong>' +
+   511→      (b.categoria?' <span class="badge badge-gold" style="margin-left:6px">'+esc(b.categoria)+'</span>':'')+'</div>' +
+   512→      '<div class="flex gap-8"><button class="btn btn-ghost btn-sm" onclick="producirBlend('+b.id+')">Producir</button>' +
+   513→      '<button class="btn btn-ghost btn-sm" onclick="modalEditarBlend('+b.id+')">Editar</button></div></div>' +
+   514→      '<div class="g4 mb-8"><div><span class="text-xs text-muted">Stock</span><br><strong style="color:'+sc+';font-size:1.1rem">'+(b.stock||0)+' uds</strong></div>' +
+   515→      '<div><span class="text-xs text-muted">Costo unit.</span><br>'+fmt(costo)+'</div>' +
+   516→      '<div><span class="text-xs text-muted">Precio venta</span><br>'+fmt(b.precioVenta||0)+'</div>' +
+   517→      '<div><span class="text-xs text-muted">Utilidad</span><br><span style="color:var(--green)">'+fmt(utilidad)+' ('+pct+'%)</span></div></div>';
+   518→    // Recipe
+   519→    if (b.receta && b.receta.length) {
+   520→      html += '<div class="text-xs text-muted mb-8">Receta ('+b.gramosPorUnidad+'gr por unidad):</div>';
+   521→      b.receta.forEach(function(r) {
+   522→        html += '<span class="badge badge-gold" style="margin:2px">'+esc(r.nombre)+' '+r.gramos+'gr</span> ';
+   523→      });
+   524→    }
+   525→    html += '</div>';
+   526→  });
+   527→  el.innerHTML = html;
+   528→}
+   529→
+   530→function modalCrearBlend(editId) {
+   531→  var b = editId ? DB.find('blends', editId) : null;
+   532→  var html = '<div class="form-stack">' +
+   533→    '<div class="form-group"><label>Nombre</label><input type="text" id="bl-nombre" value="'+escJs(b?b.nombre:'')+'"></div>' +
+   534→    '<div class="g2"><div class="form-group"><label>Categoria</label><input type="text" id="bl-cat" value="'+escJs(b?b.categoria:'')+'" placeholder="Comidas, Infusion, Cocteleria"></div>' +
+   535→    '<div class="form-group"><label>Gramos por unidad</label><input type="number" id="bl-gramos" value="'+(b?b.gramosPorUnidad:100)+'" step="any" oninput="calcBlendCost()"></div></div>' +
+   536→    '<div class="form-group"><label>Precio venta</label><input type="number" id="bl-precio" value="'+(b?b.precioVenta:0)+'" step="any" oninput="calcBlendCost()"></div>' +
+   537→    '<div class="form-group"><label>Receta</label><div class="flex gap-8 mb-8"><button class="btn btn-gold btn-sm" onclick="addRecipeRow()">+ Agregar Especia</button></div>' +
+   538→    '<div id="recipe-rows"></div></div>' +
+   539→    '<p class="mt-8"><strong>Costo unitario:</strong> <span id="bl-costo">$0</span></p>' +
+   540→    '<button class="btn btn-gold btn-full mt-12" onclick="guardarBlend('+(editId||0)+')">'+(b?'Actualizar':'Crear')+' Blend</button></div>';
+   541→  openModal(b?'Editar Blend':'Nuevo Blend', html);
+   542→  if (b && b.receta) b.receta.forEach(function(r) { addRecipeRow(r.especiaId, r.gramos); });
+   543→  else addRecipeRow();
+   544→  calcBlendCost();
+   545→}
+   546→
+   547→function modalEditarBlend(id) { modalCrearBlend(id); }
+   548→
+   549→function addRecipeRow(especiaId, gramos) {
+   550→  var c = document.getElementById('recipe-rows');
+   551→  if (!c) return;
+   552→  var opts = '<option value="">-- Seleccionar --</option>';
+   553→  (DB.data.especias||[]).forEach(function(e) { opts += '<option value="'+e.id+'"'+(e.id===especiaId?' selected':'')+'>'+esc(e.nombre)+' ('+fmt(e.costoPor1000gr||0)+'/kg)</option>'; });
+   554→  var row = document.createElement('div');
+   555→  row.className = 'recipe-row';
+   556→  row.innerHTML = '<select onchange="calcBlendCost()">'+opts+'</select>' +
+   557→    '<input type="number" min="0" step="any" placeholder="Gramos" value="'+(gramos||'')+'" oninput="calcBlendCost()">' +
+   558→    '<span class="recipe-cost">$0</span>' +
+   559→    '<button class="btn-icon" onclick="this.parentElement.remove();calcBlendCost()">&times;</button>';
+   560→  c.appendChild(row);
+   561→}
+   562→
+   563→function calcBlendCost() {
+   564→  var grPorUd = Number(document.getElementById('bl-gramos').value)||100;
+   565→  var rows = document.querySelectorAll('#recipe-rows .recipe-row');
+   566→  var totalGr = 0, totalCosto = 0;
+   567→  rows.forEach(function(row) {
+   568→    var sel = row.querySelector('select');
+   569→    var grInput = row.querySelectorAll('input')[0];
+   570→    var eid = sel?Number(sel.value)||0:0;
+   571→    var gr = grInput?Number(grInput.value)||0:0;
+   572→    totalGr += gr;
+   573→    var costo = 0;
+   574→    if (eid && gr > 0) {
+   575→      var e = DB.find('especias', eid);
+   576→      if (e && e.costoPor1000gr) costo = (e.costoPor1000gr/1000)*gr;
+   577→    }
+   578→    totalCosto += costo;
+   579→    var costSpan = row.querySelector('.recipe-cost');
+   580→    if (costSpan) costSpan.textContent = fmt(costo);
+   581→  });
+   582→  var costoUnit = totalGr > 0 ? totalCosto * (grPorUd/totalGr) : 0;
+   583→  var ce = document.getElementById('bl-costo');
+   584→  if (ce) ce.textContent = fmt(costoUnit);
+   585→  window._blendCosto = costoUnit;
+   586→}
+   587→
+   588→function guardarBlend(editId) {
+   589→  var nombre = (document.getElementById('bl-nombre').value||'').trim();
+   590→  var cat = (document.getElementById('bl-cat').value||'').trim();
+   591→  var gramos = Number(document.getElementById('bl-gramos').value)||100;
+   592→  var precio = Number(document.getElementById('bl-precio').value)||0;
+   593→  if (!nombre) { toast('Nombre requerido','err'); return; }
+   594→
+   595→  var receta = [];
+   596→  var rows = document.querySelectorAll('#recipe-rows .recipe-row');
+   597→  rows.forEach(function(row) {
+   598→    var sel = row.querySelector('select');
+   599→    var grInput = row.querySelectorAll('input')[0];
+   600→    var eid = sel?Number(sel.value)||0:0;
+   601→    var gr = grInput?Number(grInput.value)||0:0;
+   602→    if (eid && gr > 0) {
+   603→      var e = DB.find('especias', eid);
+   604→      receta.push({especiaId:eid, nombre:e?e.nombre:'?', gramos:gr});
+   605→    }
+   606→  });
+   607→  if (receta.length===0){toast('Agregue al menos una especia a la receta','err');return;}
+   608→
+   609→  var costoUnit = window._blendCosto || 0;
+   610→
+   611→  if (editId) {
+   612→    var b = DB.find('blends', editId);
+   613→    if (b) { b.nombre=nombre; b.categoria=cat; b.gramosPorUnidad=gramos; b.precioVenta=precio; b.receta=receta; b.costoUnitario=costoUnit; }
+   614→  } else {
+   615→    DB.data.blends.push({id:DB.nextId('blends'),nombre:nombre,categoria:cat,gramosPorUnidad:gramos,receta:receta,costoUnitario:costoUnit,precioVenta:precio,stock:0,creadoEn:new Date().toISOString()});
+   616→  }
+   617→  DB.save();
+   618→  closeModal();
+   619→  toast(editId?'Blend actualizado':'Blend creado');
+   620→  renderBlends();
+   621→}
+   622→
+   623→function producirBlend(id) {
+   624→  var b = DB.find('blends', id);
+   625→  if (!b) return;
+   626→  var stockInfo = '';
+   627→  if (b.receta) b.receta.forEach(function(r) {
+   628→    var e = DB.find('especias', r.especiaId);
+   629→    stockInfo += '<div>'+esc(r.nombre)+': <strong>'+(e?Math.round(e.stock||0):0)+' gr</strong> disponibles (necesita '+r.gramos+' gr por unidad)</div>';
+   630→  });
+   631→  var html = '<p>Blend: <strong class="text-gold">'+esc(b.nombre)+'</strong></p>' +
+   632→    '<p class="text-sm text-muted mt-8">Stock actual: <strong>'+(b.stock||0)+'</strong> unidades</p>' +
+   633→    '<div class="mt-12 mb-12 text-sm">'+stockInfo+'</div>' +
+   634→    '<div class="form-group"><label>Cantidad a producir (unidades)</label><input type="number" id="prod-cant" min="1" step="1" value="1"></div>' +
+   635→    '<button class="btn btn-gold btn-full" onclick="ejecutarProduccion('+id+')">Producir</button>';
+   636→  openModal('Producir: '+b.nombre, html);
+   637→}
+   638→
+   639→function ejecutarProduccion(id) {
+   640→  var b = DB.find('blends', id);
+   641→  if (!b) return;
+   642→  var cant = Number(document.getElementById('prod-cant').value)||0;
+   643→  if (cant <= 0) { toast('Cantidad invalida','err'); return; }
+   644→
+   645→  // Check stock
+   646→  var faltantes = [];
+   647→  (b.receta||[]).forEach(function(r) {
+   648→    var e = DB.find('especias', r.especiaId);
+   649→    var necesita = r.gramos * cant;
+   650→    if (!e || (e.stock||0) < necesita) faltantes.push(r.nombre+' (necesita '+necesita+'gr, tiene '+(e?Math.round(e.stock||0):0)+'gr)');
+   651→  });
+   652→  if (faltantes.length) { toast('Stock insuficiente: '+faltantes[0],'err'); return; }
+   653→
+   654→  // Consume especias
+   655→  var consumidos = [];
+   656→  (b.receta||[]).forEach(function(r) {
+   657→    var e = DB.find('especias', r.especiaId);
+   658→    if (e) {
+   659→      var usado = r.gramos * cant;
+   660→      e.stock = Math.round((e.stock - usado)*100)/100;
+   661→      consumidos.push({especiaId:r.especiaId, nombre:r.nombre, gramos:usado});
+   662→    }
+   663→  });
+   664→  b.stock = (b.stock||0) + cant;
+   665→
+   666→  DB.data.produccion.push({id:DB.nextId('produccion'),blendId:b.id,blendNombre:b.nombre,cantidad:cant,fecha:new Date().toISOString(),creadoPor:currentUser?currentUser.id:null,itemsConsumidos:consumidos,creadoEn:new Date().toISOString()});
+   667→  DB.save();
+   668→  closeModal();
+   669→  toast(cant+' unidades de '+b.nombre+' producidas');
+   670→  renderBlends();
+   671→}
+   672→
+   673→// ==================== VENTAS ====================
+   674→function renderVentas() {
+   675→  var el = document.getElementById('page-ventas');
+   676→  if (!el || !DB.data) return;
+   677→  var list = (DB.data.ventas||[]).slice().sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);});
+   678→  var html = '<div class="page-header"><h2>Ventas</h2><button class="btn btn-gold btn-sm" onclick="modalNuevaVenta()">+ Nueva Venta</button></div>';
+   679→  if (list.length===0) { html += '<p class="empty-msg">No hay ventas</p>'; el.innerHTML=html; return; }
+   680→  html += '<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Vendedor</th><th>Items</th><th>Total</th></tr></thead><tbody>';
+   681→  list.forEach(function(v) {
+   682→    html += '<tr><td>'+fmtDateTime(v.fecha)+'</td><td>'+esc(v.vendedorNombre||'-')+'</td><td>'+(v.items||[]).length+'</td><td><strong class="text-gold">'+fmt(v.total)+'</strong></td></tr>';
+   683→  });
+   684→  html += '</tbody></table></div>';
+   685→  el.innerHTML = html;
+   686→}
+   687→
+   688→function modalNuevaVenta() {
+   689→  var html = '<div class="form-stack">' +
+   690→    '<div class="form-group"><label>Seleccionar Blend</label><select id="vta-blend" onchange="vtaBlendChange()"><option value="">-- Seleccionar --</option>';
+   691→  (DB.data.blends||[]).forEach(function(b) {
+   692→    if ((b.stock||0) > 0 && (b.precioVenta||0) > 0) html += '<option value="'+b.id+'">'+esc(b.nombre)+' (stock: '+(b.stock||0)+', '+fmt(b.precioVenta)+')</option>';
+   693→  });
+   694→  html += '</select></div>' +
+   695→    '<div class="g2"><div class="form-group"><label>Tamano frasco</label><select id="vta-frasco"><option value="pequeno">Pequeno</option><option value="grande">Grande</option></select></div>' +
+   696→    '<div class="form-group"><label>Cantidad</label><input type="number" id="vta-cant" min="1" step="1" value="1" oninput="calcVtaTotal()"></div></div>' +
+   697→    '<p class="mt-8"><strong>Subtotal:</strong> <span id="vta-subtotal">$0</span></p>' +
+   698→    '<div id="vta-items-list"></div>' +
+   699→    '<button class="btn btn-ghost btn-sm mt-8" onclick="addVentaItem()">+ Agregar otro item</button>' +
+   700→    '<p class="mt-12"><strong>Total:</strong> <span id="vta-total" class="text-gold" style="font-size:1.2rem">$0</span></p>' +
+   701→    '<button class="btn btn-gold btn-full mt-12" onclick="guardarVenta()">Registrar Venta</button></div>';
+   702→  openModal('Nueva Venta', html);
+   703→  window._ventaItems = [];
+   704→}
+   705→
+   706→function addVentaItem() {
+   707→  var blendId = Number(document.getElementById('vta-blend').value)||0;
+   708→  var frasco = document.getElementById('vta-frasco').value;
+   709→  var cant = Number(document.getElementById('vta-cant').value)||1;
+   710→  if (!blendId || cant <= 0) { toast('Seleccione blend y cantidad','err'); return; }
+   711→  var b = DB.find('blends', blendId);
+   712→  if (!b) return;
+   713→
+   714→  window._ventaItems.push({blendId:blendId,blendNombre:b.nombre,frascoTipo:frasco,cantidad:cant,precioUnit:b.precioVenta,subtotal:cant*b.precioVenta});
+   715→  document.getElementById('vta-blend').value = '';
+   716→  document.getElementById('vta-cant').value = 1;
+   717→  renderVentaItems();
+   718→  calcVtaTotal();
+   719→}
+   720→
+   721→function renderVentaItems() {
+   722→  var el = document.getElementById('vta-items-list');
+   723→  if (!el) return;
+   724→  var html = '';
+   725→  window._ventaItems.forEach(function(item, i) {
+   726→    html += '<div class="card" style="padding:8px 14px;display:flex;align-items:center;justify-content:space-between">' +
+   727→      '<div class="text-sm">'+esc(item.blendNombre)+' ('+esc(item.frascoTipo)+') x'+item.cantidad+' = '+fmt(item.subtotal)+'</div>' +
+   728→      '<button class="btn-icon" onclick="removeVentaItem('+i+')">&times;</button></div>';
+   729→  });
+   730→  el.innerHTML = html;
+   731→}
+   732→
+   733→function removeVentaItem(i) { window._ventaItems.splice(i,1); renderVentaItems(); calcVtaTotal(); }
+   734→
+   735→function vtaBlendChange() { calcVtaTotal(); }
+   736→
+   737→function calcVtaTotal() {
+   738→  var blendId = Number(document.getElementById('vta-blend').value)||0;
+   739→  var cant = Number(document.getElementById('vta-cant').value)||1;
+   740→  var b = blendId ? DB.find('blends', blendId) : null;
+   741→  var sub = b ? cant * (b.precioVenta||0) : 0;
+   742→  var se = document.getElementById('vta-subtotal');
+   743→  if (se) se.textContent = fmt(sub);
+   744→  var total = sub;
+   745→  window._ventaItems.forEach(function(item) { total += item.subtotal; });
+   746→  var te = document.getElementById('vta-total');
+   747→  if (te) te.textContent = fmt(total);
+   748→}
+   749→
+   750→function guardarVenta() {
+   751→  var blendId = Number(document.getElementById('vta-blend').value)||0;
+   752→  var cant = Number(document.getElementById('vta-cant').value)||0;
+   753→  var items = window._ventaItems || [];
+   754→
+   755→  // Add current item if selected
+   756→  if (blendId && cant > 0) {
+   757→    var b = DB.find('blends', blendId);
+   758→    if (b) {
+   759→      var frasco = document.getElementById('vta-frasco').value;
+   760→      items.push({blendId:blendId,blendNombre:b.nombre,frascoTipo:frasco,cantidad:cant,precioUnit:b.precioVenta,subtotal:cant*b.precioVenta});
+   761→    }
+   762→  }
+   763→  if (items.length===0) { toast('Agregue al menos un item','err'); return; }
+   764→
+   765→  // Check stock
+   766→  items.forEach(function(item) {
+   767→    var b = DB.find('blends', item.blendId);
+   768→    if (!b || (b.stock||0) < item.cantidad) { toast('Stock insuficiente: '+item.blendNombre,'err'); }
+   769→  });
+   770→
+   771→  var total = 0;
+   772→  items.forEach(function(item) {
+   773→    total += item.subtotal;
+   774→    // Deduct blend stock
+   775→    var b = DB.find('blends', item.blendId);
+   776→    if (b) b.stock = Math.max(0, (b.stock||0) - item.cantidad);
+   777→    // Deduct frasco stock
+   778→    var frasco = DB.data.frascos.find(function(f) { return f.tipo === item.frascoTipo; });
+   779→    if (frasco) frasco.stock = Math.max(0, (frasco.stock||0) - item.cantidad);
+   780→  });
+   781→
+   782→  var venta = {id:DB.nextId('ventas'),fecha:new Date().toISOString(),items:items,total:total,vendedorId:currentUser?currentUser.id:null,vendedorNombre:currentUser?currentUser.nombre:'Tienda',creadoEn:new Date().toISOString()};
+   783→  DB.data.ventas.push(venta);
+   784→  DB.save();
+   785→  closeModal();
+   786→  toast('Venta #'+venta.id+' registrada');
+   787→  renderVentas();
+   788→}
+   789→
+   790→// ==================== PRODUCCION ====================
+   791→function renderProduccion() {
+   792→  var el = document.getElementById('page-produccion');
+   793→  if (!el || !DB.data) return;
+   794→  var list = (DB.data.produccion||[]).slice().sort(function(a,b){return new Date(b.fecha)-new Date(a.fecha);});
+   795→  var html = '<div class="page-header"><h2>Produccion</h2><div class="text-sm text-muted">Historial de produccion de blends</div></div>';
+   796→  if (list.length===0) { html += '<p class="empty-msg">No hay registros de produccion</p>'; el.innerHTML=html; return; }
+   797→  html += '<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Blend</th><th>Cantidad</th><th>Especias consumidas</th></tr></thead><tbody>';
+   798→  list.forEach(function(p) {
+   799→    var detail = '';
+   800→    (p.itemsConsumidos||[]).forEach(function(c) { detail += esc(c.nombre)+' '+Math.round(c.gramos)+'gr, '; });
+   801→    html += '<tr><td>'+fmtDateTime(p.fecha)+'</td><td class="text-gold">'+esc(p.blendNombre)+'</td><td>'+p.cantidad+' uds</td><td class="text-sm text-muted">'+(detail||'-')+'</td></tr>';
+   802→  });
+   803→  html += '</tbody></table></div>';
+   804→  el.innerHTML = html;
+   805→}
+   806→
+   807→// ==================== USUARIOS ====================
+   808→function renderUsuarios() {
+   809→  var el = document.getElementById('page-usuarios');
+   810→  if (!el || !DB.data) return;
+   811→  var list = DB.data.usuarios || [];
+   812→  var html = '<div class="page-header"><h2>Usuarios</h2><button class="btn btn-gold btn-sm" onclick="modalCrearUsuario()">+ Nuevo Usuario</button></div>';
+   813→  html += '<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Rol</th><th>Estado</th><th>Creado</th><th></th></tr></thead><tbody>';
+   814→  list.forEach(function(u) {
+   815→    var bc = u.rol==='admin'?'badge-gold':u.rol==='vendedor'?'badge-blue':'badge-yellow';
+   816→    var sc = u.activo!==false?'badge-green':'badge-red';
+   817→    html += '<tr><td><strong>'+esc(u.nombre)+'</strong></td><td><span class="badge '+bc+'">'+esc(u.rol)+'</span></td>' +
+   818→      '<td><span class="badge '+sc+'">'+(u.activo!==false?'Activo':'Inactivo')+'</span></td>' +
+   819→      '<td class="text-sm text-muted">'+fmtDate(u.creadoEn)+'</td>' +
+   820→      '<td><button class="btn btn-ghost btn-sm" onclick="modalEditarUsuario('+u.id+')">Editar</button></td></tr>';
+   821→  });
+   822→  html += '</tbody></table></div>';
+   823→  el.innerHTML = html;
+   824→}
+   825→
+   826→function modalCrearUsuario(editId) {
+   827→  var u = editId ? DB.find('usuarios', editId) : null;
+   828→  var html = '<div class="form-stack">' +
+   829→    '<div class="form-group"><label>Nombre</label><input type="text" id="usr-nombre" value="'+escJs(u?u.nombre:'')+'"></div>' +
+   830→    '<div class="g2"><div class="form-group"><label>PIN (4 digitos)</label><input type="text" id="usr-pin" value="'+(u?u.pin:'')+'" maxlength="4" pattern="[0-9]*"></div>' +
+   831→    '<div class="form-group"><label>Rol</label><select id="usr-rol"><option value="admin"'+(u&&u.rol==='admin'?' selected':'')+'>Admin</option><option value="vendedor"'+(u&&u.rol==='vendedor'?' selected':'')+'>Vendedor</option></select></div></div>' +
+   832→    '<div class="form-group"><label class="chk-label"><input type="checkbox" id="usr-activo"'+(u&&u.activo===false?'':' checked')+'> Activo</label></div>' +
+   833→    '<button class="btn btn-gold btn-full mt-8" onclick="guardarUsuario('+(editId||0)+')">'+(u?'Actualizar':'Crear')+' Usuario</button></div>';
+   834→  openModal(u?'Editar Usuario':'Nuevo Usuario', html);
+   835→}
+   836→
+   837→function modalEditarUsuario(id) { modalCrearUsuario(id); }
+   838→
+   839→function guardarUsuario(editId) {
+   840→  var nombre = (document.getElementById('usr-nombre').value||'').trim();
+   841→  var pin = (document.getElementById('usr-pin').value||'').trim();
+   842→  var rol = document.getElementById('usr-rol').value;
+   843→  var activo = document.getElementById('usr-activo').checked;
+   844→  if (!nombre || pin.length < 4) { toast('Nombre y PIN (4 digitos) requeridos','err'); return; }
+   845→
+   846→  if (editId) {
+   847→    var u = DB.find('usuarios', editId);
+   848→    if (u) { u.nombre=nombre; u.pin=pin; u.rol=rol; u.activo=activo; }
+   849→  } else {
+   850→    DB.data.usuarios.push({id:DB.nextId('usuarios'),nombre:nombre,pin:pin,rol:rol,activo:activo,creadoEn:new Date().toISOString()});
+   851→  }
+   852→  DB.save();
+   853→  closeModal();
+   854→  toast(editId?'Usuario actualizado':'Usuario creado');
+   855→  renderUsuarios();
+   856→}
+   857→
+   858→// ==================== STOREFRONT ====================
+   859→function showStorefront() {
+   860→  document.getElementById('storefront').style.display = 'flex';
+   861→  document.getElementById('admin-app').style.display = 'none';
+   862→  document.getElementById('pin-screen').style.display = 'none';
+   863→  renderStorefront();
+   864→}
+   865→
+   866→function renderStorefront() {
+   867→  if (!DB.data) return;
+   868→  // Build nav
+   869→  var cats = ['todos','Comidas','Infusiones','Cocteleria','blends'];
+   870→  var nav = document.getElementById('store-nav');
+   871→  if (nav) {
+   872→    nav.innerHTML = cats.map(function(c) {
+   873→      var l = c==='todos'?'Todos':c==='blends'?'Blends':c;
+   874→      return '<button class="store-nav-btn'+(c===storeCat?' active':'')+'" onclick="storeCat=\''+c+'\';renderStorefront()">'+l+'</button>';
+   875→    }).join('');
+   876→  }
+   877→
+   878→  var container = document.getElementById('store-products');
+   879→  var emptyEl = document.getElementById('store-empty');
+   880→  if (!container) return;
+   881→
+   882→  var html = '';
+   883→  var hasProducts = false;
+   884→
+   885→  // Blends
+   886→  if (storeCat === 'todos' || storeCat === 'blends') {
+   887→    (DB.data.blends||[]).forEach(function(b) {
+   888→      if ((b.precioVenta||0)<=0||(b.stock||0)<=0) return;
+   889→      // Check frasco stock
+   890→      var frascoStock = 999999;
+   891→      DB.data.frascos.forEach(function(f) { if ((f.stock||0)<frascoStock) frascoStock=f.stock; });
+   892→      if (frascoStock <= 0) return;
+   893→      hasProducts = true;
+   894→      html += '<div class="product-card"><div class="product-card-type">Blend</div><div class="product-card-name">'+esc(b.nombre)+'</div>' +
+   895→        '<div class="product-card-cat">'+esc(b.categoria||'Blend artesanal')+'</div><div class="product-card-footer"><div>' +
+   896→        '<div class="product-card-price">'+fmt(b.precioVenta)+'</div><div class="product-card-stock">'+(b.stock||0)+' uds</div></div>' +
+   897→        '<button class="btn-add-cart" onclick="addToCart('+b.id+',\''+escJs(b.nombre)+'\','+b.precioVenta+',\''+escJs(b.categoria||'blend')+'\','+(b.stock||0)+')">Agregar</button></div></div>';
+   898→    });
+   899→  }
+   900→
+   901→  // Especias with precioVenta
+   902→  (DB.data.especias||[]).forEach(function(e) {
+   903→    if ((e.precioVentaGr||0)<=0||(e.stock||0)<=0) return;
+   904→    if (storeCat!=='todos'&&storeCat!=='blends'&&storeCat!==e.categoria) return;
+   905→    hasProducts = true;
+   906→    html += '<div class="product-card"><div class="product-card-type">Especia</div><div class="product-card-name">'+esc(e.nombre)+'</div>' +
+   907→      '<div class="product-card-cat">'+esc(e.categoria||'')+'</div><div class="product-card-footer"><div>' +
+   908→      '<div class="product-card-price">'+fmt(e.precioVentaGr)+'/gr</div><div class="product-card-stock">'+Math.round(e.stock||0)+' gr</div></div>' +
+   909→      '<button class="btn-add-cart" onclick="addToCartEspecia('+e.id+',\''+escJs(e.nombre)+'\','+e.precioVentaGr+',\''+escJs(e.categoria||'')+'\','+(e.stock||0)+')">Agregar</button></div></div>';
+   910→  });
+   911→
+   912→  container.innerHTML = html;
+   913→  if (emptyEl) emptyEl.style.display = hasProducts ? 'none' : 'block';
+   914→  updateCartUI();
+   915→}
+   916→
+   917→function addToCart(blendId, nombre, precio, cat, stock) {
+   918→  var existing = null;
+   919→  cart.forEach(function(c) { if (c.blendId===blendId && !c.especiaId) existing = c; });
+   920→  if (existing) { if (existing.cantidad < stock) existing.cantidad++; else { toast('Stock maximo alcanzado','err'); return; } }
+   921→  else cart.push({blendId:blendId,nombre:nombre,precio:precio,tipo:'blend',categoria:cat,cantidad:1,maxStock:stock});
+   922→  updateCartUI();
+   923→}
+   924→
+   925→function addToCartEspecia(especiaId, nombre, precio, cat, stock) {
+   926→  var existing = null;
+   927→  cart.forEach(function(c) { if (c.especiaId===especiaId) existing = c; });
+   928→  if (existing) { existing.cantidad = Math.min(existing.cantidad + 10, stock); }
+   929→  else cart.push({especiaId:especiaId,nombre:nombre,precio:precio,tipo:'especia',categoria:cat,cantidad:10,maxStock:stock});
+   930→  updateCartUI();
+   931→}
+   932→
+   933→function updateCartUI() {
+   934→  var count = 0, total = 0;
+   935→  cart.forEach(function(c) { count += c.cantidad; total += c.precio * c.cantidad; });
+   936→  var countEl = document.getElementById('cart-count');
+   937→  if (countEl) { countEl.textContent = count; countEl.style.display = count > 0 ? 'inline-flex' : 'none'; }
+   938→  var totalEl = document.getElementById('cart-total-val');
+   939→  if (totalEl) totalEl.textContent = fmt(total);
+   940→  var footer = document.getElementById('cart-footer');
+   941→  if (footer) footer.style.display = cart.length > 0 ? 'block' : 'none';
+   942→
+   943→  var itemsEl = document.getElementById('cart-items');
+   944→  if (!itemsEl) return;
+   945→  if (cart.length === 0) { itemsEl.innerHTML = '<p class="text-muted text-sm" style="text-align:center;padding:20px">Carrito vacio</p>'; return; }
+   946→  var html = '';
+   947→  cart.forEach(function(c, i) {
+   948→    html += '<div class="cart-item"><div class="cart-item-info"><div class="cart-item-name">'+esc(c.nombre)+'</div>' +
+   949→      '<div class="cart-item-detail">'+(c.tipo==='blend'?'Blend':esc(c.categoria))+' x'+c.cantidad+' = '+fmt(c.precio*c.cantidad)+'</div></div>' +
+   950→      '<div style="display:flex;align-items:center;gap:6px"><span class="cart-item-price">'+fmt(c.precio*c.cantidad)+'</span>' +
+   951→      '<button class="cart-item-remove" onclick="cartRemove('+i+')">&times;</button></div></div>';
+   952→  });
+   953→  itemsEl.innerHTML = html;
+   954→}
+   955→
+   956→function cartRemove(i) { cart.splice(i,1); updateCartUI(); }
+   957→
+   958→function toggleCart() {
+   959→  var drawer = document.getElementById('cart-drawer');
+   960→  var overlay = document.getElementById('cart-overlay');
+   961→  if (!drawer) return;
+   962→  var open = drawer.classList.contains('open');
+   963→  drawer.classList.toggle('open');
+   964→  overlay.classList.toggle('open');
+   965→  if (!open) updateCartUI();
+   966→}
+   967→
+   968→function submitOrder() {
+   969→  if (cart.length === 0) return;
+   970→  var items = [];
+   971→  var total = 0;
+   972→  cart.forEach(function(c) {
+   973→    var subtotal = c.precio * c.cantidad;
+   974→    total += subtotal;
+   975→    if (c.tipo === 'blend') {
+   976→      // Deduct blend stock
+   977→      var b = DB.find('blends', c.blendId);
+   978→      if (b) b.stock = Math.max(0, (b.stock||0)-c.cantidad);
+   979→      // Deduct frasco (default pequeno for storefront)
+   980→      var frasco = DB.data.frascos.find(function(f) { return f.tipo === 'pequeno'; });
+   981→      if (frasco) frasco.stock = Math.max(0, (frasco.stock||0)-c.cantidad);
+   982→      items.push({blendId:c.blendId,blendNombre:c.nombre,frascoTipo:'pequeno',cantidad:c.cantidad,precioUnit:c.precio,subtotal:subtotal});
+   983→    } else {
+   984→      // Especia directa sale
+   985→      var e = DB.find('especias', c.especiaId);
+   986→      if (e) e.stock = Math.max(0, (e.stock||0)-c.cantidad);
+   987→      items.push({blendId:0,blendNombre:c.nombre,frascoTipo:'granel',cantidad:c.cantidad,precioUnit:c.precio,subtotal:subtotal});
+   988→    }
+   989→  });
+   990→  var venta = {id:DB.nextId('ventas'),fecha:new Date().toISOString(),items:items,total:total,vendedorId:null,vendedorNombre:'Tienda Online',creadoEn:new Date().toISOString()};
+   991→  DB.data.ventas.push(venta);
+   992→  DB.save();
+   993→  cart = [];
+   994→  toggleCart();
+   995→  updateCartUI();
+   996→  toast('Pedido registrado! Venta #'+venta.id);
+   997→  renderStorefront();
+   998→}
+   999→
+  1000→// ==================== BOOT ====================
+  1001→(function() {
+  1002→  var statusEl = document.getElementById('boot-status');
+  1003→  if (statusEl) statusEl.textContent = 'Conectando...';
+  1004→  try { if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=8').catch(function(){}); } catch(e){}
+  1005→  DB.init(function() {
+  1006→    DB.seed();
+  1007→    if (statusEl) statusEl.textContent = '';
+  1008→    var saved = sessionStorage.getItem('arcano_user');
+  1009→    if (saved) {
+  1010→      try {
+  1011→        var user = JSON.parse(saved);
+  1012→        var found = DB.find('usuarios', user.id);
+  1013→        if (found && found.activo !== false && found.pin === user.pin) { currentUser = found; enterApp(); return; }
+  1014→      } catch(e){}
+  1015→    }
+  1016→    showStorefront();
+  1017→  });
+  1018→
+  1019→  // Save session on pin verify
+  1020→  var _origVerify = verifyPin;
+  1021→  verifyPin = function() {
+  1022→    var user = DB.find('usuarios', window._pinTarget);
+  1023→    if (user && user.pin === window._pinVal) {
+  1024→      currentUser = user;
+  1025→      sessionStorage.setItem('arcano_user', JSON.stringify({id:user.id,pin:user.pin}));
+  1026→      enterApp();
+  1027→    } else {
+  1028→      var err = document.getElementById('pin-error');
+  1029→      if (err) err.textContent = 'PIN incorrecto';
+  1030→      window._pinVal = '';
+  1031→      updatePinDots();
+  1032→    }
+  1033→  };
+  1034→})();
