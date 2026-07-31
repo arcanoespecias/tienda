@@ -220,9 +220,11 @@ textarea.form-input { min-height: 80px; resize: vertical; }
 
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
-  .store-header { justify-content: center; padding-left: 56px; padding-right: 16px; }
-  .sidebar-btn { display: flex; background: none; border: none; color: var(--gold); font-size: 1.5rem; cursor: pointer; padding: 8px; line-height: 1; align-items: center; justify-content: center; border-radius: 6px; transition: background .2s; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); z-index: 60; }
+  .store-header { justify-content: center; padding-left: 52px; }
+  .sidebar-btn { display: flex; background: none; border: none; color: var(--gold); font-size: 1.4rem; cursor: pointer; width: 44px; height: 44px; line-height: 1; align-items: center; justify-content: center; border-radius: 6px; transition: background .2s; position: absolute; left: 4px; top: 50%; transform: translateY(-50%); z-index: 60; }
   .sidebar-btn:hover { background: rgba(200,150,58,.15); }
+  .store-logo { width: 40px; height: 40px; }
+  .store-header-text h1 { font-size: 1rem; }
   .sidebar-close { display: block; background: none; border: none; color: #9a8a78; font-size: 1.5rem; cursor: pointer; padding: 0 4px; line-height: 1; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); }
   .sidebar-close:hover { color: var(--gold); }
   .sidebar-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; opacity: 0; pointer-events: none; transition: opacity .3s; }
