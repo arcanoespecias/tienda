@@ -1,0 +1,973 @@
+   100→/* === FILTERS === */
+   101→.filters {
+   102→  display: flex;
+   103→  justify-content: center;
+   104→  gap: 8px;
+   105→  padding: 0 16px 28px;
+   106→  flex-wrap: wrap;
+   107→}
+   108→.filter-btn {
+   109→  padding: 8px 22px;
+   110→  border: 1.5px solid var(--border);
+   111→  border-radius: 24px;
+   112→  background: var(--card);
+   113→  color: var(--text-muted);
+   114→  cursor: pointer;
+   115→  font-size: .82rem;
+   116→  font-weight: 500;
+   117→  transition: var(--transition);
+   118→  letter-spacing: .01em;
+   119→}
+   120→.filter-btn:hover {
+   121→  border-color: var(--gold);
+   122→  color: var(--gold-dark);
+   123→  background: var(--gold-pale);
+   124→  box-shadow: var(--shadow-sm);
+   125→}
+   126→.filter-btn.active {
+   127→  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+   128→  color: #fff;
+   129→  border-color: transparent;
+   130→  font-weight: 600;
+   131→  box-shadow: var(--shadow-gold);
+   132→  letter-spacing: .02em;
+   133→}
+   134→
+   135→/* === PRODUCT GRID === */
+   136→.products-grid {
+   137→  display: grid;
+   138→  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+   139→  gap: 20px;
+   140→  padding: 0 24px 120px;
+   141→  max-width: 1120px;
+   142→  margin: 0 auto;
+   143→}
+   144→.product-card {
+   145→  background: var(--card);
+   146→  border-radius: var(--radius-md);
+   147→  overflow: hidden;
+   148→  border: 1px solid var(--border);
+   149→  transition: var(--transition);
+   150→  box-shadow: var(--shadow-sm);
+   151→}
+   152→.product-card:hover {
+   153→  transform: translateY(-4px);
+   154→  box-shadow: var(--shadow-lg);
+   155→  border-color: rgba(196,148,58,0.2);
+   156→}
+   157→.card-img {
+   158→  height: 210px;
+   159→  background: linear-gradient(145deg, #1b0b07 0%, #2E1A0F 50%, #3A2010 100%);
+   160→  display: flex;
+   161→  align-items: center;
+   162→  justify-content: center;
+   163→  color: var(--gold);
+   164→  font-size: 2.4rem;
+   165→  font-weight: 900;
+   166→  overflow: hidden;
+   167→  cursor: pointer;
+   168→  position: relative;
+   169→}
+   170→.card-img::after {
+   171→  content: '';
+   172→  position: absolute;
+   173→  bottom: 0;
+   174→  left: 0;
+   175→  right: 0;
+   176→  height: 40px;
+   177→  background: linear-gradient(transparent, rgba(27,11,7,0.4));
+   178→  pointer-events: none;
+   179→}
+   180→.card-img img {
+   181→  width: 100%;
+   182→  height: 100%;
+   183→  object-fit: contain;
+   184→  padding: 12px;
+   185→  transition: transform .35s cubic-bezier(.4,0,.2,1);
+   186→}
+   187→.card-img:hover img { transform: scale(1.05); }
+   188→.card-img .card-type {
+   189→  position: absolute;
+   190→  top: 10px;
+   191→  left: 10px;
+   192→  background: rgba(0,0,0,.55);
+   193→  backdrop-filter: blur(6px);
+   194→  -webkit-backdrop-filter: blur(6px);
+   195→  color: #ece0d0;
+   196→  font-size: .6rem;
+   197→  padding: 3px 10px;
+   198→  border-radius: 12px;
+   199→  font-weight: 600;
+   200→  letter-spacing: .04em;
+   201→  text-transform: uppercase;
+   202→}
+   203→.card-body { padding: 16px; }
+   204→.card-name {
+   205→  font-weight: 700;
+   206→  font-size: 1rem;
+   207→  margin-bottom: 2px;
+   208→  color: var(--text);
+   209→  letter-spacing: -.005em;
+   210→}
+   211→.card-meta {
+   212→  font-size: .72rem;
+   213→  color: var(--text-muted);
+   214→  margin-bottom: 12px;
+   215→  min-height: 16px;
+   216→  letter-spacing: .02em;
+   217→}
+   218→.card-prices { display: flex; gap: 8px; }
+   219→.price-box {
+   220→  flex: 1;
+   221→  background: var(--gold-pale);
+   222→  border-radius: var(--radius-sm);
+   223→  padding: 10px 6px;
+   224→  text-align: center;
+   225→}
+   226→.price-box-btn {
+   227→  border: 1.5px solid var(--gold);
+   228→  cursor: pointer;
+   229→  transition: var(--transition);
+   230→  color: var(--text);
+   231→  position: relative;
+   232→  overflow: hidden;
+   233→}
+   234→.price-box-btn::before {
+   235→  content: '';
+   236→  position: absolute;
+   237→  inset: 0;
+   238→  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+   239→  opacity: 0;
+   240→  transition: opacity var(--transition);
+   241→}
+   242→.price-box-btn::after {
+   243→  content: '+';
+   244→  position: absolute;
+   245→  top: 3px;
+   246→  right: 8px;
+   247→  font-size: .75rem;
+   248→  font-weight: 800;
+   249→  color: var(--gold);
+   250→  opacity: .4;
+   251→  transition: opacity var(--transition);
+   252→  z-index: 1;
+   253→}
+   254→.price-box-btn:hover {
+   255→  border-color: transparent;
+   256→  transform: translateY(-2px);
+   257→  box-shadow: var(--shadow-gold);
+   258→}
+   259→.price-box-btn:hover::before { opacity: 1; }
+   260→.price-box-btn:hover .price-label { color: rgba(255,255,255,.7); position: relative; z-index: 1; }
+   261→.price-box-btn:hover .price-value { color: #fff; position: relative; z-index: 1; }
+   262→.price-box-btn:hover::after { color: #fff; opacity: .6; z-index: 1; }
+   263→.price-box-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(196,148,58,0.3); }
+   264→.price-label {
+   265→  font-size: .62rem;
+   266→  color: var(--text-muted);
+   267→  text-transform: uppercase;
+   268→  letter-spacing: .06em;
+   269→  font-weight: 600;
+   270→}
+   271→.price-value {
+   272→  font-weight: 800;
+   273→  color: var(--gold-dark);
+   274→  font-size: .95rem;
+   275→}
+   276→.price-na { color: var(--text-muted); font-size: .8rem; }
+   277→.stock-badge { display: inline-block; font-size: .7rem; padding: 2px 8px; border-radius: 10px; margin-bottom: 8px; }
+   278→.stock-ok { background: #e8f5e9; color: var(--green); }
+   279→.stock-low { background: #fff3e0; color: #e65100; }
+   280→.add-btn {
+   281→  width: 100%;
+   282→  padding: 10px;
+   283→  border: 2px solid var(--gold);
+   284→  border-radius: var(--radius-sm);
+   285→  background: transparent;
+   286→  color: var(--gold);
+   287→  font-weight: 700;
+   288→  font-size: .85rem;
+   289→  cursor: pointer;
+   290→  transition: var(--transition);
+   291→}
+   292→.add-btn:hover {
+   293→  background: var(--gold);
+   294→  color: #fff;
+   295→}
+   296→.add-btn:disabled { opacity: .4; cursor: not-allowed; }
+   297→
+   298→/* === CART FAB === */
+   299→.cart-fab {
+   300→  position: fixed;
+   301→  bottom: 24px;
+   302→  right: 24px;
+   303→  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+   304→  color: #fff;
+   305→  padding: 14px 24px;
+   306→  border-radius: 28px;
+   307→  font-weight: 700;
+   308→  font-size: .88rem;
+   309→  cursor: pointer;
+   310→  box-shadow: 0 6px 24px rgba(196,148,58,0.4), 0 2px 8px rgba(0,0,0,0.15);
+   311→  z-index: 100;
+   312→  border: none;
+   313→  display: flex;
+   314→  align-items: center;
+   315→  gap: 10px;
+   316→  transition: var(--transition);
+   317→  letter-spacing: .01em;
+   318→}
+   319→.cart-fab:hover {
+   320→  transform: translateY(-2px);
+   321→  box-shadow: 0 8px 32px rgba(196,148,58,0.5), 0 4px 12px rgba(0,0,0,0.2);
+   322→}
+   323→.cart-fab:active { transform: translateY(0); }
+   324→.cart-fab .cart-count {
+   325→  background: var(--dark);
+   326→  color: var(--gold);
+   327→  width: 22px;
+   328→  height: 22px;
+   329→  border-radius: 50%;
+   330→  display: inline-flex;
+   331→  align-items: center;
+   332→  justify-content: center;
+   333→  font-size: .72rem;
+   334→  font-weight: 800;
+   335→}
+   336→
+   337→/* === MODAL === */
+   338→.modal-overlay {
+   339→  position: fixed;
+   340→  inset: 0;
+   341→  background: rgba(27,11,7,0.65);
+   342→  backdrop-filter: blur(4px);
+   343→  -webkit-backdrop-filter: blur(4px);
+   344→  display: flex;
+   345→  align-items: center;
+   346→  justify-content: center;
+   347→  z-index: 200;
+   348→  padding: 16px;
+   349→}
+   350→.modal {
+   351→  background: var(--card);
+   352→  border-radius: var(--radius-lg);
+   353→  max-width: 520px;
+   354→  width: 100%;
+   355→  max-height: 90vh;
+   356→  overflow-y: auto;
+   357→  box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+   358→}
+   359→.modal-header {
+   360→  display: flex;
+   361→  justify-content: space-between;
+   362→  align-items: center;
+   363→  padding: 18px 24px;
+   364→  border-bottom: 1px solid var(--border);
+   365→}
+   366→.modal-header h3 { font-size: 1.1rem; font-weight: 700; }
+   367→.modal-close {
+   368→  background: none;
+   369→  border: none;
+   370→  font-size: 1.3rem;
+   371→  cursor: pointer;
+   372→  color: var(--text-muted);
+   373→  padding: 4px 8px;
+   374→  border-radius: 6px;
+   375→  transition: var(--transition);
+   376→}
+   377→.modal-close:hover { color: var(--text); background: var(--bg-subtle); }
+   378→.modal-body { padding: 24px; }
+   379→.modal-footer {
+   380→  padding: 16px 24px;
+   381→  border-top: 1px solid var(--border);
+   382→  display: flex;
+   383→  justify-content: flex-end;
+   384→  gap: 10px;
+   385→}
+   386→
+   387→/* === ORDER FORM === */
+   388→.form-group { margin-bottom: 16px; }
+   389→.form-group label {
+   390→  display: block;
+   391→  font-size: .72rem;
+   392→  font-weight: 600;
+   393→  color: var(--text-muted);
+   394→  margin-bottom: 6px;
+   395→  text-transform: uppercase;
+   396→  letter-spacing: .05em;
+   397→}
+   398→.form-input {
+   399→  width: 100%;
+   400→  padding: 11px 14px;
+   401→  border-radius: var(--radius-sm);
+   402→  border: 1.5px solid var(--border);
+   403→  background: var(--bg);
+   404→  font-size: .9rem;
+   405→  color: var(--text);
+   406→  outline: none;
+   407→  transition: border-color var(--transition), box-shadow var(--transition);
+   408→}
+   409→.form-input:focus {
+   410→  border-color: var(--gold);
+   411→  box-shadow: 0 0 0 3px var(--gold-glow);
+   412→}
+   413→textarea.form-input { min-height: 80px; resize: vertical; }
+   414→.form-row { display: flex; gap: 14px; }
+   415→.form-row .form-group { flex: 1; }
+   416→
+   417→/* === CART ITEMS === */
+   418→.cart-item {
+   419→  display: flex;
+   420→  justify-content: space-between;
+   421→  align-items: center;
+   422→  padding: 12px 0;
+   423→  border-bottom: 1px solid var(--border);
+   424→}
+   425→.cart-item:last-child { border-bottom: none; }
+   426→.cart-item-info { flex: 1; }
+   427→.cart-item-name { font-weight: 600; font-size: .9rem; }
+   428→.cart-item-detail { font-size: .75rem; color: var(--text-muted); }
+   429→.cart-item-qty {
+   430→  display: flex;
+   431→  align-items: center;
+   432→  gap: 8px;
+   433→}
+   434→.cart-item-qty button {
+   435→  width: 32px;
+   436→  height: 32px;
+   437→  border-radius: var(--radius-sm);
+   438→  border: 1.5px solid var(--border);
+   439→  background: var(--card);
+   440→  cursor: pointer;
+   441→  font-size: 1rem;
+   442→  display: flex;
+   443→  align-items: center;
+   444→  justify-content: center;
+   445→  color: var(--text);
+   446→  transition: var(--transition);
+   447→}
+   448→.cart-item-qty button:hover {
+   449→  background: var(--gold-pale);
+   450→  border-color: var(--gold);
+   451→  color: var(--gold-dark);
+   452→}
+   453→.cart-item-qty span {
+   454→  min-width: 24px;
+   455→  text-align: center;
+   456→  font-weight: 800;
+   457→  font-size: .95rem;
+   458→}
+   459→.cart-item-price {
+   460→  font-weight: 700;
+   461→  color: var(--gold-dark);
+   462→  min-width: 72px;
+   463→  text-align: right;
+   464→}
+   465→.cart-item-rm {
+   466→  background: none;
+   467→  border: none;
+   468→  color: var(--text-muted);
+   469→  cursor: pointer;
+   470→  font-size: 1.1rem;
+   471→  padding: 4px 8px;
+   472→  border-radius: 6px;
+   473→  transition: var(--transition);
+   474→}
+   475→.cart-item-rm:hover { color: var(--red); background: rgba(181,52,42,.06); }
+   476→.cart-total {
+   477→  text-align: right;
+   478→  padding: 16px 0 8px;
+   479→  font-size: 1.15rem;
+   480→  font-weight: 800;
+   481→  color: var(--gold-dark);
+   482→  border-top: 2px solid var(--gold-light);
+   483→  margin-top: 12px;
+   484→}
+   485→
+   486→.btn-primary {
+   487→  padding: 13px 24px;
+   488→  border-radius: var(--radius-sm);
+   489→  border: none;
+   490→  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+   491→  color: #fff;
+   492→  font-weight: 700;
+   493→  font-size: .95rem;
+   494→  cursor: pointer;
+   495→  width: 100%;
+   496→  transition: var(--transition);
+   497→  letter-spacing: .03em;
+   498→}
+   499→.btn-primary:hover {
+   500→  transform: translateY(-1px);
+   501→  box-shadow: var(--shadow-gold);
+   502→}
+   503→.btn-primary:active { transform: translateY(0); }
+   504→.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+   505→.btn-secondary {
+   506→  padding: 13px 24px;
+   507→  border-radius: var(--radius-sm);
+   508→  border: 1.5px solid var(--border);
+   509→  background: var(--card);
+   510→  color: var(--text-muted);
+   511→  font-weight: 600;
+   512→  font-size: .9rem;
+   513→  cursor: pointer;
+   514→  transition: var(--transition);
+   515→}
+   516→.btn-secondary:hover {
+   517→  border-color: var(--gold);
+   518→  color: var(--gold-dark);
+   519→  background: var(--gold-pale);
+   520→}
+   521→
+   522→/* === FOOTER === */
+   523→.store-footer {
+   524→  text-align: center;
+   525→  padding: 32px 16px;
+   526→  color: var(--text-muted);
+   527→  font-size: .78rem;
+   528→  border-top: 1px solid var(--border);
+   529→  margin-top: 24px;
+   530→  letter-spacing: .02em;
+   531→}
+   532→
+   533→/* === EMPTY STATE === */
+   534→.empty-state { text-align: center; padding: 60px 16px; color: var(--text-muted); }
+   535→.empty-state p { margin-bottom: 8px; }
+   536→
+   537→/* === SIZE SELECTOR === */
+   538→.size-select { display: flex; gap: 4px; margin-bottom: 8px; }
+   539→.size-opt {
+   540→  flex: 1;
+   541→  padding: 5px;
+   542→  border: 1.5px solid var(--border);
+   543→  border-radius: 6px;
+   544→  text-align: center;
+   545→  font-size: .75rem;
+   546→  cursor: pointer;
+   547→  background: var(--bg);
+   548→  color: var(--text-muted);
+   549→  transition: var(--transition);
+   550→}
+   551→.size-opt.active { border-color: var(--gold); background: var(--gold-pale); color: var(--gold-dark); font-weight: 700; }
+   552→.size-opt.disabled { opacity: .3; cursor: not-allowed; }
+   553→
+   554→/* === SUCCESS === */
+   555→.success-msg { text-align: center; padding: 40px 20px; }
+   556→.success-icon { font-size: 3rem; margin-bottom: 12px; }
+   557→.success-msg h3 { color: var(--green); margin-bottom: 8px; }
+   558→
+   559→.card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+   560→.card-tag { background: var(--gold-light); color: var(--gold-dark); padding: 2px 8px; border-radius: 10px; font-size: .65rem; font-weight: 600; }
+   561→.detail-tag-item { background: var(--gold-light); }
+   562→
+   563→/* === ARCANO PRODUCT LINK (recipes) === */
+   564→.arcano-link {
+   565→  color: var(--gold);
+   566→  font-weight: 700;
+   567→  cursor: pointer;
+   568→  border-bottom: 1.5px dashed var(--gold);
+   569→  transition: color .2s, border-color .2s, opacity .2s;
+   570→  padding: 0 1px;
+   571→}
+   572→.arcano-link:hover { color: var(--gold-dark); border-color: var(--gold-dark); opacity: .8; }
+   573→
+   574→/* === PRODUCT DETAIL MODAL === */
+   575→.detail-overlay {
+   576→  position: fixed;
+   577→  inset: 0;
+   578→  background: rgba(27,11,7,0.75);
+   579→  backdrop-filter: blur(6px);
+   580→  -webkit-backdrop-filter: blur(6px);
+   581→  display: flex;
+   582→  align-items: center;
+   583→  justify-content: center;
+   584→  z-index: 300;
+   585→  padding: 16px;
+   586→  animation: fadeIn .25s ease;
+   587→}
+   588→@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+   589→@keyframes slideUp { from { opacity: 0; transform: translateY(24px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+   590→.detail-modal {
+   591→  background: var(--card);
+   592→  border-radius: var(--radius-lg);
+   593→  max-width: 500px;
+   594→  width: 100%;
+   595→  max-height: 92vh;
+   596→  overflow-y: auto;
+   597→  box-shadow: 0 32px 80px rgba(0,0,0,0.45);
+   598→  animation: slideUp .3s cubic-bezier(.22,1,.36,1);
+   599→}
+   600→.detail-img {
+   601→  width: 100%;
+   602→  max-height: 320px;
+   603→  object-fit: contain;
+   604→  background: linear-gradient(145deg, #1b0b07 0%, #2E1A0F 50%, #3A2010 100%);
+   605→  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+   606→  display: flex;
+   607→  align-items: center;
+   608→  justify-content: center;
+   609→  min-height: 180px;
+   610→  position: relative;
+   611→}
+   612→.detail-img::after {
+   613→  content: '';
+   614→  position: absolute;
+   615→  bottom: 0;
+   616→  left: 0;
+   617→  right: 0;
+   618→  height: 60px;
+   619→  background: linear-gradient(transparent, rgba(27,11,7,0.5));
+   620→  pointer-events: none;
+   621→}
+   622→.detail-img img {
+   623→  max-width: 100%;
+   624→  max-height: 320px;
+   625→  object-fit: contain;
+   626→  padding: 20px;
+   627→  position: relative;
+   628→  z-index: 1;
+   629→}
+   630→.detail-img .detail-emoji { font-size: 4rem; color: var(--gold); }
+   631→.detail-close {
+   632→  position: absolute;
+   633→  top: 14px;
+   634→  right: 14px;
+   635→  background: rgba(0,0,0,.5);
+   636→  backdrop-filter: blur(6px);
+   637→  -webkit-backdrop-filter: blur(6px);
+   638→  color: #fff;
+   639→  border: none;
+   640→  width: 38px;
+   641→  height: 38px;
+   642→  border-radius: 50%;
+   643→  font-size: 1.2rem;
+   644→  cursor: pointer;
+   645→  display: flex;
+   646→  align-items: center;
+   647→  justify-content: center;
+   648→  z-index: 10;
+   649→  transition: var(--transition);
+   650→}
+   651→.detail-close:hover { background: rgba(0,0,0,.7); }
+   652→.detail-content { padding: 24px; position: relative; }
+   653→.detail-content h2 {
+   654→  font-size: 1.45rem;
+   655→  font-weight: 800;
+   656→  margin-bottom: 4px;
+   657→  color: var(--text);
+   658→  letter-spacing: -.01em;
+   659→}
+   660→.detail-content .detail-type {
+   661→  display: inline-block;
+   662→  font-size: .65rem;
+   663→  font-weight: 700;
+   664→  text-transform: uppercase;
+   665→  letter-spacing: .06em;
+   666→  padding: 3px 12px;
+   667→  border-radius: 12px;
+   668→  margin-bottom: 12px;
+   669→}
+   670→.detail-type-especia { background: rgba(61,122,74,0.1); color: #3D7A4A; }
+   671→.detail-type-blend { background: rgba(122,31,31,0.08); color: var(--burgundy); }
+   672→.detail-desc {
+   673→  color: var(--text-muted);
+   674→  font-size: .9rem;
+   675→  line-height: 1.7;
+   676→  margin-bottom: 16px;
+   677→}
+   678→.detail-info-row {
+   679→  display: flex;
+   680→  gap: 8px;
+   681→  margin-bottom: 12px;
+   682→  flex-wrap: wrap;
+   683→}
+   684→.detail-info-tag {
+   685→  background: var(--gold-pale);
+   686→  color: var(--gold-dark);
+   687→  padding: 4px 14px;
+   688→  border-radius: 20px;
+   689→  font-size: .78rem;
+   690→  font-weight: 600;
+   691→  border: 1px solid rgba(196,148,58,0.15);
+   692→}
+   693→.detail-prices-row { display: flex; gap: 10px; margin-bottom: 16px; }
+   694→.detail-price-card {
+   695→  flex: 1;
+   696→  background: var(--gold-pale);
+   697→  border-radius: 12px;
+   698→  padding: 16px 12px;
+   699→  text-align: center;
+   700→  border: 2px solid rgba(196,148,58,0.3);
+   701→  cursor: pointer;
+   702→  transition: var(--transition);
+   703→  color: var(--text);
+   704→  position: relative;
+   705→  overflow: hidden;
+   706→}
+   707→.detail-price-btn::before {
+   708→  content: '';
+   709→  position: absolute;
+   710→  inset: 0;
+   711→  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+   712→  opacity: 0;
+   713→  transition: opacity var(--transition);
+   714→}
+   715→.detail-price-btn::after {
+   716→  content: 'Agregar';
+   717→  position: absolute;
+   718→  bottom: -30px;
+   719→  left: 0;
+   720→  right: 0;
+   721→  padding: 8px;
+   722→  font-size: .7rem;
+   723→  font-weight: 700;
+   724→  letter-spacing: .04em;
+   725→  color: #fff;
+   726→  background: rgba(154,116,40,0.6);
+   727→  transition: bottom .3s cubic-bezier(.22,1,.36,1);
+   728→  z-index: 1;
+   729→}
+   730→.detail-price-btn:hover {
+   731→  border-color: transparent;
+   732→  transform: translateY(-3px);
+   733→  box-shadow: var(--shadow-gold);
+   734→}
+   735→.detail-price-btn:hover::before { opacity: 1; }
+   736→.detail-price-btn:hover .detail-price-label { color: rgba(255,255,255,.7); position: relative; z-index: 1; }
+   737→.detail-price-btn:hover .detail-price-val { color: #fff; position: relative; z-index: 1; }
+   738→.detail-price-btn:hover::after { bottom: 0; }
+   739→.detail-price-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(196,148,58,0.3); }
+   740→.detail-price-label {
+   741→  font-size: .68rem;
+   742→  color: var(--text-muted);
+   743→  text-transform: uppercase;
+   744→  letter-spacing: .06em;
+   745→  font-weight: 600;
+   746→  margin-bottom: 2px;
+   747→}
+   748→.detail-price-val {
+   749→  font-size: 1.25rem;
+   750→  font-weight: 800;
+   751→  color: var(--gold-dark);
+   752→}
+   753→.detail-stock { font-size: .8rem; color: var(--text-muted); margin-bottom: 14px; }
+   754→.detail-add-btn {
+   755→  width: 100%;
+   756→  padding: 14px;
+   757→  border: none;
+   758→  border-radius: var(--radius-sm);
+   759→  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+   760→  color: #fff;
+   761→  font-weight: 700;
+   762→  font-size: 1rem;
+   763→  cursor: pointer;
+   764→  transition: var(--transition);
+   765→  letter-spacing: .03em;
+   766→}
+   767→.detail-add-btn:hover { box-shadow: var(--shadow-gold); transform: translateY(-1px); }
+   768→.detail-add-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+   769→
+   770→/* === SIDEBAR === */
+   771→.sidebar-btn { display: none; }
+   772→.sidebar-overlay { display: none; }
+   773→.sidebar-panel {
+   774→  width: 300px;
+   775→  min-width: 300px;
+   776→  background: linear-gradient(180deg, var(--dark) 0%, var(--dark-warm) 100%);
+   777→  color: #ece0d0;
+   778→  display: flex;
+   779→  flex-direction: column;
+   780→  overflow: hidden;
+   781→  border-right: 1px solid rgba(196,148,58,0.1);
+   782→  height: calc(100vh - 84px);
+   783→  position: sticky;
+   784→  top: 84px;
+   785→}
+   786→.sidebar-panel.closed { display: none; }
+   787→.sidebar-header {
+   788→  display: flex;
+   789→  justify-content: center;
+   790→  align-items: center;
+   791→  padding: 18px 20px;
+   792→  border-bottom: 1px solid rgba(196,148,58,0.12);
+   793→  position: relative;
+   794→}
+   795→.sidebar-header h3 {
+   796→  font-size: 1.05rem;
+   797→  color: var(--gold);
+   798→  letter-spacing: .1em;
+   799→  text-shadow: 0 1px 4px rgba(196,148,58,0.15);
+   800→}
+   801→.sidebar-close { display: none; }
+   802→.sidebar-tabs {
+   803→  display: flex;
+   804→  border-bottom: 1px solid rgba(196,148,58,0.1);
+   805→}
+   806→.sidebar-tab {
+   807→  flex: 1;
+   808→  padding: 12px 6px;
+   809→  border: none;
+   810→  background: none;
+   811→  color: #8B7B6B;
+   812→  font-size: .7rem;
+   813→  font-weight: 600;
+   814→  cursor: pointer;
+   815→  border-bottom: 2px solid transparent;
+   816→  transition: var(--transition);
+   817→  letter-spacing: .03em;
+   818→  text-transform: uppercase;
+   819→}
+   820→.sidebar-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+   821→.sidebar-tab:hover { color: #ece0d0; }
+   822→.sidebar-content { flex: 1; overflow-y: auto; padding: 16px; }
+   823→.sidebar-content::-webkit-scrollbar { width: 4px; }
+   824→.sidebar-content::-webkit-scrollbar-track { background: transparent; }
+   825→.sidebar-content::-webkit-scrollbar-thumb { background: rgba(196,148,58,0.2); border-radius: 4px; }
+   826→.recipe-card-sb {
+   827→  background: var(--dark-surface);
+   828→  border: 1px solid rgba(196,148,58,0.08);
+   829→  border-radius: 12px;
+   830→  margin-bottom: 12px;
+   831→  overflow: hidden;
+   832→  transition: border-color var(--transition);
+   833→}
+   834→.recipe-card-sb:hover { border-color: rgba(196,148,58,0.15); }
+   835→.recipe-card-sb-header {
+   836→  padding: 14px 16px;
+   837→  cursor: pointer;
+   838→  display: flex;
+   839→  justify-content: space-between;
+   840→  align-items: flex-start;
+   841→  gap: 8px;
+   842→  transition: background var(--transition);
+   843→}
+   844→.recipe-card-sb-header:hover { background: rgba(196,148,58,0.04); }
+   845→.recipe-card-sb-title {
+   846→  font-weight: 700;
+   847→  font-size: .88rem;
+   848→  color: #ece0d0;
+   849→  line-height: 1.35;
+   850→}
+   851→.recipe-card-sb-meta { font-size: .68rem; color: #8B7B6B; margin-top: 3px; }
+   852→.recipe-card-sb-arrow {
+   853→  color: #8B7B6B;
+   854→  font-size: .7rem;
+   855→  flex-shrink: 0;
+   856→  margin-top: 3px;
+   857→  transition: transform .3s ease, color .2s;
+   858→}
+   859→.recipe-card-sb.expanded .recipe-card-sb-arrow { transform: rotate(180deg); color: var(--gold); }
+   860→.recipe-card-sb-body { max-height: 0; overflow: hidden; transition: max-height .35s ease; }
+   861→.recipe-card-sb.expanded .recipe-card-sb-body { max-height: 800px; }
+   862→.recipe-card-sb-inner { padding: 0 16px 16px; }
+   863→.recipe-sb-desc {
+   864→  font-size: .8rem;
+   865→  color: #9a8a78;
+   866→  margin-bottom: 10px;
+   867→  line-height: 1.6;
+   868→}
+   869→.recipe-sb-label {
+   870→  font-size: .68rem;
+   871→  font-weight: 700;
+   872→  color: var(--gold);
+   873→  text-transform: uppercase;
+   874→  letter-spacing: .06em;
+   875→  margin: 12px 0 8px;
+   876→}
+   877→.recipe-sb-label:first-child { margin-top: 0; }
+   878→.recipe-sb-list { list-style: none; padding: 0; margin: 0; }
+   879→.recipe-sb-list li {
+   880→  font-size: .8rem;
+   881→  color: #c4b8aa;
+   882→  padding: 3px 0 3px 16px;
+   883→  position: relative;
+   884→  line-height: 1.55;
+   885→}
+   886→.recipe-sb-list li::before {
+   887→  content: '';
+   888→  position: absolute;
+   889→  left: 0;
+   890→  top: 11px;
+   891→  width: 5px;
+   892→  height: 5px;
+   893→  border-radius: 50%;
+   894→  background: var(--gold);
+   895→  opacity: .45;
+   896→}
+   897→.recipe-sb-steps { list-style: none; padding: 0; margin: 0; counter-reset: sbstep; }
+   898→.recipe-sb-steps li {
+   899→  font-size: .8rem;
+   900→  color: #c4b8aa;
+   901→  padding: 5px 0 5px 28px;
+   902→  position: relative;
+   903→  line-height: 1.55;
+   904→  counter-increment: sbstep;
+   905→}
+   906→.recipe-sb-steps li::before {
+   907→  content: counter(sbstep);
+   908→  position: absolute;
+   909→  left: 0;
+   910→  top: 5px;
+   911→  width: 20px;
+   912→  height: 20px;
+   913→  border-radius: 50%;
+   914→  background: rgba(196,148,58,0.12);
+   915→  color: var(--gold);
+   916→  font-size: .65rem;
+   917→  font-weight: 700;
+   918→  display: flex;
+   919→  align-items: center;
+   920→  justify-content: center;
+   921→}
+   922→.sidebar-brand {
+   923→  padding: 14px 20px;
+   924→  display: flex;
+   925→  justify-content: center;
+   926→  border-top: 1px solid rgba(196,148,58,0.1);
+   927→}
+   928→.sidebar-brand img {
+   929→  height: 76px;
+   930→  width: auto;
+   931→  object-fit: contain;
+   932→  opacity: 0.8;
+   933→  transition: opacity var(--transition);
+   934→}
+   935→.sidebar-brand:hover img { opacity: 1; }
+   936→.sidebar-social {
+   937→  padding: 16px 20px;
+   938→  border-top: 1px solid rgba(196,148,58,0.1);
+   939→  display: flex;
+   940→  justify-content: center;
+   941→  gap: 10px;
+   942→}
+   943→.social-link {
+   944→  width: 38px;
+   945→  height: 38px;
+   946→  border-radius: 50%;
+   947→  background: var(--dark-surface);
+   948→  border: 1px solid rgba(196,148,58,0.1);
+   949→  display: flex;
+   950→  align-items: center;
+   951→  justify-content: center;
+   952→  color: #8B7B6B;
+   953→  transition: var(--transition);
+   954→  text-decoration: none;
+   955→}
+   956→.social-link:hover {
+   957→  background: rgba(196,148,58,0.12);
+   958→  color: var(--gold);
+   959→  border-color: rgba(196,148,58,0.3);
+   960→  transform: translateY(-2px);
+   961→}
+   962→.social-link svg { width: 18px; height: 18px; fill: currentColor; }
+   963→.sidebar-empty { text-align: center; padding: 40px 16px; color: #8B7B6B; font-size: .85rem; }
+   964→.recipe-share-btn {
+   965→  width: 100%;
+   966→  margin-top: 14px;
+   967→  padding: 9px;
+   968→  border-radius: var(--radius-sm);
+   969→  border: 1px solid rgba(196,148,58,0.2);
+   970→  background: rgba(196,148,58,0.08);
+   971→  color: var(--gold);
+   972→  font-size: .78rem;
+   973→  font-weight: 600;
+   974→  cursor: pointer;
+   975→  transition: var(--transition);
+   976→  letter-spacing: .02em;
+   977→}
+   978→.recipe-share-btn:hover {
+   979→  background: rgba(196,148,58,0.18);
+   980→  border-color: rgba(196,148,58,0.35);
+   981→}
+   982→
+   983→/* === MAIN CONTENT === */
+   984→.tienda-body > main { flex: 1; min-width: 0; }
+   985→
+   986→/* === RESPONSIVE === */
+   987→@media (max-width: 768px) {
+   988→  .sidebar-btn {
+   989→    display: flex;
+   990→    background: none;
+   991→    border: none;
+   992→    color: var(--gold);
+   993→    font-size: 1.5rem;
+   994→    cursor: pointer;
+   995→    padding: 4px 8px 4px 0;
+   996→    line-height: 1;
+   997→    align-items: center;
+   998→    justify-content: center;
+   999→    border-radius: 6px;
+  1000→    transition: background var(--transition);
+  1001→    position: absolute;
+  1002→    left: 16px;
+  1003→    top: 50%;
+  1004→    transform: translateY(-50%);
+  1005→  }
+  1006→  .sidebar-btn:hover { background: rgba(196,148,58,0.12); }
+  1007→  .sidebar-close {
+  1008→    display: block;
+  1009→    background: none;
+  1010→    border: none;
+  1011→    color: #8B7B6B;
+  1012→    font-size: 1.5rem;
+  1013→    cursor: pointer;
+  1014→    padding: 0 4px;
+  1015→    line-height: 1;
+  1016→    position: absolute;
+  1017→    right: 16px;
+  1018→    top: 50%;
+  1019→    transform: translateY(-50%);
+  1020→  }
+  1021→  .sidebar-close:hover { color: var(--gold); }
+  1022→  .sidebar-overlay {
+  1023→    display: block;
+  1024→    position: fixed;
+  1025→    inset: 0;
+  1026→    background: rgba(27,11,7,0.6);
+  1027→    backdrop-filter: blur(3px);
+  1028→    -webkit-backdrop-filter: blur(3px);
+  1029→    z-index: 200;
+  1030→    opacity: 0;
+  1031→    pointer-events: none;
+  1032→    transition: opacity .3s;
+  1033→  }
+  1034→  .sidebar-overlay.open { opacity: 1; pointer-events: auto; }
+  1035→  .sidebar-panel {
+  1036→    position: fixed;
+  1037→    top: 0;
+  1038→    left: 0;
+  1039→    bottom: 0;
+  1040→    width: 85vw;
+  1041→    min-width: 0;
+  1042→    height: auto;
+  1043→    position: fixed;
+  1044→    transform: translateX(-100%);
+  1045→    transition: transform .35s cubic-bezier(.22,1,.36,1);
+  1046→    box-shadow: 8px 0 32px rgba(0,0,0,0.5);
+  1047→    z-index: 201;
+  1048→    border-right: none;
+  1049→    display: flex;
+  1050→  }
+  1051→  .sidebar-panel.open { transform: translateX(0); }
+  1052→  .sidebar-panel.closed { transform: translateX(-100%); }
+  1053→  .tienda-body > main { width: 100%; }
+  1054→}
+  1055→
+  1056→@media (max-width: 600px) {
+  1057→  .products-grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 12px; padding: 0 12px 120px; }
+  1058→  .card-img { height: 155px; }
+  1059→  .card-body { padding: 12px; }
+  1060→  .card-name { font-size: .88rem; }
+  1061→  .card-meta { font-size: .68rem; margin-bottom: 10px; }
+  1062→  .hero { padding: 32px 16px 20px; }
+  1063→  .hero h2 { font-size: 1.35rem; }
+  1064→  .form-row { flex-direction: column; gap: 0; }
+  1065→  .detail-modal { max-height: 95vh; border-radius: 16px; }
+  1066→  .detail-img { max-height: 220px; min-height: 140px; }
+  1067→  .detail-img img { max-height: 220px; padding: 14px; }
+  1068→  .detail-content { padding: 18px; }
+  1069→  .detail-content h2 { font-size: 1.3rem; }
+  1070→  .cart-fab { bottom: 16px; right: 16px; padding: 12px 18px; font-size: .82rem; }
+  1071→}
+  1072→
