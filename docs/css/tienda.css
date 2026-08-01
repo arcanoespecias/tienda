@@ -229,6 +229,8 @@ button { font-family: inherit; }
   box-shadow: var(--shadow-xs);
   contain: layout style;
   will-change: transform;
+  display: flex;
+  flex-direction: column;
 }
 .product-card:hover {
   transform: translateY(-6px);
@@ -236,7 +238,7 @@ button { font-family: inherit; }
   border-color: rgba(196,148,58,0.15);
 }
 .card-img {
-  height: 220px;
+  aspect-ratio: 4 / 5;
   background: linear-gradient(160deg, #1a0a06 0%, #2c1810 40%, #3a2218 100%);
   display: flex;
   align-items: center;
@@ -246,6 +248,7 @@ button { font-family: inherit; }
   overflow: hidden;
   cursor: pointer;
   position: relative;
+  flex-shrink: 0;
 }
 .card-img::after {
   content: '';
@@ -268,7 +271,7 @@ button { font-family: inherit; }
 .product-card:hover .card-img img {
   transform: scale(1.08);
 }
-.card-body { padding: 16px 16px 18px; }
+.card-body { padding: 16px 16px 18px; flex: 1; display: flex; flex-direction: column; }
 .card-name {
   font-weight: 700;
   font-size: .95rem;
@@ -1291,7 +1294,7 @@ textarea.form-input { min-height: 76px; resize: vertical; }
     gap: 12px;
     padding: 0 14px 130px;
   }
-  .card-img { height: 155px; }
+  .card-img { aspect-ratio: 4 / 5; }
   .card-body { padding: 12px; }
   .card-name { font-size: .85rem; }
   .card-meta { font-size: .65rem; margin-bottom: 10px; }
