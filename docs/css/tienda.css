@@ -1229,6 +1229,7 @@ textarea.form-input { min-height: 76px; resize: vertical; }
     left: 14px;
     top: 50%;
     transform: translateY(-50%);
+    z-index: 10;
   }
   .sidebar-btn:hover { background: rgba(196,148,58,0.1); }
   .sidebar-close {
@@ -1280,8 +1281,16 @@ textarea.form-input { min-height: 76px; resize: vertical; }
   .sidebar-panel.open { transform: translateX(0); }
   .sidebar-panel.closed { transform: translateX(-100%); }
   .tienda-body > main { width: 100%; }
-  .store-header { height: 60px; padding: 0 16px; gap: 14px; }
+  .store-header { height: 60px; padding: 0 16px; gap: 0; }
+  .header-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
   .store-logo img { height: 36px; }
+  .store-header-text { text-align: center; }
   .store-header-text h1 { font-size: 1.1rem; }
 }
 
