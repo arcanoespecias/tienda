@@ -1213,13 +1213,11 @@ textarea.form-input { min-height: 76px; resize: vertical; }
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
   .store-header {
-    display: grid;
-    grid-template-columns: 48px 1fr 48px;
+    display: flex;
     align-items: center;
     height: 60px;
-    padding: 0;
-    gap: 0;
-    position: relative;
+    padding: 0 14px;
+    gap: 10px;
   }
   .sidebar-btn {
     display: flex;
@@ -1235,24 +1233,37 @@ textarea.form-input { min-height: 76px; resize: vertical; }
     border-radius: var(--radius-xs);
     transition: background var(--fast);
     position: static;
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     flex-shrink: 0;
   }
   .sidebar-btn:hover { background: rgba(196,148,58,0.1); }
   .store-logo {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
-    justify-content: center;
-    overflow: hidden;
   }
   .store-logo img {
-    height: 38px;
+    height: 34px;
     width: auto;
-    max-width: 100%;
     object-fit: contain;
   }
-  .store-header-text { display: none; }
+  .store-header-text {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+  }
+  .store-header-text h1 {
+    font-size: 1rem;
+    letter-spacing: .12em;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .store-header-text .sub {
+    font-size: .6rem;
+  }
   .sidebar-close {
     display: block;
     background: none;
