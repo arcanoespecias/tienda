@@ -1240,25 +1240,19 @@ textarea.form-input { min-height: 76px; resize: vertical; }
     flex-shrink: 0;
   }
   .sidebar-btn:hover { background: rgba(196,148,58,0.1); }
-  .header-center {
+  .store-logo {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    min-width: 0;
     overflow: hidden;
   }
-  .store-logo {
-    flex-shrink: 0;
-  }
   .store-logo img {
-    height: 36px;
-    max-width: 110px;
+    height: 38px;
     width: auto;
+    max-width: 100%;
     object-fit: contain;
   }
-  .store-header-text { text-align: center; flex-shrink: 1; min-width: 0; }
-  .store-header-text h1 { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .store-header-text { display: none; }
   .sidebar-close {
     display: block;
     background: none;
