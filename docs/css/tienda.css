@@ -1212,26 +1212,53 @@ textarea.form-input { min-height: 76px; resize: vertical; }
 
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
+  .store-header {
+    display: grid;
+    grid-template-columns: 48px 1fr 48px;
+    align-items: center;
+    height: 60px;
+    padding: 0;
+    gap: 0;
+    position: relative;
+  }
   .sidebar-btn {
     display: flex;
     background: none;
     border: none;
     color: var(--gold);
-    font-size: 1.4rem;
+    font-size: 1.5rem;
     cursor: pointer;
-    padding: 6px 10px 6px 0;
+    padding: 0;
     line-height: 1;
     align-items: center;
     justify-content: center;
     border-radius: var(--radius-xs);
     transition: background var(--fast);
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 10;
+    position: static;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
   }
   .sidebar-btn:hover { background: rgba(196,148,58,0.1); }
+  .header-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .store-logo {
+    flex-shrink: 0;
+  }
+  .store-logo img {
+    height: 36px;
+    max-width: 110px;
+    width: auto;
+    object-fit: contain;
+  }
+  .store-header-text { text-align: center; flex-shrink: 1; min-width: 0; }
+  .store-header-text h1 { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sidebar-close {
     display: block;
     background: none;
@@ -1281,17 +1308,6 @@ textarea.form-input { min-height: 76px; resize: vertical; }
   .sidebar-panel.open { transform: translateX(0); }
   .sidebar-panel.closed { transform: translateX(-100%); }
   .tienda-body > main { width: 100%; }
-  .store-header { height: 60px; padding: 0 16px; gap: 0; }
-  .header-center {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-  }
-  .store-logo img { height: 36px; }
-  .store-header-text { text-align: center; }
-  .store-header-text h1 { font-size: 1.1rem; }
 }
 
 @media (max-width: 600px) {
