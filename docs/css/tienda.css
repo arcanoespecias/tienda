@@ -321,7 +321,7 @@ button { font-family: inherit; }
   z-index: 0;
 }
 .price-box-btn::after {
-  content: '+';
+  content: '';
   position: absolute;
   top: 4px;
   right: 8px;
