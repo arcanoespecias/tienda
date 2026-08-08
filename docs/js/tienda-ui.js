@@ -69,9 +69,9 @@ function renderProducts(filter) {
   var parts = [];
   for (var i = 0; i < filtered.length; i++) {
     var p = filtered[i];
-        if (p.tipo === 'pack') {
+            if (p.tipo === 'pack') {
       var meta = 'Pack';
-      var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>í ½í³¦</span>';
+      var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</span>';
       var comps = p.componentes || [];
       var compsText = '';
       for (var ci = 0; ci < comps.length; ci++) {
@@ -80,10 +80,11 @@ function renderProducts(filter) {
       }
       var packPrecio = Number(p.precioGrande) || 0;
       var priceBtn = packPrecio > 0
-        ? '<button class="price-box price-box-btn pack-add-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + '', 'grande'')"><div class="price-label">Pack</div><div class="price-value">$' + packPrecio.toLocaleString() + '</div></button>'
+        ? '<button class="price-box price-box-btn pack-add-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ',' + String.fromCharCode(39) + 'grande' + String.fromCharCode(39) + ')"><div class="price-label">Pack</div><div class="price-value">$' + packPrecio.toLocaleString() + '</div></button>'
         : '<div class="price-na">Sin precio</div>';
-      parts.push('<div class="product-card pack-card"><div class="card-img" onclick="openDetail(' + p.id + '')">' + imgHtml + '</div><div class="card-body"><div class="card-name">' + p.nombre + '</div><div class="card-meta">' + meta + (compsText ? ' \u00b7 ' + compsText : '') + '</div><div class="card-prices">' + priceBtn + '</div></div></div>');
+      parts.push('<div class="product-card pack-card"><div class="card-img" onclick="openDetail(' + p.id + ')">' + imgHtml + '</div><div class="card-body"><div class="card-name">' + p.nombre + '</div><div class="card-meta">' + meta + (compsText ? ' Â· ' + compsText : '') + '</div><div class="card-prices">' + priceBtn + '</div></div></div>');
       continue;
+    }
     }
 
 var hasChico = p.stockChico > 0 && p.precioChico > 0;
@@ -128,7 +129,7 @@ function openDetail(pid) {
 
       if (p.tipo === 'pack') {
       var meta = 'Pack';
-      var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>í ½í³¦</span>';
+      var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</span>';
       var comps = p.componentes || [];
       var compsText = '';
       for (var ci = 0; ci < comps.length; ci++) {
