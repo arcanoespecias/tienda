@@ -77,6 +77,19 @@ function getStoreProducts() {
       ingredientes: b.ingredientes || []
     });
   }
+  // Packs con enTienda
+  var pk = Object.keys(_sDb.packs || {});
+  for (var i = 0; i < pk.length; i++) {
+    var p = _sDb.packs[pk[i]];
+    if (!p || !p.enTienda) continue;
+    products.push({
+      id: p.id, nombre: p.nombre, tipo: 'pack', categoria: 'Packs',
+      precioChico: 0, precioGrande: Number(p.precioVenta) || 0,
+      stockChico: 0, stockGrande: 1,
+      region: '', uso: p.descripcion || '', descripcion: p.descripcion || '', imagen: p.imagen || '',
+      tags: [], componentes: p.componentes || []
+    });
+  }
   return products.sort(function(a, b) { return a.nombre.localeCompare(b.nombre); });
 }
 
