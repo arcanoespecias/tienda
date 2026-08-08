@@ -69,14 +69,36 @@ function renderProducts(filter) {
   var parts = [];
   for (var i = 0; i < filtered.length; i++) {
     var p = filtered[i];
-    var hasChico = p.stockChico > 0 && p.precioChico > 0;
+        if (p.tipo === 'pack') {
+      var meta = 'Pack';
+      var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>í ½í³¦</span>';
+      var comps = p.componentes || [];
+      var compsText = '';
+      for (var ci = 0; ci < comps.length; ci++) {
+        if (ci > 0) compsText += ' + ';
+        compsText += (comps[ci].cantidad || 1) + 'x ' + (comps[ci].nombre || '');
+      }
+      var packPrecio = Number(p.precioGrande) || 0;
+      var priceBtn = packPrecio > 0
+        ? '<button class="price-box price-box-btn pack-add-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + '', 'grande'')"><div class="price-label">Pack</div><div class="price-value">$' + packPrecio.toLocaleString() + '</div></button>'
+        : '<div class="price-na">Sin precio</div>';
+      parts.push('<div class="product-card pack-card"><div class="card-img" onclick="openDetail(' + p.id + '')">' + imgHtml + '</div><div class="card-body"><div class="card-name">' + p.nombre + '</div><div class="card-meta">' + meta + (compsText ? ' \u00b7 ' + compsText : '') + '</div><div class="card-prices">' + priceBtn + '</div></div></div>');
+      continue;
+    }
+
+var hasChico = p.stockChico > 0 && p.precioChico > 0;
     var hasGrande = p.stockGrande > 0 && p.precioGrande > 0;
     var meta = (p.tipo === 'blend' ? 'Blend' : 'Especia');
     if (p.categoria) meta += ' \u00b7 ' + p.categoria;
-    var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>' + (p.tipo === 'blend' ? '\ud83c\udf3f' : '\ud83c\udf31') + '</span>';
+    var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>' + (isPack ? '\ud83d\udce6' : (p.tipo === 'blend' ? '\ud83c\udf3f' : '\ud83c\udf31')) + '</span>';
     var pricesHtml = '';
-    if (hasChico) pricesHtml += '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;chico&#39;)"><div class="price-label">Peque\u00f1o</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>';
-    if (hasGrande) pricesHtml += '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;grande&#39;)"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>';
+  if (isPack) {
+    var packPrecio = Number(p.precioGrande) || 0;
+    if (packPrecio > 0) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + '', 'grande'' + String.fromCharCode(39) + '');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + '').remove()"><div class="detail-price-label">Pack</div><div class="detail-price-val">$' + packPrecio.toLocaleString() + '</div></button>';
+  } else {
+        if (hasChico) pricesHtml += '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;chico&#39;)"><div class="price-label">Peque\u00f1o</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>';
+        if (hasGrande) pricesHtml += '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;grande&#39;)"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>';
+  }
     if (!hasChico && !hasGrande) pricesHtml = '<div class="price-na">Sin precio</div>';
     parts.push('<div class="product-card"><div class="card-img" onclick="openDetail(' + p.id + ')">' + imgHtml + '</div><div class="card-body"><div class="card-name">' + p.nombre + '</div><div class="card-meta">' + meta + '</div><div class="card-prices">' + pricesHtml + '</div></div></div>');
   }
@@ -104,10 +126,28 @@ function openDetail(pid) {
   var p = map[pid];
   if (!p) return;
 
-  var hasChico = p.stockChico > 0 && p.precioChico > 0;
+      if (p.tipo === 'pack') {
+      var meta = 'Pack';
+      var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>í ½í³¦</span>';
+      var comps = p.componentes || [];
+      var compsText = '';
+      for (var ci = 0; ci < comps.length; ci++) {
+        if (ci > 0) compsText += ' + ';
+        compsText += (comps[ci].cantidad || 1) + 'x ' + (comps[ci].nombre || '');
+      }
+      var packPrecio = Number(p.precioGrande) || 0;
+      var priceBtn = packPrecio > 0
+        ? '<button class="price-box price-box-btn pack-add-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + '', 'grande'')"><div class="price-label">Pack</div><div class="price-value">$' + packPrecio.toLocaleString() + '</div></button>'
+        : '<div class="price-na">Sin precio</div>';
+      parts.push('<div class="product-card pack-card"><div class="card-img" onclick="openDetail(' + p.id + '')">' + imgHtml + '</div><div class="card-body"><div class="card-name">' + p.nombre + '</div><div class="card-meta">' + meta + (compsText ? ' \u00b7 ' + compsText : '') + '</div><div class="card-prices">' + priceBtn + '</div></div></div>');
+      continue;
+    }
+
+var hasChico = p.stockChico > 0 && p.precioChico > 0;
   var hasGrande = p.stockGrande > 0 && p.precioGrande > 0;
-  var typeClass = p.tipo === 'blend' ? 'detail-type-blend' : 'detail-type-especia';
-  var typeLabel = p.tipo === 'blend' ? 'Blend' : 'Especia';
+  var isPack = p.tipo === 'pack';
+  var typeClass = isPack ? 'detail-type-pack' : (p.tipo === 'blend' ? 'detail-type-blend' : 'detail-type-especia');
+  var typeLabel = isPack ? 'Pack' : (p.tipo === 'blend' ? 'Blend' : 'Especia');
 
   var tagsHtml = '';
   if (p.categoria) tagsHtml += '<span class="detail-info-tag">' + p.categoria + '</span>';
@@ -134,6 +174,15 @@ function openDetail(pid) {
     ingsHtml += '</div></div>';
   }
 
+  if (isPack && p.componentes && p.componentes.length > 0) {
+    ingsHtml = '<div class="detail-ingredients"><div class="recipe-sb-label" style="margin:0 0 8px">Contenido del Pack</div><div style="display:flex;flex-direction:column;gap:6px">';
+    for (var pi = 0; pi < p.componentes.length; pi++) {
+      var comp = p.componentes[pi];
+      ingsHtml += '<div class="detail-comp-row"><span class="detail-comp-name">' + (comp.nombre || '') + '</span><span class="detail-comp-info">' + (comp.talla === 'grande' ? 'Grande' : 'Peque\u00f1o') + ' x' + (comp.cantidad || 1) + '</span></div>';
+    }
+    ingsHtml += '</div></div>';
+  }
+
   var overlay = document.createElement('div');
   overlay.className = 'detail-overlay';
   overlay.id = 'detail-overlay';
@@ -142,7 +191,7 @@ function openDetail(pid) {
   overlay.innerHTML = '<div class="detail-modal">' +
     '<div class="detail-img">' +
       '<button class="detail-close" onclick="document.getElementById(\'detail-overlay\').remove()">&times;</button>' +
-      (p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '">' : '<span class="detail-emoji">' + (p.tipo === 'blend' ? '\ud83c\udf3f' : '\ud83c\udf31') + '</span>') +
+      (p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '">' : '<span class="detail-emoji">' + (isPack ? '\ud83d\udce6' : (p.tipo === 'blend' ? '\ud83c\udf3f' : '\ud83c\udf31')) + '</span>') +
     '</div>' +
     '<div class="detail-content">' +
       '<span class="detail-type ' + typeClass + '">' + typeLabel + '</span>' +
