@@ -154,6 +154,8 @@ function openDetail(pid) {
       ingsHtml += '<span class="detail-info-tag">' + (p.ingredientes[ii].especiaNombre || 'Especia') + '</span>';
     }
     ingsHtml += '</div></div>';
+  }
+
   if (isPack && p.componentes && p.componentes.length > 0) {
     ingsHtml = '<div class="detail-ingredients"><div class="recipe-sb-label" style="margin:0 0 8px">Contenido del Pack</div><div style="display:flex;flex-direction:column;gap:6px">';
     for (var pi = 0; pi < p.componentes.length; pi++) {
@@ -161,7 +163,6 @@ function openDetail(pid) {
       ingsHtml += '<div class="detail-comp-row"><span class="detail-comp-name">' + (comp.nombre || '') + '</span><span class="detail-comp-info">' + (comp.talla === 'grande' ? 'Grande' : 'Pequeño') + ' x' + (comp.cantidad || 1) + '</span></div>';
     }
     ingsHtml += '</div></div>';
-  }
   }
 
   var overlay = document.createElement('div');
