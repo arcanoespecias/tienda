@@ -60,8 +60,37 @@
   </button>
 
   <footer class="store-footer">
-    Arcano Especias & Blends &middot; Especias artesanales
+    <div class="shipping-banner" style="overflow:hidden;position:relative">
+      <div class="shipping-slide" style="display:inline-block;white-space:nowrap;animation:shipSlide 12s linear infinite">
+        <span style="margin-right:60px;font-weight:600;letter-spacing:0.5px">🚚 Envíos a toda Colombia</span>
+        <span style="margin-right:60px;font-weight:600;letter-spacing:0.5px">🚚 Envíos a toda Colombia</span>
+        <span style="margin-right:60px;font-weight:600;letter-spacing:0.5px">🚚 Envíos a toda Colombia</span>
+        <span style="margin-right:60px;font-weight:600;letter-spacing:0.5px">🚚 Envíos a toda Colombia</span>
+        <span style="margin-right:60px;font-weight:600;letter-spacing:0.5px">🚚 Envíos a toda Colombia</span>
+        <span style="margin-right:60px;font-weight:600;letter-spacing:0.5px">🚚 Envíos a toda Colombia</span>
+      </div>
+    </div>
+    <div class="store-footer-copy">Arcano Especias & Blends &middot; Especias artesanales</div>
   </footer>
+
+  <style>
+  @keyframes shipSlide {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .shipping-banner {
+    background: var(--gold);
+    color: var(--bg);
+    padding: 10px 0;
+    font-size: 0.9rem;
+  }
+  .store-footer-copy {
+    padding: 14px 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+  </style>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
