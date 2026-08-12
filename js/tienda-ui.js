@@ -235,6 +235,7 @@ function renderCartModal() {
     }
     h += '</div>';
     h += '<div class="cart-total">Total: $' + total.toLocaleString() + '</div>';
+    h += '<div style="margin-top:10px;text-align:center;padding:10px;background:rgba(232,184,75,0.1);border:1px solid rgba(232,184,75,0.3);border-radius:8px;color:var(--gold);font-weight:600;font-size:0.9rem">🚚 Envíos a toda Colombia</div>';
     h += '<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">' +
       '<div class="form-group"><label>Nombre</label><input class="form-input" id="o-nombre" placeholder="Tu nombre"></div>' +
       '<div class="form-row"><div class="form-group"><label>Telefono</label><input class="form-input" id="o-tel" placeholder="Ej: 300 123 4567"></div>' +
