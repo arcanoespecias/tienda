@@ -57,7 +57,7 @@ function getStoreProducts() {
     var e = _sDb.especias[ek[i]];
     if (!e || !e.enTienda) continue;
     products.push({
-      id: e.id, nombre: e.nombre, tipo: 'especia', categoria: e.categoria || 'Comidas',
+      id: e.id, nombre: e.nombre, tipo: 'especia', categoria: e.categoria || 'Comidas', categorias: e.categorias || [e.categoria || 'Comidas'],
       precioChico: Number(e.precioTiendaChico) || Number(e.precioChico) || 0,
       precioGrande: Number(e.precioTiendaGrande) || Number(e.precioGrande) || 0,
       stockChico: e.stockChico || 0, stockGrande: e.stockGrande || 0,
@@ -69,12 +69,35 @@ function getStoreProducts() {
     var b = _sDb.blends[bk[i]];
     if (!b || !b.enTienda) continue;
     products.push({
-      id: b.id, nombre: b.nombre, tipo: 'blend', categoria: b.categoria || 'Comidas',
+      id: b.id, nombre: b.nombre, tipo: 'blend', categoria: b.categoria || 'Comidas', categorias: b.categorias || [b.categoria || 'Comidas'],
       precioChico: Number(b.precioTiendaChico) || Number(b.precioChico) || 0,
       precioGrande: Number(b.precioTiendaGrande) || Number(b.precioGrande) || 0,
       stockChico: b.stockChico || 0, stockGrande: b.stockGrande || 0,
       region: b.region || '', uso: b.uso || '', descripcion: b.descripcion || '', imagen: b.imagen || '', tags: b.tags || [],
       ingredientes: b.ingredientes || []
+    });
+  }
+  // Packs
+  var pkKeys = Object.keys(_sDb.packs || {});
+  for (var i = 0; i < pkKeys.length; i++) {
+    var pk = _sDb.packs[pkKeys[i]];
+    if (!pk || !pk.enTienda) continue;
+    var blendItems = pk.blendItems || [];
+    var minStock = 999999;
+    for (var j = 0; j < blendItems.length; j++) {
+      var bi2 = blendItems[j];
+      var bl2 = (_sDb.blends || {})[bi2.blendId];
+      if (!bl2) { minStock = 0; break; }
+      var st = bi2.talla === 'grande' ? (bl2.stockGrande || 0) : (bl2.stockChico || 0);
+      if (st < minStock) minStock = st;
+    }
+    if (minStock <= 0) continue;
+    products.push({
+      id: pk.id, nombre: pk.nombre, tipo: 'pack', categoria: 'Packs', categorias: ['Packs'],
+      precioChico: 0, precioGrande: 0, precio: Number(pk.precio) || 0,
+      stockChico: 0, stockGrande: 0, stock: minStock,
+      region: '', uso: pk.descripcion || '', imagen: pk.imagen || '', tags: [],
+      blendItems: blendItems
     });
   }
   return products.sort(function(a, b) { return a.nombre.localeCompare(b.nombre); });
