@@ -7,24 +7,31 @@ function getCartCount() { var c = 0; for (var i = 0; i < cart.length; i++) c += 
 
 function getCartTotal() { var t = 0; for (var i = 0; i < cart.length; i++) t += cart[i].precio * cart[i].qty; return t; }
 
-function _showCartToast() {
+function _showCartToast(nombre) {
   var existing = document.getElementById('cart-toast');
   if (existing) existing.remove();
   var toast = document.createElement('div');
   toast.id = 'cart-toast';
-  toast.textContent = 'Producto agregado';
+  toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b0b07;color:#e8b84b;padding:12px 24px;border-radius:8px;border:1px solid #e8b84b;font-size:0.95rem;font-weight:600;z-index:10000;animation:toastIn 0.3s ease,toastOut 0.3s ease 1.7s forwards;box-shadow:0 4px 20px rgba(232,184,75,0.3)';
+  toast.textContent = 'Producto agregado al carrito';
+  if (!document.getElementById('toast-keyframes')) {
+    var style = document.createElement('style');
+    style.id = 'toast-keyframes';
+    style.textContent = '@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}@keyframes toastOut{from{opacity:1;transform:translateX(-50%) translateY(0)}to{opacity:0;transform:translateX(-50%) translateY(20px)}}';
+    document.head.appendChild(style);
+  }
   document.body.appendChild(toast);
-  setTimeout(function() { if (toast.parentNode) toast.remove(); }, 2200);
+  setTimeout(function() { if (toast.parentNode) toast.remove(); }, 2000);
 }
 
 function addToCart(product, talla) {
   var precio = talla === 'grande' ? product.precioGrande : product.precioChico;
   if (precio <= 0) return;
   for (var i = 0; i < cart.length; i++) {
-    if (cart[i].productId === product.id && cart[i].talla === talla) { cart[i].qty++; saveCart(); updateCartFab(); _showCartToast(); return; }
+    if (cart[i].productId === product.id && cart[i].talla === talla) { cart[i].qty++; saveCart(); updateCartFab(); _showCartToast(product.nombre); return; }
   }
   cart.push({ productId: product.id, nombre: product.nombre, tipo: product.tipo, talla: talla, precio: precio, qty: 1 });
-  saveCart(); updateCartFab(); _showCartToast();
+  saveCart(); updateCartFab(); _showCartToast(product.nombre);
 }
 
 function removeFromCart(idx) { cart.splice(idx, 1); saveCart(); updateCartFab(); if (document.getElementById('cart-list')) renderCartModal(); }
@@ -42,73 +49,58 @@ function updateCartFab() {
   else { fab.style.display = 'none'; }
 }
 
-/* === PRODUCT CACHE === */
-var _productCache = null;
-function _getProductMap() {
-  if (_productCache) return _productCache;
-  var products = getStoreProducts();
-  _productCache = {};
-  for (var i = 0; i < products.length; i++) _productCache[products[i].id] = products[i];
-  return _productCache;
-}
-
 /* === RENDER PRODUCTS === */
 function renderProducts(filter) {
   var products = getStoreProducts();
   var grid = document.getElementById('products-grid');
   if (products.length === 0) {
-    grid.innerHTML = '<div class="empty-state"><p>No hay productos disponibles por el momento.</p></div>';
+    grid.innerHTML = '<div class="empty-state"><p style="font-size:2rem;margin-bottom:8px">\ud83c\udf36</p><p>No hay productos disponibles por el momento.</p></div>';
     return;
   }
-  var filtered = filter && filter !== 'Todos' ? products.filter(function(p) { return p.categoria === filter; }) : products;
+  var filtered = filter && filter !== 'Todos' ? products.filter(function(p) { return (p.categorias || []).indexOf(filter) >= 0; }) : products;
   if (filtered.length === 0) {
-    grid.innerHTML = '<div class="empty-state"><p>No hay productos en esta categor\u00eda.</p></div>';
+    grid.innerHTML = '<div class="empty-state"><p>No hay productos en esta categoria.</p></div>';
     return;
   }
-  _getProductMap();
-  var parts = [];
+  var h = '';
   for (var i = 0; i < filtered.length; i++) {
     var p = filtered[i];
-    if (p.tipo === 'pack') {
-      var meta = 'Pack';
-      var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>\ud83d\udce6</span>';
-      var comps = p.componentes || [];
-      var compsText = '';
-      for (var ci = 0; ci < comps.length; ci++) {
-        if (ci > 0) compsText += ' + ';
-        compsText += (comps[ci].cantidad || 1) + 'x ' + (comps[ci].nombre || '');
-      }
-      var packPrecio = Number(p.precioGrande) || 0;
-      var priceBtn = packPrecio > 0
-        ? '<button class="price-box price-box-btn pack-add-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ',' + String.fromCharCode(39) + 'grande' + String.fromCharCode(39) + ')"><div class="price-label">Pack</div><div class="price-value">$' + packPrecio.toLocaleString() + '</div></button>'
-        : '<div class="price-na">Sin precio</div>';
-      parts.push('<div class="product-card pack-card"><div class="card-img" onclick="openDetail(' + p.id + ')">' + imgHtml + '</div><div class="card-body"><div class="card-name">' + p.nombre + '</div><div class="card-meta">' + meta + (compsText ? ' \u00b7 ' + compsText : '') + '</div><div class="card-prices">' + priceBtn + '</div></div></div>');
-      continue;
-    }
     var hasChico = p.stockChico > 0 && p.precioChico > 0;
     var hasGrande = p.stockGrande > 0 && p.precioGrande > 0;
+    var anyStock = hasChico || hasGrande;
     var meta = (p.tipo === 'blend' ? 'Blend' : 'Especia');
-    if (p.categoria) meta += ' \u00b7 ' + p.categoria;
-    var imgHtml = p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '" loading="lazy">' : '<span>' + (p.tipo === 'blend' ? '\ud83c\udf3f' : '\ud83c\udf31') + '</span>';
-    var pricesHtml = '';
-    if (hasChico) pricesHtml += '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;chico&#39;)"><div class="price-label">Peque\u00f1o</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>';
-    if (hasGrande) pricesHtml += '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;grande&#39;)"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>';
-    if (!hasChico && !hasGrande) pricesHtml = '<div class="price-na">Sin precio</div>';
-    parts.push('<div class="product-card"><div class="card-img" onclick="openDetail(' + p.id + ')">' + imgHtml + '</div><div class="card-body"><div class="card-name">' + p.nombre + '</div><div class="card-meta">' + meta + '</div><div class="card-prices">' + pricesHtml + '</div></div></div>');
+    if (p.categorias && p.categorias.length > 1) { meta += ' \u00b7 ' + p.categorias.join(' / '); } else if (p.categoria) { meta += ' \u00b7 ' + p.categoria; }
+
+    h += '<div class="product-card">' +
+      '<div class="card-img" style="position:relative" onclick="openDetail(' + p.id + ')">' +
+        (p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '">' : '<span>' + (p.tipo === 'blend' ? '\ud83c\udf3f' : '\ud83c\udf31') + '</span>') +
+      '</div>' +
+      '<div class="card-body">' +
+        '<div class="card-name">' + p.nombre + '</div>' +
+        '<div class="card-meta">' + meta + '</div>' +
+        '<div class="card-prices">' +
+          (hasChico ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;chico&#39;)"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>' : '') +
+          (hasGrande ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;grande&#39;)"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>' : '') +
+          (!hasChico && !hasGrande ? '<div class="price-na">Sin precio</div>' : '') +
+        '</div>' +
+        (!anyStock ? '<button class="add-btn" disabled>Sin stock</button>' : '') +
+      '</div></div>';
   }
-  grid.innerHTML = parts.join('');
+  grid.innerHTML = h;
 }
 
 function addToCartByIdAndSize(pid, talla) {
-  var map = _getProductMap();
-  var product = map[pid];
+  var products = getStoreProducts();
+  var product = null;
+  for (var i = 0; i < products.length; i++) { if (products[i].id === pid) { product = products[i]; break; } }
   if (!product) return;
   addToCart(product, talla);
 }
 
 function doAddToCart(pid) {
-  var map = _getProductMap();
-  var product = map[pid];
+  var products = getStoreProducts();
+  var product = null;
+  for (var i = 0; i < products.length; i++) { if (products[i].id === pid) { product = products[i]; break; } }
   if (!product) return;
   var talla = (product.stockChico > 0 && product.precioChico > 0) ? 'chico' : 'grande';
   addToCart(product, talla);
@@ -116,18 +108,19 @@ function doAddToCart(pid) {
 
 /* === PRODUCT DETAIL MODAL === */
 function openDetail(pid) {
-  var map = _getProductMap();
-  var p = map[pid];
+  var products = getStoreProducts();
+  var p = null;
+  for (var i = 0; i < products.length; i++) { if (products[i].id === pid) { p = products[i]; break; } }
   if (!p) return;
 
   var hasChico = p.stockChico > 0 && p.precioChico > 0;
   var hasGrande = p.stockGrande > 0 && p.precioGrande > 0;
-  var isPack = p.tipo === 'pack';
-  var typeClass = isPack ? 'detail-type-pack' : (p.tipo === 'blend' ? 'detail-type-blend' : 'detail-type-especia');
-  var typeLabel = isPack ? 'Pack' : (p.tipo === 'blend' ? 'Blend' : 'Especia');
+  var anyStock = hasChico || hasGrande;
+  var typeClass = p.tipo === 'blend' ? 'detail-type-blend' : 'detail-type-especia';
+  var typeLabel = p.tipo === 'blend' ? 'Blend' : 'Especia';
 
   var tagsHtml = '';
-  if (p.categoria) tagsHtml += '<span class="detail-info-tag">' + p.categoria + '</span>';
+  if (p.categorias && p.categorias.length > 0) { for (var ci = 0; ci < p.categorias.length; ci++) { tagsHtml += '<span class="detail-info-tag">' + p.categorias[ci] + '</span>'; } } else if (p.categoria) { tagsHtml += '<span class="detail-info-tag">' + p.categoria + '</span>'; }
   if (p.uso) tagsHtml += '<span class="detail-info-tag">' + p.uso + '</span>';
   if (p.region) tagsHtml += '<span class="detail-info-tag">' + p.region + '</span>';
   if (p.tags && p.tags.length) {
@@ -137,30 +130,18 @@ function openDetail(pid) {
   }
 
   var pricesHtml = '';
-  if (isPack) {
-    var packPrecio = Number(p.precioGrande) || 0;
-  if (packPrecio > 0) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'grande' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Grande</div><div class="detail-price-val">$' + packPrecio.toLocaleString() + '</div></button>';
-  } else {
-      if (hasChico) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'chico' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Peque\u00f1o</div><div class="detail-price-val">$' + p.precioChico.toLocaleString() + '</div></button>';
-      if (hasGrande) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'grande' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Grande</div><div class="detail-price-val">$' + p.precioGrande.toLocaleString() + '</div></button>';
-  }
+  if (hasChico) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'chico' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Pequeño</div><div class="detail-price-val">$' + p.precioChico.toLocaleString() + '</div></button>';
+  if (hasGrande) pricesHtml += '<button class="detail-price-card detail-price-btn" onclick="addToCartByIdAndSize(' + p.id + ', ' + String.fromCharCode(39) + 'grande' + String.fromCharCode(39) + ');document.getElementById(' + String.fromCharCode(39) + 'detail-overlay' + String.fromCharCode(39) + ').remove()"><div class="detail-price-label">Grande</div><div class="detail-price-val">$' + p.precioGrande.toLocaleString() + '</div></button>';
 
   var descHtml = p.descripcion ? '<p class="detail-desc">' + p.descripcion + '</p>' : '';
 
+  // Mostrar ingredientes para blends
   var ingsHtml = '';
   if (p.tipo === 'blend' && p.ingredientes && p.ingredientes.length > 0) {
-    ingsHtml = '<div class="detail-ingredients"><div class="recipe-sb-label" style="margin:0 0 8px">Ingredientes</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    ingsHtml = '<div style="margin-top:12px"><div style="font-size:.8rem;font-weight:600;color:var(--gold);margin-bottom:6px">Ingredientes</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
     for (var ii = 0; ii < p.ingredientes.length; ii++) {
-      ingsHtml += '<span class="detail-info-tag">' + (p.ingredientes[ii].especiaNombre || 'Especia') + '</span>';
-    }
-    ingsHtml += '</div></div>';
-  }
-
-  if (isPack && p.componentes && p.componentes.length > 0) {
-    ingsHtml = '<div class="detail-ingredients"><div class="recipe-sb-label" style="margin:0 0 8px">Contenido del Pack</div><div style="display:flex;flex-direction:column;gap:6px">';
-    for (var pi = 0; pi < p.componentes.length; pi++) {
-      var comp = p.componentes[pi];
-      ingsHtml += '<div class="detail-comp-row"><span class="detail-comp-name">' + (comp.nombre || '') + '</span><span class="detail-comp-info">' + (comp.talla === 'grande' ? 'Grande' : 'Pequeño') + ' x' + (comp.cantidad || 1) + '</span></div>';
+      var ing = p.ingredientes[ii];
+      ingsHtml += '<span style="display:inline-block;padding:4px 10px;border-radius:20px;font-size:.75rem;background:rgba(232,184,75,0.12);color:var(--gold);border:1px solid rgba(232,184,75,0.25)">' + (ing.especiaNombre || 'Especia') + '</span>';
     }
     ingsHtml += '</div></div>';
   }
@@ -170,8 +151,8 @@ function openDetail(pid) {
   overlay.id = 'detail-overlay';
   overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 
-  overlay.innerHTML = '<div class="detail-modal">' +
-    '<div class="detail-img">' +
+  var html = '<div class="detail-modal">' +
+    '<div class="detail-img" style="position:relative">' +
       '<button class="detail-close" onclick="document.getElementById(\'detail-overlay\').remove()">&times;</button>' +
       (p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '">' : '<span class="detail-emoji">' + (p.tipo === 'blend' ? '\ud83c\udf3f' : '\ud83c\udf31') + '</span>') +
     '</div>' +
@@ -179,10 +160,12 @@ function openDetail(pid) {
       '<span class="detail-type ' + typeClass + '">' + typeLabel + '</span>' +
       '<h2>' + p.nombre + '</h2>' +
       (tagsHtml ? '<div class="detail-info-row">' + tagsHtml + '</div>' : '') +
-      descHtml + ingsHtml +
+      descHtml +
+      ingsHtml +
       (pricesHtml ? '<div class="detail-prices-row">' + pricesHtml + '</div>' : '') +
     '</div></div>';
 
+  overlay.innerHTML = html;
   document.body.appendChild(overlay);
 }
 
@@ -206,26 +189,26 @@ function renderCartModal() {
     '<div class="modal-body">';
 
   if (cart.length === 0) {
-    h += '<div class="empty-state"><p>No agregaste productos a\u00fan.</p></div>';
+    h += '<div class="empty-state"><p>No agregaste productos aun.</p></div>';
   } else {
     h += '<div id="cart-list">';
     for (var i = 0; i < cart.length; i++) {
       var c = cart[i];
       h += '<div class="cart-item">' +
         '<div class="cart-item-info"><div class="cart-item-name">' + c.nombre + '</div>' +
-        '<div class="cart-item-detail">' + (c.talla === 'grande' ? 'Grande' : 'Peque\u00f1o') + ' \u00b7 $' + c.precio.toLocaleString() + ' c/u</div></div>' +
+        '<div class="cart-item-detail">' + (c.talla === 'grande' ? 'Grande' : 'Pequeño') + ' \u00b7 $' + c.precio.toLocaleString() + ' c/u</div></div>' +
         '<div class="cart-item-qty"><button onclick="changeQty(' + i + ',-1)">-</button><span>' + c.qty + '</span><button onclick="changeQty(' + i + ',1)">+</button></div>' +
         '<div class="cart-item-price">$' + (c.precio * c.qty).toLocaleString() + '</div>' +
         '<button class="cart-item-rm" onclick="removeFromCart(' + i + ')">&times;</button></div>';
     }
     h += '</div>';
     h += '<div class="cart-total">Total: $' + total.toLocaleString() + '</div>';
-    h += '<div style="margin-top:16px;border-top:1px solid var(--border-light);padding-top:16px">' +
+    h += '<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px">' +
       '<div class="form-group"><label>Nombre</label><input class="form-input" id="o-nombre" placeholder="Tu nombre"></div>' +
-      '<div class="form-row"><div class="form-group"><label>Tel\u00e9fono</label><input class="form-input" id="o-tel" placeholder="Ej: 300 123 4567"></div>' +
+      '<div class="form-row"><div class="form-group"><label>Telefono</label><input class="form-input" id="o-tel" placeholder="Ej: 300 123 4567"></div>' +
       '<div class="form-group"><label>Email</label><input class="form-input" id="o-email" type="email" placeholder="tu@email.com"></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>Ciudad</label><input class="form-input" id="o-ciudad" placeholder="Ej: Bogot\u00e1"></div>' +
-      '<div class="form-group"><label>Direcci\u00f3n</label><input class="form-input" id="o-dir" placeholder="Direcci\u00f3n de entrega"></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>Ciudad</label><input class="form-input" id="o-ciudad" placeholder="Ej: Bogota"></div>' +
+      '<div class="form-group"><label>Direccion</label><input class="form-input" id="o-dir" placeholder="Direccion de entrega"></div></div>' +
       '<div class="form-group"><label>Notas adicionales</label><textarea class="form-input" id="o-notas" placeholder="Horario de entrega, instrucciones especiales..."></textarea></div>' +
       '</div>';
   }
@@ -250,17 +233,18 @@ function sendOrder() {
   var ciudad = document.getElementById('o-ciudad').value.trim();
   var dir = document.getElementById('o-dir').value.trim();
   var notas = document.getElementById('o-notas').value.trim();
-  if (!nombre || !tel) { alert('Nombre y tel\u00e9fono son obligatorios'); return; }
-  if (cart.length === 0) { alert('El carrito est\u00e1 vac\u00edo'); return; }
+  if (!nombre || !tel) { alert('Nombre y telefono son obligatorios'); return; }
+  if (cart.length === 0) { alert('El carrito esta vacio'); return; }
 
   var items = [];
   for (var i = 0; i < cart.length; i++) {
     var c = cart[i];
     items.push({ productId: c.productId, nombre: c.nombre, tipo: c.tipo, talla: c.talla, precio: c.precio, qty: c.qty, subtotal: c.precio * c.qty });
   }
+  var total = getCartTotal();
   var orderData = {
     cliente: { nombre: nombre, telefono: tel, email: email, ciudad: ciudad, direccion: dir },
-    items: items, total: getCartTotal(), notas: notas
+    items: items, total: total, notas: notas
   };
 
   var overlay = document.getElementById('order-modal');
@@ -325,7 +309,6 @@ function selectRecetaCat(cat) {
   for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i].dataset.cat === cat);
   renderRecetas();
 }
-
 /* === ARCANO PRODUCT LINKER (recipes) === */
 var _arcanoLinkData = null;
 
@@ -398,12 +381,10 @@ function renderRecetas() {
   }
   container.innerHTML = h;
 }
-
 function toggleRecipe(key) {
   var card = document.getElementById('recipe-' + key);
   if (card) card.classList.toggle('expanded');
 }
-
 function renderSocialLinks() {
   var el = document.getElementById('sidebar-social');
   var h = '';
@@ -412,22 +393,31 @@ function renderSocialLinks() {
   }
   el.innerHTML = h;
 }
-
 function renderSidebarLogo() {
   var el = document.getElementById('sidebar-brand');
   if (!el) return;
-  var headerImg = document.querySelector('.store-logo img');
-  if (headerImg) {
-    el.innerHTML = '<img src="' + headerImg.src + '" alt="Arcano">';
+  var cfg = getTiendaConfig();
+  var nequi = cfg.logoNequi || '';
+  var bancolombia = cfg.logoBancolombia || '';
+  if (nequi || bancolombia) {
+    var h = '<div class="pago-logos">';
+    if (nequi) h += '<img src="' + nequi + '" alt="Nequi" class="pago-logo-img">';
+    if (bancolombia) h += '<img src="' + bancolombia + '" alt="Bancolombia" class="pago-logo-img">';
+    h += '</div>';
+    el.innerHTML = h;
+  } else {
+    var headerImg = document.querySelector('.store-logo img');
+    if (headerImg) {
+      el.innerHTML = '<img src="' + headerImg.src + '" alt="Arcano">';
+    }
   }
 }
-
 function compartirReceta(key) {
   var recetas = getRecetas();
   var receta = null;
   for (var i = 0; i < recetas.length; i++) { if (recetas[i]._key === key) { receta = recetas[i]; break; } }
   if (!receta) return;
-  var text = '\ud83c\udf3d ' + (receta.titulo || 'Receta Arcano') + '\n';
+  var text = '🍳 ' + (receta.titulo || 'Receta Arcano') + '\n';
   text += (receta.tiempo || '') + (receta.porciones ? ' \u00b7 ' + receta.porciones : '') + '\n\n';
   if (receta.ingredientes && receta.ingredientes.length) {
     text += 'Ingredientes:\n';
@@ -442,23 +432,35 @@ function compartirReceta(key) {
   if (navigator.share) {
     navigator.share({ title: receta.titulo, text: text }).catch(function() {});
   } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
     var toast = document.createElement('div');
-    toast.id = 'cart-toast';
-    toast.textContent = 'Receta copiada';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1b0b07;color:#e8b84b;padding:10px 20px;border-radius:8px;border:1px solid #e8b84b;font-size:0.85rem;font-weight:600;z-index:10000;box-shadow:0 4px 20px rgba(232,184,75,0.3)';
+    toast.textContent = 'Receta copiada al portapapeles';
     document.body.appendChild(toast);
-    setTimeout(function() { if (toast.parentNode) toast.remove(); }, 2200);
+    setTimeout(function() { if (toast.parentNode) toast.remove(); }, 2000);
   }
 }
-
 /* === INIT === */
 var currentFilter = 'Todos';
 document.addEventListener('DOMContentLoaded', function() {
+  // Lock portrait orientation on mobile
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('portrait').catch(function() {});
+  }
   initTienda().then(function() {
     renderProducts('Todos');
     updateCartFab();
     onRecetasReady(function() { renderRecetas(); });
     initRecetas();
     renderSidebarLogo();
+    onTiendaChange(renderSidebarLogo);
     renderSocialLinks();
   });
 
