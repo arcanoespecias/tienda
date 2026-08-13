@@ -397,14 +397,9 @@ function renderSidebarLogo() {
   var el = document.getElementById('sidebar-brand');
   if (!el) return;
   var cfg = getTiendaConfig();
-  var nequi = cfg.logoNequi || '';
-  var bancolombia = cfg.logoBancolombia || '';
-  if (nequi || bancolombia) {
-    var h = '<div class="pago-logos">';
-    if (nequi) h += '<img src="' + nequi + '" alt="Nequi" class="pago-logo-img">';
-    if (bancolombia) h += '<img src="' + bancolombia + '" alt="Bancolombia" class="pago-logo-img">';
-    h += '</div>';
-    el.innerHTML = h;
+  var logo = cfg.logoPago || '';
+  if (logo) {
+    el.innerHTML = '<img src="' + logo + '" alt="Formas de pago" class="pago-logo-img">';
   } else {
     var headerImg = document.querySelector('.store-logo img');
     if (headerImg) {
