@@ -765,42 +765,44 @@ textarea.form-input { min-height: 76px; resize: vertical; }
 .detail-modal {
   background: var(--card);
   border-radius: var(--radius-lg);
-  max-width: 480px;
+  max-width: 680px;
   width: 100%;
-  max-height: 92vh;
-  overflow-y: auto;
+  max-height: 88vh;
+  overflow: hidden;
   box-shadow: 0 32px 80px rgba(0,0,0,0.4);
   animation: detailSlideUp .35s var(--ease-out);
   border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: row;
+  position: relative;
 }
 .detail-img {
-  width: 100%;
-  max-height: 300px;
-  object-fit: contain;
+  width: 45%;
+  min-height: 280px;
   background: linear-gradient(160deg, #1a0a06 0%, #2c1810 40%, #3a2218 100%);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 180px;
   position: relative;
   overflow: hidden;
+  flex-shrink: 0;
 }
 .detail-img::after {
   content: '';
   position: absolute;
+  top: 0;
   bottom: 0;
-  left: 0;
   right: 0;
-  height: 60px;
-  background: linear-gradient(transparent, rgba(27,11,7,0.5));
+  width: 40px;
+  background: linear-gradient(to right, transparent, rgba(27,11,7,0.25));
   pointer-events: none;
 }
 .detail-img img {
-  max-width: 100%;
-  max-height: 300px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  padding: 24px;
+  padding: 20px;
   position: relative;
   z-index: 1;
 }
@@ -831,7 +833,7 @@ textarea.form-input { min-height: 76px; resize: vertical; }
   .detail-close { transition: all var(--fast); }
   .detail-close:hover { background: rgba(0,0,0,.65); transform: scale(1.08); }
 }
-.detail-content { padding: 24px; position: relative; }
+.detail-content { padding: 28px 24px; position: relative; overflow-y: auto; flex: 1; }
 .detail-content h2 {
   font-family: var(--font-display);
   font-size: 1.4rem;
@@ -1157,16 +1159,10 @@ textarea.form-input { min-height: 76px; resize: vertical; }
   border-top: 1px solid rgba(196,148,58,0.06);
 }
 .sidebar-brand img {
-  height: 100px;
-  width: 80%;
+  height: 60px;
+  width: auto;
   object-fit: contain;
   opacity: .7;
-}
-.pago-logo-img {
-  width: 90%;
-  height: auto;
-  object-fit: contain;
-  opacity: 1 !important;
 }
 @media (hover: hover) {
   .sidebar-brand img { transition: opacity var(--normal); }
@@ -1399,10 +1395,12 @@ textarea.form-input { min-height: 76px; resize: vertical; }
   .price-value { font-size: .85rem; }
   .price-box { padding: 8px 6px; }
   .form-row { flex-direction: column; gap: 0; }
-  .detail-modal { max-height: 95vh; border-radius: var(--radius-md); }
-  .detail-img { max-height: 220px; min-height: 140px; }
-  .detail-img img { max-height: 220px; padding: 16px; }
-  .detail-content { padding: 18px; }
+  .detail-modal { flex-direction: column; max-height: 95vh; border-radius: var(--radius-md); max-width: 480px; }
+  .detail-img { width: 100%; min-height: 160px; max-height: 220px; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+  .detail-img img { width: 100%; height: auto; max-height: 220px; padding: 16px; }
+  .detail-img::after { display: none; }
+  .detail-close { top: 8px; right: 8px; background: rgba(0,0,0,.55); }
+  .detail-content { padding: 18px; overflow-y: visible; }
   .detail-content h2 { font-size: 1.25rem; }
   .cart-fab { bottom: 16px; right: 16px; padding: 12px 18px; font-size: .8rem; }
   .filters { gap: 5px; padding: 0 12px 24px; }
