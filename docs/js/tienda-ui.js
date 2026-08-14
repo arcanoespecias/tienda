@@ -152,8 +152,8 @@ function openDetail(pid) {
   overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 
   var html = '<div class="detail-modal">' +
-    '<div class="detail-img" style="position:relative">' +
-      '<button class="detail-close" onclick="document.getElementById(\'detail-overlay\').remove()">&times;</button>' +
+    '<button class="detail-close" onclick="document.getElementById(\'detail-overlay\').remove()">&times;</button>' +
+    '<div class="detail-img">' +
       (p.imagen ? '<img src="' + p.imagen + '" alt="' + p.nombre + '">' : '<span class="detail-emoji">' + (p.tipo === 'blend' ? '\ud83c\udf3f' : '\ud83c\udf31') + '</span>') +
     '</div>' +
     '<div class="detail-content">' +
@@ -396,15 +396,10 @@ function renderSocialLinks() {
 function renderSidebarLogo() {
   var el = document.getElementById('sidebar-brand');
   if (!el) return;
-  var cfg = getTiendaConfig();
-  var logo = cfg.logoPago || '';
-  if (logo) {
-    el.innerHTML = '<img src="' + logo + '" alt="Formas de pago" class="pago-logo-img">';
-  } else {
-    var headerImg = document.querySelector('.store-logo img');
-    if (headerImg) {
-      el.innerHTML = '<img src="' + headerImg.src + '" alt="Arcano">';
-    }
+  // Use the same logo from the header
+  var headerImg = document.querySelector('.store-logo img');
+  if (headerImg) {
+    el.innerHTML = '<img src="' + headerImg.src + '" alt="Arcano">';
   }
 }
 function compartirReceta(key) {
@@ -455,7 +450,6 @@ document.addEventListener('DOMContentLoaded', function() {
     onRecetasReady(function() { renderRecetas(); });
     initRecetas();
     renderSidebarLogo();
-    onTiendaChange(renderSidebarLogo);
     renderSocialLinks();
   });
 
