@@ -396,10 +396,15 @@ function renderSocialLinks() {
 function renderSidebarLogo() {
   var el = document.getElementById('sidebar-brand');
   if (!el) return;
-  // Use the same logo from the header
-  var headerImg = document.querySelector('.store-logo img');
-  if (headerImg) {
-    el.innerHTML = '<img src="' + headerImg.src + '" alt="Arcano">';
+  var cfg = getTiendaConfig();
+  var logo = cfg.logoPago || '';
+  if (logo) {
+    el.innerHTML = '<img src="' + logo + '" alt="Formas de pago" class="pago-logo-img">';
+  } else {
+    var headerImg = document.querySelector('.store-logo img');
+    if (headerImg) {
+      el.innerHTML = '<img src="' + headerImg.src + '" alt="Arcano">';
+    }
   }
 }
 function compartirReceta(key) {
@@ -450,6 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
     onRecetasReady(function() { renderRecetas(); });
     initRecetas();
     renderSidebarLogo();
+    onTiendaChange(renderSidebarLogo);
     renderSocialLinks();
   });
 
