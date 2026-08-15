@@ -455,8 +455,21 @@ document.addEventListener('DOMContentLoaded', function() {
     onRecetasReady(function() { renderRecetas(); });
     initRecetas();
     renderSidebarLogo();
-    onTiendaChange(renderSidebarLogo);
+    onTiendaChange(function() {
+      renderSidebarLogo();
+      if (!hasVisiblePacks()) {
+        var packBtn = document.querySelector('.filter-btn[data-cat="Packs"]');
+        if (packBtn) packBtn.style.display = 'none';
+      } else {
+        var packBtn = document.querySelector('.filter-btn[data-cat="Packs"]');
+        if (packBtn) packBtn.style.display = '';
+      }
+    });
     renderSocialLinks();
+    if (!hasVisiblePacks()) {
+      var packBtn = document.querySelector('.filter-btn[data-cat="Packs"]');
+      if (packBtn) packBtn.style.display = 'none';
+    }
   });
 
   document.getElementById('filters').addEventListener('click', function(e) {
