@@ -115,3 +115,13 @@ function onRecetasReady(cb) {
   if (_recetasReady) { cb(_recetas); return; }
   _recetasListeners.push(cb);
 }
+
+function hasVisiblePacks() {
+  if (!_sDb || !_sDb.packs) return false;
+  var keys = Object.keys(_sDb.packs);
+  for (var i = 0; i < keys.length; i++) {
+    var p = _sDb.packs[keys[i]];
+    if (p && p.enTienda) return true;
+  }
+  return false;
+}
