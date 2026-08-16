@@ -68,8 +68,8 @@ function renderProducts(filter) {
     var hasChico = p.stockChico > 0 && p.precioChico > 0;
     var hasGrande = p.stockGrande > 0 && p.precioGrande > 0;
     var anyStock = hasChico || hasGrande;
-    var meta = (p.tipo === 'blend' ? 'Blend' : 'Especia');
-    if (p.categorias && p.categorias.length > 1) { meta += ' \u00b7 ' + p.categorias.join(' / '); } else if (p.categoria) { meta += ' \u00b7 ' + p.categoria; }
+    var meta = (p.tipo === 'blend' ? '' : 'Especia');
+    if (p.categorias && p.categorias.length > 1) { meta += (meta ? ' \u00b7 ' : '') + p.categorias.join(' / '); } else if (p.categoria) { meta += (meta ? ' \u00b7 ' : '') + p.categoria; }
 
     h += '<div class="product-card">' +
       '<div class="card-img" style="position:relative" onclick="openDetail(' + p.id + ')">' +
@@ -77,7 +77,7 @@ function renderProducts(filter) {
       '</div>' +
       '<div class="card-body">' +
         '<div class="card-name">' + p.nombre + '</div>' +
-        '<div class="card-meta">' + meta + '</div>' +
+        (meta ? '<div class="card-meta">' + meta + '</div>' : '') +
         '<div class="card-prices">' +
           (hasChico ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;chico&#39;)"><div class="price-label">Pequeño</div><div class="price-value">$' + p.precioChico.toLocaleString() + '</div></button>' : '') +
           (hasGrande ? '<button class="price-box price-box-btn" onclick="event.stopPropagation();addToCartByIdAndSize(' + p.id + ', &#39;grande&#39;)"><div class="price-label">Grande</div><div class="price-value">$' + p.precioGrande.toLocaleString() + '</div></button>' : '') +
